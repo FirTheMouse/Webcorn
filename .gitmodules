@@ -1,0 +1,3 @@
+[submodule "GDSL"]
+	path = GDSL
+	url = https://github.com/FirTheMouse/GDSL.git
