@@ -21,8 +21,6 @@
     #include <fcntl.h>
     #include <arpa/inet.h>
 
-    #include <mach/mach.h>
-
     #define _UUID_T
     typedef unsigned char uuid_t[16];
 
@@ -152,10 +150,11 @@ size_t current_memory_usage() {
     #ifdef _WIN32
         return 0;
     #else
-        struct mach_task_basic_info info;
-        mach_msg_type_number_t size = MACH_TASK_BASIC_INFO_COUNT;
-        task_info(mach_task_self(), MACH_TASK_BASIC_INFO, (task_info_t)&info, &size);
-        return info.resident_size; // current RSS in bytes
+        // struct mach_task_basic_info info;
+        // mach_msg_type_number_t size = MACH_TASK_BASIC_INFO_COUNT;
+        // task_info(mach_task_self(), MACH_TASK_BASIC_INFO, (task_info_t)&info, &size);
+        // return info.resident_size; // current RSS in bytes
+        return 0;
     #endif
 }
 
@@ -266,7 +265,7 @@ namespace Acorn {
             #else
                 unsigned char buf[32];
                 int fd = open("/dev/urandom", O_RDONLY);
-                read(fd, buf, 32);
+                (void)::read(fd, buf, 32);
                 ::close(fd);
                 std::string token = "";
                 const char* hex = "0123456789abcdef";
@@ -602,7 +601,7 @@ namespace Acorn {
                 print(uid," has no current tls for write");
             }
             #endif
-            WRITE_SOCKET(fd, (const char*)s.data(), s.size());
+            (void)WRITE_SOCKET(fd, (const char*)s.data(), s.size());
         }
         void webcorn_close(int fd) {
             #if USE_TLS

@@ -12,3 +12,11 @@ cmake --build build && ./webcorn
 If you don't
 
 ./webcorn
+
+Reset stuff for the server
+
+cd ~/webcorn
+rm -rf build
+mkdir build
+cd build
+cmake ..
