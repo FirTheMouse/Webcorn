@@ -232,12 +232,12 @@ print("Session ip: ",session.ip);
 
 print("Compiling");
     tstart("twig_compile");
-Node twig = compile(read_file("mixos-acorn/web/thistle/thistle.twg"));
-//Node twig = compile(read_file("mixos-acorn/web/test.twg"));
+Node twig = compile(read_file("web/thistle/thistle.twg"));
+//Node twig = compile(read_file("web/test.twg"));
 print("Compiled in: ",tstop("twig_compile"));
 Node page = twig.children.get(0);
 
-print(unit_info);
+//print(unit_info);
 
 int cfd = 0;
 while(0<1) {
@@ -266,7 +266,7 @@ while(0<1) {
 
         if(method=="RESET") {
             print("Recompiled webrunner");
-            twig = compile(read_file("mixos-acorn/web/test.twg"));
+            twig = compile(read_file("web/test.twg"));
             page = twig.children.get(0);
             method="GET";
         }   
@@ -283,7 +283,6 @@ while(0<1) {
         string response = "";
 
         if(method=="GET") {
-            print("GETTING");
             ctx.source = "";
             htmlemit page;
             response_body.append(ctx.source);
@@ -385,6 +384,7 @@ while(0<1) {
         } else {
             print("PREFILLED RESPONSE:\n",response);
         }
+        print("Responding to ",cfd," with: ",response.length," chars");
         write(cfd,response); 
         close(cfd);
 

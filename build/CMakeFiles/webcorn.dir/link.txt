@@ -1,0 +1,1 @@
+/usr/bin/c++  -O2 -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/webcorn.dir/main.cpp.o -o webcorn  ext/mbedtls/library/libmbedtls.a ext/mbedtls/library/libmbedx509.a ext/mbedtls/tf-psa-crypto/core/libtfpsacrypto.a

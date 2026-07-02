@@ -3,6 +3,9 @@
 #include "../GDSL/mixos-acorn/Acorn-Script.hpp"
 #include "../GDSL/ext/g_lib/core/thread.hpp"
 
+
+#define USE_TLS 1
+
 #ifdef _WIN32
     #include <winsock2.h>
     #include <ws2tcpip.h>
@@ -26,6 +29,121 @@
     #define CLOSE_SOCKET(fd) ::close(fd)
     #define READ_SOCKET(fd, buf, len) ::read(fd, buf, len)
     #define WRITE_SOCKET(fd, buf, len) ::write(fd, buf, len)
+#endif
+
+#if USE_TLS 
+    #include <mbedtls/x509_crt.h>
+    #include <mbedtls/ssl.h>
+    #include <mbedtls/net_sockets.h>
+    #include <psa/crypto.h>
+    #include <mbedtls/error.h>
+    #include <mbedtls/pk.h>
+    std::string tls_get(const std::string& host, const std::string& path) {
+        int ret;
+        mbedtls_net_context server_fd;
+        mbedtls_ssl_context ssl;
+        mbedtls_ssl_config conf;
+        mbedtls_x509_crt cacert;
+
+        mbedtls_net_init(&server_fd);
+        mbedtls_ssl_init(&ssl);
+        mbedtls_ssl_config_init(&conf);
+        psa_crypto_init();
+        mbedtls_x509_crt_init(&cacert);
+
+        // Connect
+        ret = mbedtls_net_connect(&server_fd, host.c_str(), "443", MBEDTLS_NET_PROTO_TCP);
+        if(ret != 0) { print("Connect failed: ", ret); return ""; }
+
+        // Setup
+        mbedtls_ssl_config_defaults(&conf, MBEDTLS_SSL_IS_CLIENT,
+            MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT);
+        mbedtls_ssl_conf_authmode(&conf, MBEDTLS_SSL_VERIFY_NONE); // Skip cert verify for now
+        mbedtls_ssl_setup(&ssl, &conf);
+        mbedtls_ssl_set_hostname(&ssl, host.c_str());
+        mbedtls_ssl_set_bio(&ssl, &server_fd, mbedtls_net_send, mbedtls_net_recv, nullptr);
+
+        ret = mbedtls_ssl_handshake(&ssl);
+        if(ret != 0) { print("Handshake failed: ", ret); return ""; }
+
+        // Send GET request
+        std::string request = "GET " + path + " HTTP/1.1\r\n"
+            "Host: " + host + "\r\n"
+            "Connection: close\r\n\r\n";
+        //print("REQUEST: ",request);
+        ret = mbedtls_ssl_write(&ssl, (const unsigned char*)request.c_str(), request.length());
+        if(ret < 0) { print("Write failed: ", ret); return ""; }
+        //print("Wrote: ", ret, " bytes");
+
+
+        //Give server time to respond
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+        std::string response;
+        unsigned char buf[4096];
+        int len;
+        int retries = 0;
+        while(true) {
+            len = mbedtls_ssl_read(&ssl, buf, sizeof(buf)-1);
+            if(len == MBEDTLS_ERR_SSL_WANT_READ) continue;
+            if(len == MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET) continue;
+            if(len == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) break;
+            if(len < 0) {
+                char error_buf[256];
+                mbedtls_strerror(len, error_buf, sizeof(error_buf));
+                print("Read error: ", error_buf);
+                break;
+            }
+            buf[len] = 0;
+            response += (char*)buf;
+        }
+
+        // Cleanup
+        mbedtls_ssl_close_notify(&ssl);
+        mbedtls_net_free(&server_fd);
+        mbedtls_ssl_free(&ssl);
+        mbedtls_ssl_config_free(&conf);
+
+        return response;
+    }
+    #define TLS_READ(ssl, buf, len) mbedtls_ssl_read(ssl, buf, len)
+    #define TLS_WRITE(ssl, buf, len) mbedtls_ssl_write(ssl, buf, len)
+    #define TLS_CLOSE(ssl) mbedtls_ssl_close_notify(ssl)
+
+    struct tls_conn : q_object {
+        mbedtls_ssl_context ssl;
+        mbedtls_net_context net;
+    };
+
+    mbedtls_ssl_config tls_conf;
+    mbedtls_x509_crt tls_cert;
+    mbedtls_pk_context tls_key;
+
+    void init_tls(const std::string& cert_path, const std::string& key_path) {
+        psa_crypto_init();
+        mbedtls_ssl_config_init(&tls_conf);
+        mbedtls_x509_crt_init(&tls_cert);
+        mbedtls_pk_init(&tls_key);
+    
+        // Load cert
+        std::string cert_data = readFile(cert_path);
+        int ret = mbedtls_x509_crt_parse(&tls_cert, 
+            (const unsigned char*)cert_data.c_str(), 
+            cert_data.length() + 1); // +1 for null terminator
+    
+        // Load key
+        std::string key_data = readFile(key_path);
+        ret = mbedtls_pk_parse_key(&tls_key,
+            (const unsigned char*)key_data.c_str(),
+            key_data.length() + 1,
+            nullptr, 0);
+    
+        // Configure
+        mbedtls_ssl_config_defaults(&tls_conf, MBEDTLS_SSL_IS_SERVER,
+            MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT);
+        mbedtls_ssl_conf_ca_chain(&tls_conf, tls_cert.next, nullptr);
+        mbedtls_ssl_conf_own_cert(&tls_conf, &tls_cert, &tls_key);
+    }  
 #endif
 
 
@@ -62,7 +180,6 @@ namespace Acorn {
             stemp.add_prop(int_id,4,"ip");
             layouts.put(session_id,stemp);
             value_printers[session_id] = [this](Context& ctx) {ctx.source("SESSION:"+Ptr_as_string(*(Ptr*)ctx.value().get()));};
-            //writeFile("mixos-acorn/tests/printout.txt",make_wrapper_for_layout(stemp,"Session"));
             return id;
         }
         uint32_t session_col = init_session_type();
@@ -103,6 +220,9 @@ namespace Acorn {
             int fd = 0; 
             std::string message = "";
             std::string unitcode = "";
+            #if USE_TLS
+                g_ptr<tls_conn> tls = nullptr;
+            #endif
         };
         struct Server : q_object {
             g_ptr<Thread> thread = nullptr;
@@ -121,9 +241,23 @@ namespace Acorn {
 
             bool needshelp() {std::lock_guard<std::mutex> lock(units_mutex); return !units[unit]->types.live;}
         };
+
+        struct Bot : q_object {
+            g_ptr<Thread> thread = nullptr;
+            g_ptr<Webcorn_Core> unit;  
+            list<qeue_request> requests;     
+
+            uint32_t taskID() {return unit->types.index;}
+            std::string taskMessage() {return unit->types.label.to_std();}
+            void task(uint32_t fd, const std::string& label) {unit->types.index = fd; unit->types.label = label;}
+            bool needshelp() {return !unit->types.live;}
+        };
     
         list<g_ptr<Server>> servers;
         std::mutex servers_mutex;
+
+        list<g_ptr<Bot>> bots;
+        std::mutex bot_mutex;
 
 
         std::string generate_token() {
@@ -180,6 +314,11 @@ namespace Acorn {
             }
             print(green("Cries answered"));
         }
+        uint32_t cry_id = add_function("cry",[this](Context& ctx){
+            standard_sub_process(ctx);
+            std::string message = ((string&)*(Ptr*)ctx.node().children()[0].value().get()).to_std();
+            cry(message);
+        });
 
         uint32_t validate_login_id = add_function("validate_login",[this](Context& ctx){
             std::string body = ctx.sub().source().to_std();
@@ -316,16 +455,305 @@ namespace Acorn {
             move_file(from.to_std(),to.to_std());
         });
 
+        uint32_t http_get_id = add_function("http_get", [this](Context& ctx){
+            standard_sub_process(ctx);
+            std::string host = string(*(Ptr*)ctx.node().children()[0].value().get()).to_std();
+            std::string path = string(*(Ptr*)ctx.node().children()[1].value().get()).to_std();
+            //print("GETTING HTTP FROM ",host," AT ",path);
+            string output = resolve_string_ticket(ctx.node());
+            #if USE_TLS 
+                output = tls_get(host, path);
+            #else
+                output = "ADD NON-TLS GET LATER!";
+            #endif
+        }, sizeof(Ptr), string_id);
 
-        // std::string add_function();
-        // uint32_t http_get_id = add_function("http_get", [this](Context& ctx){
-        //     standard_sub_process(ctx);
-        //     std::string url = string(*(Ptr*)ctx.node().children()[0].value().get()).to_std();
-        //     // parse host/path, connect, send GET, read response
-        //     string output = resolve_string_ticket(ctx.node());
-        //     output = /* response body */;
-        // }, sizeof(Ptr), string_id);
+        uint32_t init_tls_id = add_function("init_tls",[this](Context& ctx){
+            standard_sub_process(ctx);
+            std::string cert = string(*(Ptr*)ctx.node().children()[0].value().get()).to_std();
+            std::string key = string(*(Ptr*)ctx.node().children()[1].value().get()).to_std();
+            #if USE_TLS
+                init_tls(cert, key);
+            #else
+                //Do nothing because TLS is disabled
+            #endif
+        });
 
+        #if USE_TLS
+            g_ptr<tls_conn> current_tls;
+        #endif
+
+        int webcorn_socket() {
+            int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+            if(server_fd < 0) { print(red("socket() failed")); return -1; }
+            return server_fd;
+        }
+        int webcorn_bind(int fd, int port, int opt) {
+            setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char*)&opt, sizeof(opt));
+            struct sockaddr_in addr;
+            memset(&addr, 0, sizeof(addr));
+            addr.sin_family = AF_INET;
+            addr.sin_port = htons(port);
+            addr.sin_addr.s_addr = INADDR_ANY;
+            int result = bind(fd, (struct sockaddr*)&addr, sizeof(addr));
+            return result;
+        }
+        int webcorn_listen(int fd) {
+            int result = listen(fd, 10);
+            return result;
+        }
+        int webcorn_accept(int fd) {
+            struct sockaddr_in client_addr;
+            memset(&client_addr, 0, sizeof(client_addr));
+            socklen_t client_len = sizeof(client_addr);
+            int client_fd = accept(fd, (struct sockaddr*)&client_addr, &client_len);
+            if(client_fd == -1) { throw_error("accept failed"); return -1; }
+
+            #if USE_TLS
+                g_ptr<tls_conn> conn = make<tls_conn>();
+                mbedtls_ssl_init(&conn->ssl);
+                mbedtls_net_init(&conn->net);
+                conn->net.fd = client_fd;
+                mbedtls_ssl_setup(&conn->ssl, &tls_conf);
+                mbedtls_ssl_set_bio(&conn->ssl, &conn->net, mbedtls_net_send, mbedtls_net_recv, nullptr);
+                int ret = mbedtls_ssl_handshake(&conn->ssl);
+                if(ret != 0) {
+                    if(ret != MBEDTLS_ERR_SSL_FATAL_ALERT_MESSAGE) {
+                        char err[256]; mbedtls_strerror(ret, err, sizeof(err));
+                        print(red("TLS handshake to "+std::to_string(client_fd)+" failed: "), err);
+                    }
+                    mbedtls_ssl_free(&conn->ssl);
+                    ::close(client_fd);
+                    return -1;
+                }
+                print("Created a TLS connection to ",client_fd);
+                current_tls = conn;
+            #endif
+
+            return client_fd;
+        }
+        std::string webcorn_read(int fd) {
+            char buffer[4096];
+            std::string request;
+
+            if(fd==-1) return "";
+
+            #if USE_TLS
+            if(current_tls) {
+                mbedtls_ssl_context* ssl = &current_tls->ssl;
+                while(true) {
+                    int bytes = mbedtls_ssl_read(ssl, (unsigned char*)buffer, sizeof(buffer)-1);
+                    if(bytes == MBEDTLS_ERR_SSL_WANT_READ) continue;
+                    if(bytes == MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET) continue;
+                    if(bytes == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) break;
+                    if(bytes <= 0) break;
+                    buffer[bytes] = 0;
+                    request += buffer;
+                    if(bytes < (int)sizeof(buffer)-1) break;
+                }
+                return request;
+            } else {
+                print(uid," has no current tls for read");
+            }
+            #endif
+
+            while(true) {
+                int bytes = READ_SOCKET(fd, buffer, sizeof(buffer)-1);
+                if(bytes <= 0) break;
+                buffer[bytes] = 0;
+                request += buffer;
+                if(bytes < (int)sizeof(buffer)-1) break;
+            }
+            
+            size_t header_end = request.find("\r\n\r\n");
+            if(header_end != std::string::npos) {
+                size_t cl_pos = request.find("Content-Length: ");
+                if(cl_pos != std::string::npos) {
+                    int content_length = std::stoi(request.substr(cl_pos+16));
+                    std::string body = request.substr(header_end+4);
+                    while((int)body.length() < content_length) {
+                        int bytes = READ_SOCKET(fd, buffer, sizeof(buffer)-1);
+                        if(bytes <= 0) break;
+                        buffer[bytes] = 0;
+                        body += buffer;
+                    }
+                    request = request.substr(0, header_end+4) + body;
+                }
+            }
+            return request;
+        }
+        void webcorn_write(int fd, const std::string& s) {
+            #if USE_TLS
+            if(current_tls) {
+                mbedtls_ssl_context* ssl = &current_tls->ssl;
+                size_t total = 0;
+                while(total < s.size()) {
+                    int ret = mbedtls_ssl_write(ssl,
+                        (const unsigned char*)s.data() + total,
+                        s.size() - total);
+                    if(ret <= 0) {
+                        char err[256]; mbedtls_strerror(ret, err, sizeof(err));
+                        break;
+                    }
+                    total += ret;
+                }
+                return;
+            } else {
+                print(uid," has no current tls for write");
+            }
+            #endif
+            WRITE_SOCKET(fd, (const char*)s.data(), s.size());
+        }
+        void webcorn_close(int fd) {
+            #if USE_TLS
+            if(current_tls) {
+                mbedtls_ssl_close_notify(&current_tls->ssl);
+                mbedtls_ssl_free(&current_tls->ssl);
+                current_tls = nullptr;
+            }
+            #endif
+            CLOSE_SOCKET(fd);
+        }
+
+        uint32_t socket_id = add_function("socket",[this](Context& ctx){
+            #ifdef _WIN32
+                WSADATA wsa; WSAStartup(MAKEWORD(2,2), &wsa);
+            #endif
+            int server_fd = webcorn_socket();
+            ctx.node().value().set((void*)&server_fd);
+        },4,int_id);
+    
+        uint32_t bind_id = add_function("bind",[this](Context& ctx){
+            standard_sub_process(ctx);
+            int fd = *(int*)ctx.node().children()[0].value().get();
+            int port = *(int*)ctx.node().children()[1].value().get();
+            int opt = 1;
+            int result = webcorn_bind(fd,port,opt);
+            ctx.node().value().set((void*)&result);
+        },4,int_id);
+        
+        uint32_t listen_id = add_function("listen",[this](Context& ctx){
+            standard_sub_process(ctx);
+            int fd = *(int*)ctx.node().children()[0].value().get();
+            int result = webcorn_listen(fd);
+            ctx.node().value().set((void*)&result);
+        },4,int_id);
+        
+        uint32_t accept_id = add_function("accept",[this](Context& ctx){
+            standard_sub_process(ctx);
+            int fd = *(int*)ctx.node().children()[0].value().get();
+            int client_fd = webcorn_accept(fd);
+            ctx.node().value().set((void*)&client_fd);
+        },4,int_id);
+        
+        uint32_t read_id =  add_function("read",[this](Context& ctx){
+            standard_sub_process(ctx);
+            int fd = *(int*)ctx.node().children()[0].value().get();
+            string output = resolve_string_ticket(ctx.node());
+            output = webcorn_read(fd);
+        },sizeof(Ptr),string_id);
+        
+        uint32_t write_id = add_function("write",[this](Context& ctx){
+            standard_sub_process(ctx);
+            int fd = *(int*)ctx.node().children()[0].value().get();
+            string strptr = (string&)*(Ptr*)ctx.node().children()[1].value().get();
+            webcorn_write(fd,strptr.to_std());
+        });
+
+        uint32_t close_id = add_function("close",[this](Context& ctx){
+            standard_sub_process(ctx);
+            int fd = *(int*)ctx.node().children()[0].value().get();
+            webcorn_close(fd);
+        });
+
+        void dispatch_bot(uint32_t taskID, std::string taskLabel, std::string unitcode) {
+            g_ptr<Bot> bot = nullptr;
+            {
+                std::lock_guard<std::mutex> lock(bot_mutex);
+                for(int i=0;i<bots.length();i++) {
+                    if(bots[i]->taskID()==0) {
+                        bot = bots[i];
+                        print("Found avaliable bot unit ",bot->unit->uid);
+                        break;
+                    }
+                }
+                if(!bot) {
+                    g_ptr<Bot> new_bot = make<Bot>();
+                    new_bot->thread = make<Thread>();
+                    g_ptr<Webcorn_Core> webcorn = make_unit<Webcorn_Core>();
+                    new_bot->unit = webcorn;
+                    bots << new_bot;
+                    bot = new_bot;
+                    print("Dispatched a new bot unit ",bot->unit->uid);
+                    new_bot->thread->run_blocking([webcorn, unitcode]() mutable {
+                        webcorn->run(webcorn->process(unitcode));
+                    });
+                } 
+            }
+            bot->task(taskID,taskLabel);
+        }
+
+        uint32_t dispatch_bot_id = add_function("dispatch_bot",[this](Context& ctx){
+            standard_sub_process(ctx);
+            uint32_t taskID = *(int*)ctx.node().children()[0].value().get();
+            std::string taskLabel = string(*(Ptr*)ctx.node().children()[1].value().get()).to_std();
+            std::string unitcode = string(*(Ptr*)ctx.node().children()[2].value().get()).to_std();
+            dispatch_bot(taskID,taskLabel,unitcode);
+        });
+
+        void manage_bots(const std::string& unitcode) {
+            while(true) {
+                g_ptr<Webcorn_Core> unit = nullptr;
+                qeue_request queued;
+                bool has_queued = false;
+                g_ptr<Bot> bot = nullptr;
+                {
+                    std::lock_guard<std::mutex> lock(bot_mutex);
+                    for(int i=0;i<bots.length();i++) {
+                        if(bots[i]->needshelp()) {
+                            unit = bots[i]->unit;
+                            bot = bots[i];
+                            break;
+                        } 
+                        if(bots[i]->taskID()==0 && !bots[i]->requests.empty()) {
+                            queued = bots[i]->requests.take(0);
+                            has_queued = true;
+                            bot = bots[i];
+                            break;
+                        }
+                    }
+                }
+                if(unit) {
+                    std::string fullreq = unit->types.label.to_std();
+                    print("Unit ",unit->uid," has aksed for ",fullreq);
+                    list<std::string> req = split_str(fullreq,':');
+                    std::string cmd = req[0];
+                    std::string arg = req.length()>1?req[1]:"";
+                    if(cmd=="REPORT") {
+                        print("Bot reporting ",arg);
+                    }
+                    unit->types.live = true;
+                }   
+                else if(has_queued) {
+                    print(green("Fuffiled a qeued request for a bot"));
+                    bot->task(queued.fd, queued.message);
+                } 
+                else {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                }
+            }
+        }
+        uint32_t start_bot_manager_id = add_function("start_bot_manager",[this](Context& ctx){
+            std::string unitcode = string(*(Ptr*)ctx.node().children()[0].value().get()).to_std();
+            g_ptr<Server> new_server = make<Server>();
+            new_server->thread = make<Thread>();
+            new_server->unit = uid;
+            new_server->sethash("bot_manager");
+            servers << new_server;
+            new_server->thread->run_blocking([this, unitcode]() mutable {
+                manage_bots(unitcode);
+            });
+        });
 
         void manage_sessions(const std::string& unitcode) {
             while(true) {
@@ -387,7 +815,7 @@ namespace Acorn {
                                 o.username(get_ticket(name_store_id,1,char_id));
                                 o.username() = arg;
                                 o.userpath(get_ticket(name_store_id,1,char_id));
-                                o.userpath() = "mixos-acorn/web/thistle/users/"+arg+"/";
+                                o.userpath() = "web/thistle/users/"+arg+"/";
                                 uint32_t ts = (uint32_t)std::time(nullptr);
                                 o.timestamp(ts);
                                 server->authourized = true;
@@ -416,7 +844,7 @@ namespace Acorn {
                                     _layout& l = layouts.get(session_id);
                                     ColCol& sessions = types[session_col];
                                     string username = server->session.username();
-                                    std::string path = "mixos-acorn/web/thistle/users/"+username.to_std()+"/"+req[2]; //Add a bounds check for this later
+                                    std::string path = "web/thistle/users/"+username.to_std()+"/"+req[2]; //Add a bounds check for this later
                                     print("Loading ",path);
                                     uint32_t sheetpool = unit->load_sheet(path);
                                     unit->types.label = std::to_string(sheetpool);
@@ -424,7 +852,7 @@ namespace Acorn {
                                     _layout& l = layouts.get(session_id);
                                     ColCol& sessions = types[session_col];
                                     string username = server->session.username();
-                                    std::string path = "mixos-acorn/web/thistle/users/"+username.to_std()+"/"+req[3]; //Add a bounds check for this later
+                                    std::string path = "web/thistle/users/"+username.to_std()+"/"+req[3]; //Add a bounds check for this later
                                     print("Saving ",path);
                                     unit->save_sheet(std::stoi(req[2]),path); //And a bounds check for this
                                 } else {
@@ -442,6 +870,9 @@ namespace Acorn {
                 }   
                 else if(has_queued) {
                     print(green("Fuffiled a qeued request"));
+                    #if USE_TLS
+                        as<Webcorn_Core>(units[server->unit])->current_tls = queued.tls;
+                    #endif
                     server->setlabel(queued.message);
                     server->setfd(queued.fd);
                 } 
@@ -495,6 +926,9 @@ namespace Acorn {
                     if(server->getfd()!=0) {
                         print(yellow("Retrived server is busy, qeueing a request instead"));
                         qeue_request req(session,server_fd,message,unitcode);
+                        #if USE_TLS
+                            req.tls = current_tls; current_tls = nullptr;
+                        #endif
                         server->requests << req;
                         return;
                     }
@@ -522,11 +956,13 @@ namespace Acorn {
                     } 
                 }
             }
+            #if USE_TLS
+                as<Webcorn_Core>(units[server->unit])->current_tls = current_tls; current_tls = nullptr;
+            #endif
             server->setlabel(message);
             server->setfd(server_fd);
-            print("Server fd is now ",server->getfd());
+            // print("Server fd is now ",server->getfd());
         });
-
 
         bool is_websocket_upgrade(const std::string& request) {
             return request.find("Upgrade: websocket") != std::string::npos;
@@ -1378,7 +1814,7 @@ namespace Acorn {
             standard_sub_process(ctx);
             uint32_t idx = *(uint32_t*)ctx.node().children()[0].value().get();
             string s(*(Ptr*)ctx.node().children()[1].value().get());
-            save_sheet(idx,("mixos-acorn/web/thistle/users/fir/sheets/"+s.to_std()));
+            save_sheet(idx,("web/thistle/users/fir/sheets/"+s.to_std()));
         });
         uint32_t load_sheet_id = add_function("load_sheet",[this](Context& ctx){
             standard_sub_process(ctx);
@@ -2009,122 +2445,6 @@ namespace Acorn {
                 }
             };
 
-            x_handlers[make_tokenized_keyword("webcorn")] = [this](Context& ctx){
-                ctx.node().value(make_value(int_id,4));
-                int server_fd = 6;
-                ctx.node().value().set((void*)&server_fd);
-            };
-
-            auto make_int_node = [this](Context& ctx){
-                ctx.node().value(make_value(int_id,4));
-            };
-
-            uint32_t socket_id = make_tokenized_keyword("socket");
-            r_handlers[socket_id] = make_int_node;
-            x_handlers[socket_id] = [this](Context& ctx){
-                #ifdef _WIN32
-                    WSADATA wsa; WSAStartup(MAKEWORD(2,2), &wsa);
-                #endif
-                int server_fd = socket(AF_INET, SOCK_STREAM, 0);
-                if(server_fd < 0) { print(red("socket() failed")); return; }
-                ctx.node().value().set((void*)&server_fd);
-            };
-            
-            uint32_t bind_id = make_tokenized_keyword("bind");
-            r_handlers[bind_id] = make_int_node;
-            x_handlers[bind_id] = [this](Context& ctx){
-                standard_sub_process(ctx);
-                int fd = *(int*)ctx.node().children()[0].value().get();
-                int port = *(int*)ctx.node().children()[1].value().get();
-                int opt = 1;
-                setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char*)&opt, sizeof(opt));
-                struct sockaddr_in addr;
-                memset(&addr, 0, sizeof(addr));
-                addr.sin_family = AF_INET;
-                addr.sin_port = htons(port);
-                addr.sin_addr.s_addr = INADDR_ANY;
-                int result = bind(fd, (struct sockaddr*)&addr, sizeof(addr));
-                ctx.node().value().set((void*)&result);
-            };
-            
-            uint32_t listen_id = make_tokenized_keyword("listen");
-            r_handlers[listen_id] = make_int_node;
-            x_handlers[listen_id] = [this](Context& ctx){
-                standard_sub_process(ctx);
-                int fd = *(int*)ctx.node().children()[0].value().get();
-                int result = listen(fd, 10);
-                ctx.node().value().set((void*)&result);
-            };
-            
-            uint32_t accept_id = make_tokenized_keyword("accept");
-            r_handlers[accept_id] = make_int_node;
-            x_handlers[accept_id] = [this](Context& ctx){
-                standard_sub_process(ctx);
-                int fd = *(int*)ctx.node().children()[0].value().get();
-                struct sockaddr_in client_addr;
-                memset(&client_addr, 0, sizeof(client_addr));
-                socklen_t client_len = sizeof(client_addr);
-                int client_fd = accept(fd, (struct sockaddr*)&client_addr, &client_len);
-                if(client_fd == -1) { throw_error("accept failed"); return; }
-                ctx.node().value().set((void*)&client_fd);
-            };
-            
-            uint32_t read_id = make_tokenized_keyword("read");
-            r_handlers[read_id] = [this](Context& ctx){
-                ctx.node().value(make_value(string_id, sizeof(Ptr)));
-            };
-            x_handlers[read_id] = [this](Context& ctx){
-                standard_sub_process(ctx);
-                int fd = *(int*)ctx.node().children()[0].value().get();
-                char buffer[4096];
-                std::string request;
-                
-                while(true) {
-                    int bytes = READ_SOCKET(fd, buffer, sizeof(buffer)-1);
-                    if(bytes <= 0) break;
-                    buffer[bytes] = 0;
-                    request += buffer;
-                    if(bytes < (int)sizeof(buffer)-1) break;
-                }
-                
-                size_t header_end = request.find("\r\n\r\n");
-                if(header_end != std::string::npos) {
-                    size_t cl_pos = request.find("Content-Length: ");
-                    if(cl_pos != std::string::npos) {
-                        int content_length = std::stoi(request.substr(cl_pos+16));
-                        std::string body = request.substr(header_end+4);
-                        while((int)body.length() < content_length) {
-                            int bytes = READ_SOCKET(fd, buffer, sizeof(buffer)-1);
-                            if(bytes <= 0) break;
-                            buffer[bytes] = 0;
-                            body += buffer;
-                        }
-                        request = request.substr(0, header_end+4) + body;
-                    }
-                }
-                
-                Ptr ticket = get_ticket(name_store_id, 1, char_id);
-                for(auto c : request) types[name_store_id][ticket.idx].push((void*)&c);
-                ctx.node().value().set((void*)&ticket);
-            };
-            
-            uint32_t write_id = make_tokenized_keyword("write");
-            r_handlers[write_id] = make_int_node;
-            x_handlers[write_id] = [this](Context& ctx){
-                standard_sub_process(ctx);
-                int fd = *(int*)ctx.node().children()[0].value().get();
-                Ptr strptr = *(Ptr*)ctx.node().children()[1].value().get();
-                Col& col = resolve_to_col(strptr);
-                WRITE_SOCKET(fd, (const char*)col.storage, col.size);
-            };
-            
-            uint32_t close_id = make_tokenized_keyword("close");
-            r_handlers[close_id] = make_int_node;
-            x_handlers[close_id] = [this](Context& ctx){
-                standard_sub_process(ctx);
-                int fd = *(int*)ctx.node().children()[0].value().get();
-                CLOSE_SOCKET(fd);
-            };
 
             
 
@@ -2155,7 +2475,7 @@ namespace Acorn {
                 }
 
                 int iterations = 200;
-                //readFile("mixos-acorn/web/webtest.gld");
+                //readFile("web/webtest.gld");
                 std::string sample = 
                 //"int i = 5; print(i);"; 
                 "Ptr Ptr Ptr int double_nested;\n"

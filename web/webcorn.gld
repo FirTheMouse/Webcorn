@@ -1,0 +1,28 @@
+init_tls("web/files/cert.pem","web/files/key.pem");
+
+string unitcode = read_file("web/webrunner.gld");
+
+start_session_manager(unitcode);
+print("Started the session manager");
+
+//string botcode = read_file("web/botrunner.gld");
+//start_bot_manager(botcode);
+//print("Started the bot manager");
+//dispatch_bot(1,"example.com",botcode);
+
+int fd = socket;
+bind(fd,8080);
+listen(fd);
+print("Opened a new server on 8080");
+
+
+
+while(0<1) {
+    int cfd = accept(fd);
+    if(cfd>0) {
+        string req = read(cfd);
+        string session = get_cookie(req,"session");
+        print("Dispatching server to handle request ",cfd);
+        dispatch_unit(session,cfd,req,unitcode);
+    }
+}  

@@ -43,7 +43,7 @@ inlined basic_button {
     global int sheetpool;
     global string sheetname;
     global Node sidebar_reload_target;
-    sheetpool = load_sheet("mixos-acorn/web/thistle/users/fir/sheets/redberry");
+    sheetpool = load_sheet("web/thistle/users/fir/sheets/redberry");
     sheetname = "redberry";
     global bool sidebar_open;
     global string sidebar_open_form;
@@ -110,7 +110,7 @@ div side_bar(string in_route) {
                 text_theme;
             }
         } else {
-            Ptr string files = list_files_in_directory("mixos-acorn/web/thistle/users/fir/inbox");
+            Ptr string files = list_files_in_directory("web/thistle/users/fir/inbox");
             div {
                 "onclick" : "goTo('/inbox')";
                 "cursor" : "pointer";
@@ -291,7 +291,7 @@ div side_bar(string in_route) {
                             string fpath ; js_lit(path),
                             js_do("event.stopPropagation();")
                         ) {
-                            move_file(fpath+"/"+fid,"mixos-acorn/web/thistle/users/fir/inbox");
+                            move_file(fpath+"/"+fid,"web/thistle/users/fir/inbox");
                             print("Moved ",fid," to inbox");
                             if(is_live(sidebar_reload_target)) {
                                 emit_reload(ctx,sidebar_reload_target);
@@ -346,9 +346,9 @@ div side_bar(string in_route) {
                 text_theme;
             }
         } else {
-            Ptr string files = list_files_in_directory("mixos-acorn/web/thistle/users/fir/sheets");
+            Ptr string files = list_files_in_directory("web/thistle/users/fir/sheets");
             for(int i=0;i<files.length;i++) {
-                form_temp("mixos-acorn/web/thistle/users/fir/sheets",files.get(i),in_route);
+                form_temp("web/thistle/users/fir/sheets",files.get(i),in_route);
             }
         }
     }
@@ -482,7 +482,7 @@ login {
             }
         ";
 
-        script read_file("mixos-acorn/web/webcorn.js");
+        script read_file("web/webcorn.js");
 
         background_theme;
         div {
@@ -1133,7 +1133,7 @@ inbox {
             }
         ";
 
-        script read_file("mixos-acorn/web/thistle/thistle.js");
+        script read_file("web/thistle/thistle.js");
 
         background_theme;
         div {
@@ -1180,7 +1180,7 @@ inbox {
                                     js_do("event.preventDefault();"),
                                     js_do("event.stopPropagation();"),
                                 ) {
-                                    move_file(fpatht+"/"+fidt,"mixos-acorn/web/thistle/users/fir/sheets");
+                                    move_file(fpatht+"/"+fidt,"web/thistle/users/fir/sheets");
                                     print("Moved ",fidt," to sheets");
                                     inbox_root.reload;
                                 }
@@ -1192,10 +1192,10 @@ inbox {
                         }
 
                         if(inbox_on_tab=="Inbox") {
-                            inbox_path = "mixos-acorn/web/thistle/users/fir/inbox";
+                            inbox_path = "web/thistle/users/fir/inbox";
                             files = list_files_in_directory(inbox_path);
                         } else if(inbox_on_tab=="Sent") {
-                            inbox_path = "mixos-acorn/web/thistle/users/fir/sheets";
+                            inbox_path = "web/thistle/users/fir/sheets";
                             files = list_files_in_directory(inbox_path);
                         }
                         
@@ -1295,7 +1295,7 @@ build {
             }
         ";
 
-        script read_file("mixos-acorn/web/thistle/thistle.js");
+        script read_file("web/thistle/thistle.js");
 
         background_theme;
         div {
@@ -1378,7 +1378,7 @@ new {
             }
         ";
 
-        script read_file("mixos-acorn/web/thistle/thistle.js");
+        script read_file("web/thistle/thistle.js");
 
         background_theme;
         div {
@@ -1522,7 +1522,7 @@ audit {
             }
         ";
 
-        script read_file("mixos-acorn/web/thistle/thistle.js");
+        script read_file("web/thistle/thistle.js");
 
         background_theme;
         div {
@@ -1644,7 +1644,7 @@ admin {
                 box-sizing: border-box;
             }
         ";
-        script read_file("mixos-acorn/web/thistle/thistle.js");
+        script read_file("web/thistle/thistle.js");
 
         "display" : "flex";
         "min-height" : "100vh";

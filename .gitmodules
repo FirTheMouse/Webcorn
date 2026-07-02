@@ -1,3 +1,6 @@
 [submodule "GDSL"]
 	path = GDSL
 	url = https://github.com/FirTheMouse/GDSL.git
+[submodule "build/ext/mbedtls/ext/mbedtls"]
+	path = build/ext/mbedtls/ext/mbedtls
+	url = https://github.com/Mbed-TLS/mbedtls
