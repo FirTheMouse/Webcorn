@@ -118,7 +118,10 @@
     mbedtls_pk_context tls_key;
 
     void init_tls(const std::string& cert_path, const std::string& key_path) {
-        psa_crypto_init();
+        psa_status_t psa_ret = psa_crypto_init();
+        if(psa_ret != PSA_SUCCESS) {
+            print("psa_crypto_init failed: ", (int)psa_ret);
+        }
         mbedtls_ssl_config_init(&tls_conf);
         mbedtls_x509_crt_init(&tls_cert);
         mbedtls_pk_init(&tls_key);
@@ -307,52 +310,16 @@ namespace Acorn {
         void cry(const std::string& message) {
             types.label = message;
             types.live = false;
-            print(red("Cried for help"));
+            print("Unit ",uid," cried for ",message);
             while(!types.live) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
-            print(green("Cries answered"));
+            print("Unit ",uid," was answered ");
         }
         uint32_t cry_id = add_function("cry",[this](Context& ctx){
             standard_sub_process(ctx);
             std::string message = ((string&)*(Ptr*)ctx.node().children()[0].value().get()).to_std();
             cry(message);
-        });
-
-        uint32_t validate_login_id = add_function("validate_login",[this](Context& ctx){
-            std::string body = ctx.sub().source().to_std();
-
-            std::string username = "";
-            std::string password = "";
-            size_t u = body.find("username=");
-            size_t p = body.find("password=");
-            if(u != std::string::npos) username = body.substr(u+9, body.find("&", u) - u - 9);
-            if(p != std::string::npos) password = body.substr(p+9, body.find("&", p) - p - 9);
-        
-            std::string role = "";
-            if(username=="employee" && password=="pass123") role = "employee";
-            if(username=="manager"  && password=="pass456") role = "manager";
-            if(username=="Fir" && password!="NULL") role = "admin";
-            if(username=="Reed" && password!="NULL") role = "admin";
-
-            print(yellow("Validating a login")," ",username," ",password);
-        
-            if(!role.empty()) {
-                cry("SESSION:"+username);
-                std::string token = types.label.to_std();
-
-                ctx.sub().source() = "HTTP/1.1 302 Found\r\n"
-                    "Set-Cookie: session=" + token + "; HttpOnly\r\n"
-                    "Location: /\r\n"
-                    "Content-Length: 0\r\n"
-                    "\r\n";
-            } else {
-                std::string body = "invalid";
-                ctx.sub().source() = "HTTP/1.1 200 OK\r\n"
-                    "Content-Type: text/plain\r\n"
-                    "Content-Length: " + std::to_string(body.length()) + "\r\n"
-                    "\r\n" + body;
-            }
         });
 
         void copy_session(Session s, Session o) {
@@ -546,10 +513,10 @@ namespace Acorn {
             #if USE_TLS
             if(current_tls) {
                 mbedtls_ssl_context* ssl = &current_tls->ssl;
-                print("Starting TLS read on fd ",fd);
+                //print("Starting TLS read on fd ",fd);
                 while(true) {
                     int bytes = mbedtls_ssl_read(ssl, (unsigned char*)buffer, sizeof(buffer)-1);
-                    print("TLS read returned: ",bytes);
+                    //print("TLS read returned: ",bytes);
                     if(bytes == MBEDTLS_ERR_SSL_WANT_READ) {print("WANT_READ"); continue;}
                     if(bytes == MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET) {print("SESSION_TICKET"); continue;}
                     if(bytes == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {print("PEER_CLOSE"); break;}
@@ -562,7 +529,7 @@ namespace Acorn {
                         break;
                     }
                     buffer[bytes] = 0;
-                    print("Read ",bytes," bytes: ",std::string(buffer,std::min(bytes,50)));
+                    //print("Read ",bytes," bytes: ",std::string(buffer,std::min(bytes,50)));
                     request += buffer;
                     size_t header_end = request.find("\r\n\r\n");
                     if(header_end != std::string::npos) {
@@ -870,18 +837,12 @@ namespace Acorn {
                         } else {
                             if(server->authourized) {
                                 if(arg=="LOAD") {
-                                    _layout& l = layouts.get(session_id);
-                                    ColCol& sessions = types[session_col];
-                                    string username = server->session.username();
-                                    std::string path = "web/thistle/users/"+username.to_std()+"/"+req[2]; //Add a bounds check for this later
+                                    std::string path = req[2]; //Add a bounds check for this later
                                     print("Loading ",path);
                                     uint32_t sheetpool = unit->load_sheet(path);
                                     unit->types.label = std::to_string(sheetpool);
                                 } else if(arg=="SAVE") {
-                                    _layout& l = layouts.get(session_id);
-                                    ColCol& sessions = types[session_col];
-                                    string username = server->session.username();
-                                    std::string path = "web/thistle/users/"+username.to_std()+"/"+req[3]; //Add a bounds check for this later
+                                    std::string path = req[3]; //Add a bounds check for this later
                                     print("Saving ",path);
                                     unit->save_sheet(std::stoi(req[2]),path); //And a bounds check for this
                                 } else {
@@ -932,7 +893,6 @@ namespace Acorn {
             uint32_t sessionhash = 0;
             if(!session.empty()) {
                 if(distributed_tokens.hasKey(session)) {
-                    print(green("Looking for session "+session));
                     sessionhash = hashBytes(session.data(),session.length());
                 }
             }
@@ -1147,6 +1107,39 @@ namespace Acorn {
         uint32_t unit_uid_id = add_function("unit_uid",[this](Context& ctx){uint32_t tuid = (uint32_t)uid; ctx.node().value().set((void*)&tuid);},4,int_id);
         uint32_t unit_setindex_id = add_function("unit_setindex",[this](Context& ctx){int idx = *(int*)ctx.node().children()[0].value().get(); types.index=idx;});
         uint32_t unit_label_id = add_function("unit_label",[this](Context& ctx){string s = resolve_string_ticket(ctx.node()); s = types.label.to_std();},sizeof(Ptr),string_id);
+
+        uint32_t unit_date_id = add_function("unit_date",[this](Context& ctx){
+            auto now = std::chrono::system_clock::now();
+            std::time_t t = std::chrono::system_clock::to_time_t(now);
+            std::tm* tm = std::localtime(&t);
+            char buf[64];
+            std::strftime(buf, sizeof(buf), "%Y-%m-%d", tm);
+            string s = resolve_string_ticket(ctx.node());
+            s = std::string(buf);
+        },sizeof(Ptr),string_id);
+        
+        uint32_t unit_time_id = add_function("unit_time",[this](Context& ctx){
+            auto now = std::chrono::system_clock::now();
+            std::time_t t = std::chrono::system_clock::to_time_t(now);
+            std::tm* tm = std::localtime(&t);
+            char buf[64];
+            std::strftime(buf, sizeof(buf), "%H:%M:%S", tm);
+            string s = resolve_string_ticket(ctx.node());
+            s = std::string(buf);
+        },sizeof(Ptr),string_id);
+        
+        uint32_t unit_time_precise_id = add_function("unit_time_precise",[this](Context& ctx){
+            auto now = std::chrono::system_clock::now();
+            std::time_t t = std::chrono::system_clock::to_time_t(now);
+            std::tm* tm = std::localtime(&t);
+            auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                now.time_since_epoch()) % 1000;
+            char buf[64];
+            std::snprintf(buf, sizeof(buf), "%02d:%02d:%02d.%03lld",
+                tm->tm_hour, tm->tm_min, tm->tm_sec, (long long)ms.count());
+            string s = resolve_string_ticket(ctx.node());
+            s = std::string(buf);
+        },sizeof(Ptr),string_id);
 
         uint32_t make_webcorn_id = add_function("make_webcorn",[this](Context& ctx){
             standard_sub_process(ctx);
@@ -1879,21 +1872,22 @@ namespace Acorn {
             standard_sub_process(ctx);
             uint32_t idx = *(uint32_t*)ctx.node().children()[0].value().get();
             string s(*(Ptr*)ctx.node().children()[1].value().get());
-            save_sheet(idx,("web/thistle/users/fir/sheets/"+s.to_std()));
+            cry("FILE:SAVE:"+std::to_string(idx)+":"+s.to_std());
+            //save_sheet(idx,("web/thistle/users/fir/sheets/"+s.to_std()));
         });
         uint32_t load_sheet_id = add_function("load_sheet",[this](Context& ctx){
             standard_sub_process(ctx);
             string s(*(Ptr*)ctx.node().children()[0].value().get());
-            uint32_t sheetpool = load_sheet(s.to_std());
-            ctx.node().value().set((void*)&sheetpool);
+            // uint32_t sheetpool = load_sheet(s.to_std());
+            // ctx.node().value().set((void*)&sheetpool);
             // dump_sheet(sheetpool);
-            // cry("FILE:LOAD:sheets/"+s.to_std());
-            // if(types.label.empty()) {
-            //     print(red("Load sheet failed!"));
-            // } else {
-            //     uint32_t sheetpool = std::stoi(types.label.to_std());
-            //     ctx.node().value().set((void*)&sheetpool);
-            // }
+            cry("FILE:LOAD:"+s.to_std());
+            if(types.label.empty()) {
+                print(red("Load sheet failed!"));
+            } else {
+                uint32_t sheetpool = std::stoi(types.label.to_std());
+                ctx.node().value().set((void*)&sheetpool);
+            }
         },4,int_id);
 
         uint32_t add_column_id = add_function("add_column_to_sheet",[this](Context& ctx){

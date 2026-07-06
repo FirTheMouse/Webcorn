@@ -1,4 +1,3 @@
-
 //init_tls("/etc/letsencrypt/live/goldensystems.ca/fullchain.pem", "/etc/letsencrypt/live/goldensystems.ca/privkey.pem");
 //init_tls("web/files/cert.pem","web/files/key.pem");
 
@@ -25,7 +24,7 @@ while(0<1) {
     if(cfd>0) {
         string req = read(cfd);
         string session = get_cookie(req,"session");
-        print("Session: ",session);
+        print("Request at ",unit_time_precise," Session: ",session);
         print("Dispatching server to handle request ",cfd);
         dispatch_unit(session,cfd,req,unitcode);
     }

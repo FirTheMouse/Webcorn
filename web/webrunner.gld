@@ -331,7 +331,7 @@
         add_column_to_sheet(spool); csetlabel(spool,oncol,"Report Date");
             setidx(cellptr,oncol);
             set_cell(cellptr,"July 5th 2026");
-            formptr = create_form_question(spool,oncol,0,"Input"); //Make Date later once that's fixed
+            formptr = create_form_question(spool,oncol,0,"Date");
             fp = *formptr;
             csetlabel(getpool(fp),getidx(fp),"Report Date");
         oncol++;
@@ -354,7 +354,7 @@
         oncol++;
 
         add_column_to_sheet(spool); csetlabel(spool,oncol,"Transaction Date");
-            formptr = create_form_question(spool,oncol,0,"Input"); //Make Date later once that's fixed
+            formptr = create_form_question(spool,oncol,0,"Date");
             fp = *formptr;
             csetlabel(getpool(fp),getidx(fp),"Transaction Date");
         oncol++;
@@ -452,15 +452,13 @@
 
         return spool;
     }
-    //save_sheet(generate_redberry_sheet,"redberry");
-
-    //save_sheet(create_sheet,"wip");
-    //save_sheet(create_sheet,"redberry");
+    //save_sheet(generate_redberry_sheet,"web/thistle/users/fir/sheets/redberry");
 ##
 
 global Session session;
-
-print("Session ip: ",session.ip);
+int guest_counter = 0;
+bool allow_guests = false;
+global string redirected_from = "";
 
 print("Compiling");
     tstart("twig_compile");
@@ -488,6 +486,10 @@ while(0<1) {
         print("Method: ",method);
         print("Path: ",slashpath);
 
+        string response_body = "";
+        string response = "";
+        bool should_emit_page = true;
+
         if(unslashpath.find(".")>0) {
             if(unslashpath.find("web/")==0) {
                 string mime = "application/octet-stream";
@@ -507,113 +509,141 @@ while(0<1) {
                 unit_setindex(0);
                 continue;
             }
-        }
+        } else {
+            if(slashpath=="/favicon.ico") {} else {
+                if((session.username.length==0)) {
+                    if(allow_guests) {
+                        string new_guest_id = "guest_"+to_string(unit_uid)+"-"+to_string(guest_counter++);
+                        cry("SESSION:"+new_guest_id);
+                        string session_token = unit_label;
+                        string do_str = "document.cookie = 'session="+session_token+"; path=/';";
+                        ctx.source = "";
+                        emit_block {
+                            script js_do(do_str);
+                        }
+                        response_body.append(ctx.source);
+                    } else {
+                        if(slashpath=="/login") {
 
-        if(unslashpath.length==0) {
-            unslashpath = "root_path"; //For routing
-        } else if(unslashpath=="favicon.ico") {
-            unslashpath = "root_path"; //For routing
-        }
-
-        if(method=="RESET") {
-            print("Recompiled webrunner");
-            //twig = compile(read_file("web/test.twg"));
-            twig = compile(read_file("web/goldensystems/website.twg"));
-            page = twig.children.get(0);
-            method="GET";
-        }   
-
-        for(int i=0;i<twig.children.length;i++) {
-            Node child = twig.children.get(i);
-            if(labels(child.type)==unslashpath) {
-                page = child; //Because I haven't added break yet
-            }
-        }
-
-        string response_body = "";
-        string response = "";
-
-        if(method=="GET") {
-            ctx.source = "";
-            htmlemit page;
-            response_body.append(ctx.source);
-        }
-
-        if(method=="POST") {
-            int body_start = req.find("\r\n\r\n");
-            if(body_start>=0) {
-                string src = req.slice(body_start+4,req.length);
-                ctx.source = src;
-                post page;
-                response.append(ctx.source);
-            }
-        }
-
-        if(method=="FRAG") {
-            int body_start = req.find("\r\n\r\n");
-            if(body_start>=0) {
-                string src = req.slice(body_start+4,req.length);
-                ctx.source = src;
-                frag page;
-                response_body.append(ctx.source);
-            }
-        }
-
-        if(method=="RUN_RAW") {
-            int body_start = req.find("\r\n\r\n");
-            if(body_start>=0) {
-                string src = req.slice(body_start+4,req.length);
-                print("Running raw:\n",src);
-
-                Node root = compile(src);
-                execut root;
-
-                src = ctx.source;
-                string target = src.slice(0,src.find(" "));
-                string instr = src.slice(" ",1,2);
-                string content = src.slice(src.find(" ",0,2)+1,src.length);
-                if(target.length!=0) {
-                    print("TARGET: ",target); 
-                    print("INSTR: ",instr); 
-                    print("CONTENT LEN: ",content.length);
-                    response_body = content;
-                }
-            }
-        }
-
-        if(method=="RUN") {
-            int body_start = req.find("\r\n\r\n");
-            if(body_start>=0) {
-                string src = req.slice(body_start+4,req.length);
-                if(src.length==0) {
-                    print("Recived a blank run request");
-                } else {
-                    print("Running:\n",src);
-
-                    Ptr string args = split_str(src,"@");
-                    ctx.source = "go";
-                    Ptr pointer = string_to_Ptr(args.get(0));
-                    Node root = cast_to_Node(pointer);
-
-                    if(args.length>1) {
-                        for(int a=1;a<args.length;a++) {
-                            if(args.get(a)=="[VAR]") {
-                                root.children.get(a-1).value.set(args.get(a+1));
+                        } else {
+                            redirected_from = slashpath;
+                            ctx.source = "";
+                            emit_block {
+                                script js_do("window.location.href = '/login';");
                             }
+                            response_body.append(ctx.source);
+                            should_emit_page = false;
                         }
                     }
+                }
+            }
 
-                    tstart("executing_run_root");
-                    execut root;
-                    print("Time: ",tstop("executing_run_root"));
+            if(should_emit_page) {
+               
+                if(unslashpath.length==0) {
+                    unslashpath = "root_path"; //For routing
+                } else if(unslashpath=="favicon.ico") {
+                    unslashpath = "root_path"; //For routing
+                }
 
-                    src = ctx.source;
-                    if(src=="RELOAD") {
-                        ctx.source = "";
-                        htmlemit page;
-                        response_body = ctx.source;
-                    } else if(src.length>0) {
-                        response_body = src;
+                if(method=="RESET") {
+                    print("Recompiled webrunner");
+                    //twig = compile(read_file("web/test.twg"));
+                    twig = compile(read_file("web/goldensystems/website.twg"));
+                    page = twig.children.get(0);
+                    method="GET";
+                }   
+
+                for(int i=0;i<twig.children.length;i++) {
+                    Node child = twig.children.get(i);
+                    if(labels(child.type)==unslashpath) {
+                        page = child; //Because I haven't added break yet
+                    }
+                }
+
+                if(method=="GET") {
+                    ctx.source = "";
+                    htmlemit page;
+                    response_body.append(ctx.source);
+                }
+
+                if(method=="POST") {
+                    int body_start = req.find("\r\n\r\n");
+                    if(body_start>=0) {
+                        string src = req.slice(body_start+4,req.length);
+                        ctx.source = src;
+                        post page;
+                        response.append(ctx.source);
+                    }
+                }
+
+                if(method=="FRAG") {
+                    int body_start = req.find("\r\n\r\n");
+                    if(body_start>=0) {
+                        string src = req.slice(body_start+4,req.length);
+                        ctx.source = src;
+                        frag page;
+                        response_body.append(ctx.source);
+                    }
+                }
+
+                if(method=="RUN_RAW") {
+                    int body_start = req.find("\r\n\r\n");
+                    if(body_start>=0) {
+                        string src = req.slice(body_start+4,req.length);
+                        print("Running raw:\n",src);
+
+                        Node root = compile(src);
+                        execut root;
+
+                        src = ctx.source;
+                        string target = src.slice(0,src.find(" "));
+                        string instr = src.slice(" ",1,2);
+                        string content = src.slice(src.find(" ",0,2)+1,src.length);
+                        if(target.length!=0) {
+                            print("TARGET: ",target); 
+                            print("INSTR: ",instr); 
+                            print("CONTENT LEN: ",content.length);
+                            response_body = content;
+                        }
+                    }
+                }
+
+                if(method=="RUN") {
+                    int body_start = req.find("\r\n\r\n");
+                    if(body_start>=0) {
+                        string src = req.slice(body_start+4,req.length);
+                        if(src.length==0) {
+                            print("Recived a blank run request");
+                        } else {
+                            print("Running:\n",src);
+
+                            Ptr string args = split_str(src,"@");
+                            ctx.source = "go";
+                            Ptr pointer = string_to_Ptr(args.get(0));
+                            Node root = cast_to_Node(pointer);
+
+                            if(args.length>1) {
+                                for(int a=1;a<args.length;a++) {
+                                    if(args.get(a)=="[VAR]") {
+                                        root.children.get(a-1).value.set(args.get(a+1));
+                                    }
+                                }
+                            }
+
+                            tstart("executing_run_root");
+                            execut root;
+                            print("Time: ",tstop("executing_run_root"));
+
+                            src = ctx.source;
+                            if(src=="RELOAD") {
+                                ctx.source = "";
+                                htmlemit page;
+                                response_body = ctx.source;
+                            } else if(src.length>0) {
+                                response_body = src;
+                            }
+                        }
                     }
                 }
             }
