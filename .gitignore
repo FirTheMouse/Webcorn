@@ -1,0 +1,5 @@
+/build/
+cmake-build-*/
+/web/thistle/users/
+/web/goldensystems/files/
+*.DS_Store
