@@ -1,8 +1,8 @@
 /build/
 cmake-build-*/
-/web/files/
-/web/thistle/users/
-/web/goldensystems/files/
+/web/files
+/web/thistle/users
+/web/goldensystems/files
 /ext/mbedtls/
 *.DS_Store
 *.mov
