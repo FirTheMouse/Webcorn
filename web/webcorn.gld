@@ -1,4 +1,6 @@
-init_tls("web/files/cert.pem","web/files/key.pem");
+
+//init_tls("/etc/letsencrypt/live/goldensystems.ca/fullchain.pem", "/etc/letsencrypt/live/goldensystems.ca/privkey.pem");
+//init_tls("web/files/cert.pem","web/files/key.pem");
 
 string unitcode = read_file("web/webrunner.gld");
 
@@ -11,9 +13,10 @@ print("Started the session manager");
 //dispatch_bot(1,"example.com",botcode);
 
 int fd = socket;
-bind(fd,8080);
+int port = 443;
+bind(fd,port);
 listen(fd);
-print("Opened a new server on 8080");
+print("Opened a new server on ",port);
 
 
 
@@ -22,6 +25,7 @@ while(0<1) {
     if(cfd>0) {
         string req = read(cfd);
         string session = get_cookie(req,"session");
+        print("Session: ",session);
         print("Dispatching server to handle request ",cfd);
         dispatch_unit(session,cfd,req,unitcode);
     }

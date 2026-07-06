@@ -1,16 +1,36 @@
+##
+    global bool darkmode; darkmode = false;
+##
+
 inlined background_theme {
-    "background-color" : "rgb(225, 225, 225)";
+    if(darkmode) {
+        "background-color" : "rgb(28, 28, 28)";
+    } else {
+        "background-color" : "rgb(225, 225, 225)";
+    }
 }
 inlined card_theme {
-    "background-color" : "rgb(247, 244, 244)";
+    if(darkmode) {
+        "background-color" : "rgb(43, 43, 43)";
+    } else {
+        "background-color" : "rgb(247, 244, 244)";
+    }
 }
 inlined component_theme {
-    "background-color" : "rgb(255, 249, 249)";
+    if(darkmode) {
+        "background-color" : "rgb(52, 52, 52)";
+    } else {
+        "background-color" : "rgb(255, 249, 249)";
+    }
 }
 inlined text_theme {
     "font-size" : "13px";
     "font-weight" : "600";
-    "color" : "rgb(80,80,80)";
+    if(darkmode) {
+        "color" : "rgb(247, 244, 244)";
+    } else {
+        "color" : "rgb(80,80,80)";
+    }
     "font-family" : "system-ui, sans-serif";
 }
 
@@ -33,6 +53,26 @@ inlined air_input_theme {
     input_theme;
 }
 
+inlined form_input_theme {
+    air_input_theme;
+}
+inlined form_sub_input_theme {
+    "border" : "2px solid rgb(200,200,200)";
+    air_input_theme;
+}
+inlined form_select_theme {
+    component_theme;
+    "border" : "1px solid rgb(200,200,200)";
+    "border-radius" : "8px";
+    "padding" : "8px 12px";
+    "width" : "100%";
+    "font-size" : "14px";
+    "font-family" : "system-ui, sans-serif";
+    "cursor" : "pointer";
+    "appearance" : "none";
+    "-webkit-appearance" : "none";
+}
+
 inlined basic_button {
     "height" : "50%";
     "width" : "50%";
@@ -46,8 +86,7 @@ inlined basic_button {
     sheetpool = load_sheet("web/thistle/users/fir/sheets/redberry");
     sheetname = "redberry";
     global bool sidebar_open;
-    global string sidebar_open_form;
-    sidebar_open_form = " ";
+    global string sidebar_open_form; sidebar_open_form = " ";
 ##
 
 div side_bar(string in_route) {
@@ -186,6 +225,7 @@ div side_bar(string in_route) {
         func_btn_temp("goTo('/build')","rgb(73, 135, 177)","Build");
         func_btn_temp("goTo('/audit')","rgb(197, 148, 85)","Audit");
         func_btn_temp(capture{dump_sheet(sheetpool);},"rgb(108, 103, 101)","Dump");
+        func_btn_temp(capture{darkmode=!darkmode; emit_full_page_reload(ctx); },(darkmode?"white":"black"),"Dark");
     }
     
     div {
@@ -204,7 +244,7 @@ div side_bar(string in_route) {
             }
         ";
 
-        stateless template div form_temp(string path, string id, string bar_in_route) {
+        stateless template div form_temp(string filepath, string id, string bar_in_route) {
             div {
                 "class" : "form_box";
                 string sbid = id+"_sidebar_form";
@@ -234,7 +274,7 @@ div side_bar(string in_route) {
                         this.style.backgroundColor = 'rgba(130, 43, 111, 0.12)';
                     "),
                     string recive_sheetname ; js_lit(id),
-                    string recive_path ; js_lit(path)
+                    string recive_path ; js_lit(filepath)
                 ) {          
                     print("Loading sheet ",recive_sheetname);
                     sheetname = recive_sheetname;
@@ -283,12 +323,11 @@ div side_bar(string in_route) {
                         }
                     }
                 }
-
                 if(bar_in_route=="inbox") {
                      text ">" {
                         "onclick" : capture(
                             string fid ; js_lit(id),
-                            string fpath ; js_lit(path),
+                            string fpath ; js_lit(filepath),
                             js_do("event.stopPropagation();")
                         ) {
                             move_file(fpath+"/"+fid,"web/thistle/users/fir/inbox");
@@ -373,7 +412,9 @@ div side_bar(string in_route) {
     register root_path;
     "root_path" {
         in htmlemiting {
+            ctx.source.append("<!DOCTYPE html><html><body>");
             emit_contents;
+            ctx.source.append("</body></html>");
         }
         
     }
@@ -456,7 +497,9 @@ root_path {
     register login;
     "login" {
         in htmlemiting {
+            ctx.source.append("<!DOCTYPE html><html><body>");
             emit_contents;
+            ctx.source.append("</body></html>");
         }
         in posting {
             validate_login;
@@ -515,7 +558,7 @@ login {
                                     "padding" : "8px 0px";
                                     input_theme;
                                 }
-
+ 
                                 div {
                                     "display" : "flex";
                                     "align-items" : "center";
@@ -555,7 +598,30 @@ login {
 
                                 button {
                                     "id" : "login";
-                                    "onclick" : "postForm({username: getel('username').value, password: getel('password').value})";
+                                    "onclick" : capture(
+                                        string given_username ; "getel('username').value",
+                                        string given_password ; "getel('password').value"
+                                    ) {
+                                        Ptr string directories = list_directories_in_directory("web/thistle/users");
+                                        for(int i=0;i<directories.length;i++) {
+                                            string user = directories.get(i);
+                                            if(user==given_username) {
+                                                string userinfo = read_file("web/thistle/users/"+user+"/userinfo");
+                                                if(given_password==userinfo) {
+                                                    cry("SESSION:"+user);
+                                                    string session_token = unit_label;
+                                                    emit_js("
+                                                        document.cookie = 'session="+session_token+"; path=/';
+                                                        window.location.href = '/';
+                                                    ");
+                                                    
+                                                } else {
+                                                    print("WRONG PASSWORD FOR ",user);
+                                                }
+                                                break;
+                                            }
+                                        }
+                                    }
                                     text "Login" {
                                         "font-size" : "14px";
                                         text_theme;
@@ -600,6 +666,7 @@ stateless template div multi_select_question(int spool, Ptr cellptr, Ptr formptr
                     cell_label = to_string(i);
                 }
                 input {
+                    form_input_theme;
                     "value" : form_p.celllabel;
                     "onchange" : capture(
                         string pstr ; js_lit(to_string(form_p)),
@@ -610,6 +677,7 @@ stateless template div multi_select_question(int spool, Ptr cellptr, Ptr formptr
                     }
                 }
                 input {
+                    form_sub_input_theme;
                     "value" : value_as_string(form_p) {text_theme;}
                     "onchange" : capture(
                         string iter ; js_lit(to_string(i)),
@@ -632,14 +700,12 @@ stateless template div multi_select_question(int spool, Ptr cellptr, Ptr formptr
                     duck val = *fp;
                     print("MSQ-B form_p: ",fp," T: ",IV#val);
                     int vofa = V#val;
-                    print("B");
                     if(vofa==(#string)) {
                         fp.push(get_ticket(find_sheet(fspool,#storesheet),32));
                         fspool;
                     } else {
                         fp.push(0);
                     }
-                    print("C");
                     if(is_live(cell_context_menu_reload_target)) {
                         emit_reload(ctx,cell_context_menu_reload_target);
                     }
@@ -687,6 +753,7 @@ stateless template div multi_select_question(int spool, Ptr cellptr, Ptr formptr
             }
         } else {
             select {
+                form_select_theme;
                 for(int i=0;i<form_p.length;i++) {
                     setsidx(form_p,i);
                     string cell_label;
@@ -724,7 +791,6 @@ stateless template div multi_select_question(int spool, Ptr cellptr, Ptr formptr
 stateless template div form_question(int spool, Ptr cellptr, bool editable) {
     Ptr formptr = cellptr;
     setpool(formptr,find_sheet(spool,to_type("formsheet")));
-    print("Rendering ",formptr," for ",cellptr);
 
     Ptr formmetaptr = cellptr;
     setpool(formmetaptr,find_sheet(spool,#metadatasheet,1));
@@ -754,6 +820,7 @@ stateless template div form_question(int spool, Ptr cellptr, bool editable) {
                     "font-size" : "14px";
                 }
                 select {
+                    form_select_theme;
                     "value" : question_type;
                     selectable_option(question_type,"Dropdown");
                     selectable_option(question_type,"Multiple Choice");
@@ -774,7 +841,7 @@ stateless template div form_question(int spool, Ptr cellptr, bool editable) {
                             *formmetaptr = get_ticket(find_sheet(fspool,#storesheet),0);
                             *(*formmetaptr) = myval;
                         }
-                        emit_reload(ctx,cell_context_menu_reload_target); //MAKE MORE GENERIC LATER IF FROMS GET EDITED OUTSIDE OF THE SHEET
+                        emit_reload(ctx,cell_context_menu_reload_target); //<- MAKE MORE GENERIC LATER IF FORMS GET EDITED OUTSIDE OF THE SHEET
                     }
                 }
             }
@@ -1030,8 +1097,6 @@ stateless template div build_render_sheet(int spool) {
                                 template div makecell(int cspool, int colum, int rowe) {
                                     static string tostr = "";
                                     static Ptr cellptr = makePtr3(cspool,colum,rowe);
-                                    print("Cell ",cspool," : ",cellptr);
-                                    print("Cspool: ",IV#cspool);
                                     static Ptr p = *cellptr;
                                     if(is_live(p)) {
                                         tostr = value_as_string(p);
@@ -1103,7 +1168,9 @@ stateless template div build_render_sheet(int spool) {
     register inbox;
     "inbox" {
         in htmlemiting {
+            ctx.source.append("<!DOCTYPE html><html><body>");
             emit_contents;
+            ctx.source.append("</body></html>");
         }
     }
 
@@ -1155,7 +1222,7 @@ inbox {
                         "display" : "flex";
                         "gap" : "8px";
                         "padding" : "8px";
-                          stateless template div file_temp(string path, string id, bool is_sent) {
+                          stateless template div file_temp(string filepath, string id, bool is_sent) {
                             div {
                                 "display" : "flex";
                                 "flex-direction" : "row";
@@ -1166,7 +1233,7 @@ inbox {
                                 card_theme;
                                 "onclick" : capture(
                                     string fid ; js_lit(id),
-                                    string fpath ; js_lit(path),
+                                    string fpath ; js_lit(filepath),
                                     js_do("event.stopPropagation();")
                                 ) {
                                     inbox_sheetpool = load_sheet(fpath+"/"+fid);
@@ -1176,7 +1243,7 @@ inbox {
                                 }
                                 "oncontextmenu" : capture(
                                     string fidt ; js_lit(id),
-                                    string fpatht ; js_lit(path),
+                                    string fpatht ; js_lit(filepath),
                                     js_do("event.preventDefault();"),
                                     js_do("event.stopPropagation();"),
                                 ) {
@@ -1271,7 +1338,9 @@ inbox {
     register build;
     "build" {
         in htmlemiting {
+            ctx.source.append("<!DOCTYPE html><html><body>");
             emit_contents;
+            ctx.source.append("</body></html>");
         }
     }
 ##
@@ -1334,15 +1403,18 @@ build {
                             "justify-content" : "flex-start";
                             "align-items" : "stretch";
                             "flex-direction" : "column";
-                            "width" : "480px";
-                            "padding" : "40px";
+                            "width" : "90%";          
+                            "max-height" : "90vh";    
+
+                            "padding" : "24px";
                             "gap" : "12px";
                             card_theme;
                             "border-radius" : "12px";
                             "box-shadow" : "0 4px 24px rgba(0,0,0,0.08)";
-                            if(sheetpool!=0) {
-                                build_render_sheet(sheetpool);
-                            }
+ 
+                                if(sheetpool!=0) {
+                                    build_render_sheet(sheetpool);
+                                }
                         } 
                 }
         }
@@ -1355,7 +1427,9 @@ build {
     register new;
     "new" {
         in htmlemiting {
+            ctx.source.append("<!DOCTYPE html><html><body>");
             emit_contents;
+            ctx.source.append("</body></html>");
         }
     }
 ##
@@ -1427,7 +1501,9 @@ new {
     register audit;
     "audit" {
         in htmlemiting {
+            ctx.source.append("<!DOCTYPE html><html><body>");
             emit_contents;
+            ctx.source.append("</body></html>");
         }
     }
 ##
@@ -1542,13 +1618,14 @@ audit {
                             "justify-content" : "flex-start";
                             "align-items" : "stretch";
                             "flex-direction" : "column";
-                            "width" : "480px";
-                            "padding" : "40px";
+                            "width" : "90%";          
+                            "max-height" : "90vh";    
+                            "overflow-y" : "auto";    
+                            "padding" : "24px";
                             "gap" : "12px";
                             card_theme;
                             "border-radius" : "12px";
                             "box-shadow" : "0 4px 24px rgba(0,0,0,0.08)";
-
                             div {
                                 "display" : "flex";
                                 "justify-content" : "center";
@@ -1610,6 +1687,7 @@ audit {
                                 "display" : "flex";
                                 "justify-content" : "center";
                                 "width" : "100%";
+                                "overflow-x" : "auto";    
                                 audit_render_sheet(sheetpool);
                             }                            
                         }
@@ -1622,10 +1700,39 @@ audit {
     register admin;
     "admin" {
         in htmlemiting {
+            ctx.source.append("<!DOCTYPE html><html><body>");
             emit_contents;
+            ctx.source.append("</body></html>");
         }
     }
+    global string admin_selected_user;  admin_selected_user = "";
 ##
+
+inlined popup_background_theme {
+   "position" : "fixed";
+    "top" : "0";
+    "left" : "0";
+    "width" : "100%";
+    "height" : "100%";
+    "background-color" : "rgba(0,0,0,0.4)";
+    "z-index" : "1000";
+    "display" : "flex";
+    "justify-content" : "center";
+    "align-items" : "center";
+    "onclick" : "event.stopPropagation();";
+}
+
+inlined popup_panel_theme {
+    "background-color" : "white";
+    "border-radius" : "12px";
+    "padding" : "24px";
+    "display" : "flex";
+    "flex-direction" : "column";
+    "gap" : "16px";
+    "align-items" : "center";
+    "box-shadow" : "0 8px 32px rgba(0,0,0,0.2)";
+    "onclick" : "event.stopPropagation();";
+}
 
 admin {
     div {
@@ -1643,6 +1750,10 @@ admin {
             * {
                 box-sizing: border-box;
             }
+            @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
         ";
         script read_file("web/thistle/thistle.js");
 
@@ -1651,5 +1762,264 @@ admin {
             side_bar("admin");
             background_theme;
 
+            div user_display {
+                "display" : "flex";
+                "flex-direction" : "row";
+                "width" : "100%";
+                "height" : "100%";
+                "gap" : "1%";
+
+                static string admin_custom_user;
+                
+                stateless template div user_card(string username) {
+                    div {
+                        "flex" : "1";
+                        "padding" : "8px";
+                        "border-radius" : "10px";
+                        card_theme;
+                        "display" : "flex";
+                        "flex-direction" : "row";
+                        "gap" : "1%";
+                        div {
+                            "flex" : "2";
+                            text username {
+                                "font-size" : "16px";
+                                text_theme;
+                            }
+                            "onclick" : capture(string userstr ; js_lit(username)) {
+                                if(admin_selected_user==userstr) {
+                                    admin_selected_user = "";
+                                } else {
+                                    admin_selected_user = userstr;
+                                }
+                                user_display.reload;
+                            }
+                        }
+                        div {
+                            "flex" : "1";
+                            "display" : "flex";
+                            "justify-content" : "center";
+                            "align-items" : "center";
+                            text "C" {
+                                "font-size" : "16px";
+                                text_theme;
+                            }
+                            "onclick" : capture(string userstr ; js_lit(username)) {
+                                admin_custom_user = userstr;
+                                user_display.reload;
+                            }
+                        }
+                        div {
+                            "flex" : "1";
+                            "display" : "flex";
+                            "justify-content" : "center";
+                            "align-items" : "center";
+                            text "X" {
+                                "font-size" : "16px";
+                                text_theme;
+                            }
+                            static string popup_confirm_delete_target;
+                            if(popup_confirm_delete_target==username) {
+                                div {
+                                    "onclick" : capture {
+                                        popup_confirm_delete_target = "";
+                                        user_display.reload;
+                                    }
+                                    popup_background_theme;
+                                    div {
+                                        popup_panel_theme;
+                                        text "Are you sure you want to delete "+username+"?" {
+                                            "font-size" : "15px";
+                                            text_theme;
+                                        }
+                                        div {
+                                            "display" : "flex";
+                                            "gap" : "12px";
+                                            button {
+                                                text "Yes";
+                                                "onclick" : capture(
+                                                    js_do("event.stopPropagation();"),
+                                                    string ptarget ; js_lit(popup_confirm_delete_target)
+                                                ){
+                                                    remove_directory("web/thistle/users/"+ptarget);
+                                                    popup_confirm_delete_target = "";
+                                                    user_display.reload;
+                                                }
+                                            }
+                                            button {
+                                                text "No";
+                                                "onclick" : capture(
+                                                    js_do("event.stopPropagation();")
+                                                ){
+                                                    popup_confirm_delete_target = "";
+                                                    user_display.reload;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            "onclick" : capture(string userstr ; js_lit(username)) {
+                                popup_confirm_delete_target = userstr;
+                                user_display.reload;
+                            }
+                        }
+                    }
+                }
+
+                if(admin_custom_user.length!=0) {
+                    div {
+                        "onclick" : capture(js_do("event.stopPropagation();")) {
+                            admin_custom_user = "";
+                            user_display.reload;
+                        }
+                        popup_background_theme;
+                        static string given_username;
+                        static string given_password;
+
+                        if(admin_custom_user.slice(0,1)=="[") {
+                            given_username = "";
+                            given_password = "";
+                        } else {
+                            string userinfo = read_file("web/thistle/users/"+admin_custom_user+"/userinfo");
+                            given_username = admin_custom_user;
+                            given_password = userinfo;
+                        }
+
+                        div create_user_display {
+                            popup_panel_theme;
+                            text "Username" {
+                                "font-size" : "15px";
+                                text_theme;
+                            }
+                            input {
+                                if(given_username=="") {
+                                    "border" : "none";
+                                    "border-bottom" : "2px solid rgb(255, 0, 0)";
+                                } else {
+                                    "value" : given_username;
+                                }
+                                form_input_theme;
+                                "onchange" : capture(string myval ; "this.value"){
+                                    given_username = myval;
+                                    create_user_display.reload;
+                                }
+                            }   
+
+                            text "Password" {
+                                "font-size" : "15px";
+                                text_theme;
+                            }
+                            input {
+                                if(given_password=="") {
+                                    "border" : "none";
+                                    "border-bottom" : "2px solid rgb(255, 0, 0)";
+                                } else {
+                                    "value" : given_password;
+                                }
+                                form_input_theme;
+                                "onchange" : capture(string myval ; "this.value"){
+                                    given_password = myval;
+                                    create_user_display.reload;
+                                }
+                            }   
+
+                            button {
+                                text "Confirm";
+                                if(admin_custom_user=="[NEW]") {
+                                    "onclick" : capture(
+                                        js_do("event.stopPropagation();")
+                                    ){
+                                        string new_path = "web/thistle/users/"+given_username;
+                                        if(given_username.length>0) {
+                                            create_directory(new_path);
+                                            create_directory(new_path+"/sheets");
+                                            create_directory(new_path+"/inbox");
+                                            if(given_password.length>0) {
+                                                write_file(new_path+"/userinfo",given_password);
+                                            }
+                                            admin_custom_user = "";
+                                        }
+                                        user_display.reload;
+                                    }
+                                } else {
+                                     "onclick" : capture(
+                                        js_do("event.stopPropagation();")
+                                    ){
+                                        print("Renaming ",admin_custom_user," to ",given_username);
+                                        string new_path = "web/thistle/users/"+admin_custom_user;
+                                        rename_file(new_path, "web/thistle/users/"+given_username);
+                                        print("Changing password for ",admin_custom_user," to ",given_password);
+                                        write_file(new_path+"/userinfo",given_password);
+                                        admin_custom_user = "";
+                                        user_display.reload;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                div {
+                    "flex" : "1";
+                    "display" : "flex";
+                    "flex-direction" : "column";
+                    "gap" : "1%";
+                    Ptr string directories = list_directories_in_directory("web/thistle/users");
+                    for(int i=0;i<directories.length;i++) {
+                        user_card(directories.get(i));
+                    }
+                    div {
+                        "flex" : "1";
+                        "padding" : "8px";
+                        "border-radius" : "10px";
+                        card_theme;
+                        "display" : "flex";
+                        "flex-direction" : "row";
+                        "justify-contents" : "center";
+                        "align-items" : "center";
+                        text "+" {
+                            "font-size" : "16px";
+                            text_theme;
+                        }
+                        "onclick" : capture {
+                            admin_custom_user = "[NEW]";
+                            user_display.reload;
+                        }
+                    }
+                }
+
+                if(admin_selected_user.length!=0) {
+                    div {
+                        "flex" : "2";
+                        "border-radius" : "8px";
+                        card_theme;
+
+                        text admin_selected_user {
+                            "font-size" : "18px";
+                            "font-weight" : "800";
+                            text_theme;
+                        }
+
+                        Ptr string usersheets = list_files_in_directory("web/thistle/users/"+admin_selected_user+"/sheets");
+                        Ptr string userinbox = list_files_in_directory("web/thistle/users/"+admin_selected_user+"/inbox");
+                        int lenr = usersheets.length;
+                        if(userinbox.length>usersheets.length) {lenr = userinbox.length;}
+
+                        table {
+                            row {
+                                column {text "Sheets" {text_theme;}}
+                                column {text "Inbox" {text_theme;}}
+                            }
+                            for(int r=0;r<lenr;r++) {
+                                row {
+                                    if(r<usersheets.length) {column {text usersheets.get(r) {text_theme;}}}
+                                    if(r<userinbox.length) {column {text userinbox.get(r) {text_theme;}}}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
     }
 }

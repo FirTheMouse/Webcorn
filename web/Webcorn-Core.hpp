@@ -4,7 +4,7 @@
 #include "../GDSL/ext/g_lib/core/thread.hpp"
 
 
-#define USE_TLS 1
+#define USE_TLS 0
 
 #ifdef _WIN32
     #include <winsock2.h>
@@ -508,6 +508,12 @@ namespace Acorn {
             int client_fd = accept(fd, (struct sockaddr*)&client_addr, &client_len);
             if(client_fd == -1) { throw_error("accept failed"); return -1; }
 
+            //Read timeout
+            struct timeval tv;
+            tv.tv_sec = 2;
+            tv.tv_usec = 0;
+            setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
             #if USE_TLS
                 g_ptr<tls_conn> conn = make<tls_conn>();
                 mbedtls_ssl_init(&conn->ssl);
@@ -533,26 +539,50 @@ namespace Acorn {
         }
         std::string webcorn_read(int fd) {
             char buffer[4096];
-            std::string request;
+            std::string request = "";
 
-            if(fd==-1) return "";
+            if(fd==-1) return request;
 
             #if USE_TLS
             if(current_tls) {
                 mbedtls_ssl_context* ssl = &current_tls->ssl;
+                print("Starting TLS read on fd ",fd);
                 while(true) {
                     int bytes = mbedtls_ssl_read(ssl, (unsigned char*)buffer, sizeof(buffer)-1);
-                    if(bytes == MBEDTLS_ERR_SSL_WANT_READ) continue;
-                    if(bytes == MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET) continue;
-                    if(bytes == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) break;
-                    if(bytes <= 0) break;
+                    print("TLS read returned: ",bytes);
+                    if(bytes == MBEDTLS_ERR_SSL_WANT_READ) {print("WANT_READ"); continue;}
+                    if(bytes == MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET) {print("SESSION_TICKET"); continue;}
+                    if(bytes == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {print("PEER_CLOSE"); break;}
+                    if(bytes == MBEDTLS_ERR_NET_CONN_RESET) {
+                        break; //Browser dropped the connection, just return empty
+                    }
+                    if(bytes <= 0) {
+                        char err[256]; mbedtls_strerror(bytes, err, sizeof(err));
+                        print("TLS read error: ",err);
+                        break;
+                    }
                     buffer[bytes] = 0;
+                    print("Read ",bytes," bytes: ",std::string(buffer,std::min(bytes,50)));
                     request += buffer;
-                    if(bytes < (int)sizeof(buffer)-1) break;
+                    size_t header_end = request.find("\r\n\r\n");
+                    if(header_end != std::string::npos) {
+                        size_t cl_pos = request.find("Content-Length: ");
+                        if(cl_pos == std::string::npos) break; // No body, we're done
+                        int content_length = std::stoi(request.substr(cl_pos+16));
+                        std::string body = request.substr(header_end+4);
+                        while((int)body.length() < content_length) {
+                            int b = mbedtls_ssl_read(ssl, (unsigned char*)buffer, sizeof(buffer)-1);
+                            if(b == MBEDTLS_ERR_SSL_WANT_READ) continue;
+                            if(b <= 0) break;
+                            buffer[b] = 0;
+                            body += buffer;
+                        }
+                        request = request.substr(0, header_end+4) + body;
+                        break;
+                    }
                 }
+                print("TLS read done, request length: ",request.length());
                 return request;
-            } else {
-                print(uid," has no current tls for read");
             }
             #endif
 
@@ -1227,6 +1257,7 @@ namespace Acorn {
         Stage& html_handlers = reg_stage("htmlemiting");
 
         _lookup is_structural{{
+            "style",
             "id", "class", "name", "type",
             "value", "placeholder", "checked", "disabled",
             "readonly", "required", "selected", "multiple",
@@ -1241,6 +1272,22 @@ namespace Acorn {
             "autocomplete", "autofocus", "enctype", "novalidate", "pattern", "size",
             "download", "controls", "autoplay", "loop", "muted", "poster",  "oncontextmenu"
         }, false};
+
+        _lookup is_svg_structural{{
+            "fill", "stroke", "stroke-width", "stroke-opacity",
+            "fill-opacity", "d", "viewBox", "cx", "cy", "r",
+            "x", "y", "width", "height", "points",
+            "transform", "clip-path", "opacity",
+            "x1", "y1", "x2", "y2", "rx", "ry"
+        }, false};
+
+        bool in_svg = false;
+        uint32_t set_in_svg = add_function("set_in_svg",[this](Context& ctx){
+            standard_sub_process(ctx);
+            bool b = *(bool*)ctx.node().children()[0].value().get();
+            in_svg = b;
+        });
+
         bool is_prop_structural(const std::string& name) {
             return is_structural[name] || name.substr(0,5) == "data-";
         }
@@ -1316,7 +1363,8 @@ namespace Acorn {
             if(resolve_prop_names(ctx,c,prop,val)) {return;}
 
             list<std::string>* prop_labels; list<std::string>* prop_values;
-            if(is_prop_structural(prop)) {
+            if(is_prop_structural(prop)||(in_svg&&is_svg_structural[prop])) {
+                
                 prop_labels = &structural_prop_labels; 
                 prop_values = &structural_prop_values;
             } else {
@@ -1350,6 +1398,11 @@ namespace Acorn {
                         scan_for_inline_props(ctx,jc,structural_prop_labels,structural_prop_values,style_prop_labels,style_prop_values);
                     }
                 }
+            } else if(node.type()==func_call_id&&node.has_qual(inlined_id)) {
+                for(int j=0;j<node.scopes()[0].children().length();j++) {
+                    Node jc = node.scopes()[0].children()[j];
+                    scan_for_inline_props(ctx,jc,structural_prop_labels,structural_prop_values,style_prop_labels,style_prop_values);
+                }
             } else {
                 for(int i=0;i<node.children().length();i++) {
                     Node c = node.children()[i];
@@ -1375,6 +1428,7 @@ namespace Acorn {
                 s += "\""; 
             }
             ctx.sub().source().push(s);
+
         }
 
         std::string emit_inline_html(Context& ctx, Node node) {
@@ -1415,14 +1469,18 @@ namespace Acorn {
             }
             return deadptr;
         }
-        uint32_t get_prop_id = overload_type(component_id,".\"get_prop\"","GET_PROP",make_value(node_id,sizeof(Ptr)),[this](Context& ctx){
+
+        Handler get_prop_handler = [this](Context& ctx){
             Node node = ctx.node().children()[0].scopes()[0];
             process_node(ctx, ctx.node().children()[1].children()[0]);
             std::string looking_for = resolve_string_ticket(ctx.node().children()[1].children()[0]).to_std();
             Node c = get_prop(ctx,node,looking_for);
             ctx.node().value().set((void*)&c);
-        });
-        uint32_t set_prop_id = overload_type(component_id,".\"set_prop\"","SET_PROP",make_value(node_id,sizeof(Ptr)),[this](Context& ctx){
+        };
+        uint32_t get_prop_id = overload_type(component_id,".\"get_prop\"","GET_PROP",make_value(node_id,sizeof(Ptr)),get_prop_handler);
+        uint32_t get_prop_inlined_id = overload_type(inlined_id,".\"get_prop\"","GET_PROP",make_value(node_id,sizeof(Ptr)),get_prop_handler);
+
+        Handler set_prop_handler = [this](Context& ctx){
             Node node = ctx.node().children()[0].scopes()[0];
             process_node(ctx, ctx.node().children()[1].children()[0]);
             process_node(ctx, ctx.node().children()[1].children()[1]);
@@ -1434,14 +1492,20 @@ namespace Acorn {
             } else {
                 print(yellow("webcorn:set_prop property "+looking_for+" not found while trying to set to "+set_to));
             }
-        });
-        uint32_t has_prop_id = overload_type(component_id,".\"has_prop\"","HAS_PROP",make_value(bool_id,1),[this](Context& ctx){
+        };
+        uint32_t set_prop_id = overload_type(component_id,".\"set_prop\"","SET_PROP",make_value(node_id,sizeof(Ptr)),set_prop_handler);
+        uint32_t set_prop_inlined__id = overload_type(inlined_id,".\"set_prop\"","SET_PROP",make_value(node_id,sizeof(Ptr)),set_prop_handler);
+
+        Handler has_prop_handler = [this](Context& ctx){
             Node node = ctx.node().children()[0].scopes()[0];
             process_node(ctx, ctx.node().children()[1].children()[0]);
             std::string looking_for = resolve_string_ticket(ctx.node().children()[1].children()[0]).to_std();
             bool has = is_live(get_prop(ctx,node,looking_for));
             ctx.node().value().set((void*)&has);
-        });
+        };
+        uint32_t has_prop_id = overload_type(component_id,".\"has_prop\"","HAS_PROP",make_value(bool_id,1),has_prop_handler);
+        uint32_t has_prop_inlined_id = overload_type(inlined_id,".\"has_prop\"","HAS_PROP",make_value(bool_id,1),has_prop_handler);
+
         int get_propidx(Context& ctx, Node node, std::string looking_for) {
             for(int i=0;i<node.children().length();i++) {
                 Node c = node.children()[i];
@@ -1458,13 +1522,15 @@ namespace Acorn {
             }
             return -1;
         }
-        uint32_t get_propidx_id = overload_type(component_id,".\"get_propidx\"","GET_PROPIDX",make_value(int_id,4),[this](Context& ctx){
+        Handler get_propidx_handler = [this](Context& ctx){
             Node node = ctx.node().children()[0].scopes()[0];
             process_node(ctx, ctx.node().children()[1].children()[0]);
             std::string looking_for = resolve_string_ticket(ctx.node().children()[1].children()[0]).to_std();
             int i = get_propidx(ctx,node,looking_for);
             ctx.node().value().set((void*)&i);
-        });
+        };
+        uint32_t get_propidx_id = overload_type(component_id,".\"get_propidx\"","GET_PROPIDX",make_value(int_id,4),get_propidx_handler);
+        uint32_t get_propidx_inlined_id = overload_type(inlined_id,".\"get_propidx\"","GET_PROPIDX",make_value(int_id,4),get_propidx_handler);
 
         //This should definetly be replaced with a cleaner system eventually
         Node webcorn_node_scan(const std::string& label, Node from) {
@@ -1562,7 +1628,7 @@ namespace Acorn {
 
         uint32_t find_sheet_pools_start(uint32_t sheetpool) {
             while(types[sheetpool].tag != datasheet_id) {
-                print(sheetpool,": ",labels[types[sheetpool].tag]);
+                //print(sheetpool,": ",labels[types[sheetpool].tag]);
                 if(sheetpool == 0) {
                     print(red("webcorn:find_sheet_pools_start unable to find the datasheet")); 
                     return 0;
@@ -1638,7 +1704,7 @@ namespace Acorn {
             if(ctx.node().children().length()>2) {
                 nth = *(int*)ctx.node().children()[2].value().get();
             }
-            uint32_t index = sheetpool+find_sheetidx(sheets,tag,nth);
+            uint32_t index = find_sheet_pools_start(sheetpool)+find_sheetidx(sheets,tag,nth);
             ctx.node().value().set((void*)&index);
         },4,int_id);
         uint32_t has_sheet_id = add_function("has_sheet",[this](Context& ctx){
@@ -2024,6 +2090,58 @@ namespace Acorn {
             }
             ctx.node().value().set((void*)&p);
         },sizeof(Ptr),ptr_id);
+        
+        uint32_t list_directories_in_directory_id = add_function("list_directories_in_directory",[this](Context& ctx){
+            standard_sub_process(ctx);
+            std::string path = ((string&)(*(Ptr*)ctx.node().children()[0].value().get())).to_std();
+            Ptr p = resolve_ticket(ctx.node(),sizeof(Ptr),string_id);
+            Col& data = resolve_to_col(p);
+            list<std::string> dirs = listDirectoriesInDirectory(path);
+            while(data.length() > dirs.length()) {
+                recycle_column(*(Ptr*)data.last());
+                data.removeAt(data.length()-1);
+            }
+            for(int i=0;i<dirs.length();i++) {
+                if(i<data.length()) {
+                    string s = (string&)*(Ptr*)data[i];
+                    s = dirs[i];
+                } else {
+                    string s = get_ticket(name_store_id,1,char_id);
+                    s = dirs[i];
+                    data.push((void*)&s);
+                }
+            }
+            ctx.node().value().set((void*)&p);
+        },sizeof(Ptr),ptr_id);
+        uint32_t create_directory_id = add_function("create_directory",[this](Context& ctx){
+            standard_sub_process(ctx);
+            std::string path = ((string&)(*(Ptr*)ctx.node().children()[0].value().get())).to_std();
+            std::error_code ec;
+            std::filesystem::create_directories(path, ec);
+            if(ec) print(red("create_directory failed for "+path+": "+ec.message()));
+        });
+        uint32_t remove_file_id = add_function("remove_file",[this](Context& ctx){
+            standard_sub_process(ctx);
+            std::string path = ((string&)(*(Ptr*)ctx.node().children()[0].value().get())).to_std();
+            std::error_code ec;
+            std::filesystem::remove(path, ec);
+            if(ec) print(red("remove_file failed for "+path+": "+ec.message()));
+        });
+        uint32_t remove_directory_id = add_function("remove_directory",[this](Context& ctx){
+            standard_sub_process(ctx);
+            std::string path = ((string&)(*(Ptr*)ctx.node().children()[0].value().get())).to_std();
+            std::error_code ec;
+            std::filesystem::remove_all(path, ec);
+            if(ec) print(red("remove_directory failed for "+path+": "+ec.message()));
+        });
+        uint32_t rename_file_id = add_function("rename_file",[this](Context& ctx){
+            standard_sub_process(ctx);
+            std::string path = ((string&)(*(Ptr*)ctx.node().children()[0].value().get())).to_std();
+            std::string new_name = ((string&)(*(Ptr*)ctx.node().children()[1].value().get())).to_std();
+            std::error_code ec;
+            std::filesystem::rename(path, new_name, ec);
+            if(ec) print(red("rename failed for "+path+": "+ec.message()));
+        });
 
         //Just some experiments
         uint32_t clientsidescope_id = reg_id("clientsidescope");
@@ -2128,8 +2246,14 @@ namespace Acorn {
                 }
             };
             t_handlers[capture_id] = [this](Context& ctx){
-                standard_sub_process(ctx);
                 ctx.node().value(make_value(string_id,sizeof(Ptr),0,char_id,1));
+                if(ctx.node().scopes().empty()) { 
+                    standard_sub_process(ctx);
+                } else {
+                    for(int i=0;i<ctx.node().children().length();i++) {
+                        place_node_in_scope(ctx.node().children()[i],ctx.node().scopes()[0]);
+                    }
+                }
             };
             x_handlers[capture_id] = [this](Context& ctx){
                 if(!ctx.node().scopes().empty()&&ctx.node().scopes()[0].owner()!=ctx.node()) {
@@ -2354,23 +2478,23 @@ namespace Acorn {
             };
             x_handlers[to_prefix_id(template_qual)] = html_handlers[to_prefix_id(template_qual)];
 
-            r_handlers[prefix_inlined_id] = [this](Context& ctx){
-                if(ctx.node().type()==func_call_id) {
-                    Node func = ctx.value().type_scope();
-                    // func.owner().mute(true); //To stop it from emitting 
-                    bool is_static = ctx.value().has_qual(static_qual);
-                    for(int i=0;i<func.children().length();i++) {
-                        if(is_static) {
-                            Node copy = make_node(); //Make this a proper deep copy later (placeholder for now)
-                            copy.copy(func.children()[i]);
-                            ctx.result().insert(ctx.index(),copy);
-                        } else {
-                            ctx.result().insert(ctx.index(),func.children()[i]);
-                        }
-                        ctx.index()++;
-                    }
-                }
-            };
+            // r_handlers[prefix_inlined_id] = [this](Context& ctx){
+            //     if(ctx.node().type()==func_call_id) {
+            //         Node func = ctx.value().type_scope();
+            //         // func.owner().mute(true); //To stop it from emitting 
+            //         bool is_static = ctx.value().has_qual(static_qual);
+            //         for(int i=0;i<func.children().length();i++) {
+            //             if(is_static) {
+            //                 Node copy = make_node(); //Make this a proper deep copy later (placeholder for now)
+            //                 copy.copy(func.children()[i]);
+            //                 ctx.result().insert(ctx.index(),copy);
+            //             } else {
+            //                 ctx.result().insert(ctx.index(),func.children()[i]);
+            //             }
+            //             ctx.index()++;
+            //         }
+            //     }
+            // };
 
             html_handlers[DEBUG_ROOT_id] = [this](Context& ctx) {
                 print("==HTML STAGE==");

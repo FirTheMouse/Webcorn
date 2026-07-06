@@ -1,0 +1,752 @@
+inlined background_theme {
+    "background-color" : "rgb(51, 51, 51)";
+}
+inlined banner_theme {
+    "background-color" : "rgb(31, 60, 27)";
+}
+inlined card_theme {
+    "border-radius" : "8px";
+    "background-color" : "rgb(67, 67, 67)";
+}
+inlined pill_theme {
+    "border-radius" : "10px";
+    "background-color" : "rgb(205, 253, 255)";
+    "display" : "flex";
+    "align-items" : "center";
+    "justify-content" : "center";
+}
+inlined main_font {
+    "font-family" : "system-ui, sans-serif";
+}
+inlined text_one_theme {
+    "font-size" : "15px";
+    "font-weight" : "800";
+    "color" : " rgb(251, 251, 251)";
+    main_font;
+}
+inlined text_two_theme {
+    "font-size" : "12px";
+    "font-weight" : "400";
+    "color" : " rgb(207, 207, 207)";
+    main_font;
+}
+inlined text_three_theme {
+    "font-size" : "10px";
+    "font-weight" : "400";
+    "color" : " rgb(210, 210, 210)";
+    main_font;
+}
+inlined golden_color_theme {
+    "color" : "#dea426";
+}
+
+##
+    register login;
+    "login" {
+        in htmlemiting {
+            ctx.source.append("<!DOCTYPE html><html><body>");
+            emit_contents;
+            ctx.source.append("</body></html>");
+        }
+        in posting {
+            validate_login;
+        }
+    }
+##
+
+login {
+    div {
+        style "
+            td:hover {
+                background-color:rgb(234, 234, 234);
+            }
+            input:focus {
+                outline: none;
+            }
+            textarea:focus {
+                outline: none;
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+        ";
+
+        script read_file("web/webcorn.js");
+
+        background_theme;
+        div {
+            "display" : "flex";
+            "min-height" : "100vh";
+                div {
+                    "flex" : "1";
+                    "display" : "flex";
+                    "flex-direction" : "column";
+                    "justify-content" : "center";
+                    "align-items" : "center";
+                        div {
+                            "display" : "flex";
+                            "justify-content" : "center";
+                            "align-items" : "end";
+                            "flex-direction" : "column";
+                            "width" : "480px";
+                            "height" : "200px";
+                            "padding" : "40px";
+                            "gap" : "12px";
+                            "border-radius" : "12px";
+                            "box-shadow" : "0 4px 24px rgba(0,0,0,0.08)";
+
+                                inlined login_input_theme {
+                                    "border" : "none";
+                                    "border-bottom" : "2px solid rgb(200,200,200)";
+                                    "border-radius" : "0px";
+                                    "background-color" : "transparent";
+                                    "padding" : "8px 0px";
+                                }
+
+                                div {
+                                    "display" : "flex";
+                                    "align-items" : "center";
+                                    "width" : "100%";
+                                    "gap" : "7px";
+                                        text "Username:" {
+                                            "width" : "70px";
+                                            "font-size" : "14px";
+                                            "flex-shrink" : "0";
+                                            text_theme;
+                                        }
+                                        input {
+                                            "id" : "username";
+                                            "flex" : "1";
+                                            login_input_theme;
+                                        }
+                                }
+
+                                div {
+                                    "display" : "flex";
+                                    "align-items" : "center";
+                                    "width" : "100%";
+                                    "gap" : "8px";
+                                        text "Password:" {
+                                            "width" : "70px";
+                                            "font-size" : "14px";
+                                            "flex-shrink" : "0";
+                                            text_theme;
+                                        }
+                                        input {
+                                            "id" : "password";
+                                            "type" : "password";
+                                            "flex" : "1";
+                                            login_input_theme;
+                                        }
+                                }
+
+                                button {
+                                    "id" : "login";
+                                    "onclick" : "postForm({username: getel('username').value, password: getel('password').value})";
+                                    text "Login" {
+                                        "font-size" : "14px";
+                                        text_theme;
+                                    }
+                                    "width" : "75%";
+                                    "border" : "none";
+                                    "border-radius" : "4px";
+                                    "background-color" : "rgb(230, 230, 230)";
+                                }
+                        }
+                }
+        }
+    }
+}
+
+div main_banner {
+    "display" : "flex";
+    "flex-direction" : "row";
+    "width" : "100%";
+    "height" : "10%";
+    "align-items" : "center";
+    "justify-content" : "center";
+    "padding" : "10px";
+    banner_theme;
+    img {
+        "width" : "5%";
+        "height" : "auto";
+        "src" : "web/goldensystems/files/icon.png";
+    }
+}
+
+div bottom_banner {
+    "display" : "flex";
+    "flex-direction" : "row";
+    "width" : "100%";
+    "height" : "10%";
+    "align-items" : "center";
+    "justify-content" : "center";
+    "padding" : "10px";
+    banner_theme;
+    img {
+        "width" : "5%";
+        "height" : "auto";
+        "src" : "web/goldensystems/files/icon.png";
+    }
+    text "Contact" {
+        "color" : "#dea426";
+        text_one_theme;
+    }
+}
+
+##
+    register root_path;
+    "root_path" {
+        in htmlemiting {
+            ctx.source.append("<!DOCTYPE html><html><head>");
+            ctx.source.append("<link rel='icon' type='image/png' href='web/goldensystems/files/favicon.png'>");
+            ctx.source.append("<body>");
+            emit_contents;
+            ctx.source.append("</head></body></html>");
+        }
+    }
+##
+
+root_path {
+    style "
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+    ";
+    script read_file("web/webcorn.js");
+    div {
+        "display" : "flex";
+        "width" : "100%";
+        "min-height" : "400vh";
+        "align-items" : "top";
+        "justify-content" : "center";
+        "flex-direction" : "column";
+        background_theme;
+        
+        main_banner;
+
+        div {
+            "flex" : "1";
+            "height" : "100%";
+            "display" : "flex";
+            "flex-direction" : "column";
+            "justify-content" : "top";
+            "align-items" : "center";
+            text "A Good Slogan" {
+                "margin-top" : "100px";
+                "color" : "rgb(175, 105, 55)";
+                "font-size" : "120px";
+                "font-weight" : "1000";
+                text_one_theme;
+            }
+            div {
+                "width" : "60%";
+                text "Extending on the meaning of that slogan with some clever saying" {
+                    "text-align" : "center";
+                    "color" : "rgb(155, 93, 48)";
+                    "font-size" : "40px";
+                    "font-weight" : "600";
+                    text_one_theme;
+                }
+            }
+        }
+
+        div {
+            "flex" : "1";
+            "height" : "100%";
+            "display" : "flex";
+            "flex-direction" : "column";
+            "justify-content" : "top";
+            "align-items" : "center";
+            text "A Meaingful Phrase" {
+                "class" : "fade_in";
+                "opacity" : "0"; 
+                "transform" : "translateX(100%)"; 
+                "transition" : "opacity 1.0s ease, transform 1.0s ease";
+                "text-align" : "center";
+                "color" : "rgb(155, 93, 48)";
+                "font-size" : "40px";
+                text_one_theme;
+            }
+            text "The End of it" {
+                "class" : "fade_in";
+                "opacity" : "0"; 
+                "transform" : "translateX(-100%)"; 
+                "transition" : "opacity 1.0s ease, transform 1.0s ease";
+                "text-align" : "center";
+                "color" : "rgb(155, 93, 48)";
+                "font-size" : "40px";
+                text_one_theme;
+            }
+        }
+
+        div {
+            "flex" : "1";
+            "height" : "100%";
+            "display" : "flex";
+            "flex-direction" : "column";
+            "justify-content" : "top";
+            "align-items" : "center";
+            text "Code Log" {
+                "class" : "fade_in";
+                "opacity" : "0"; 
+                "transform" : "translateY(100px)"; 
+                "transition" : "opacity 0.6s ease, transform 0.6s ease";
+                "text-align" : "center";
+                "color" : "rgb(155, 93, 48)";
+                "font-size" : "40px";
+                text_one_theme;
+                "onclick" : "goTo('/codelog')";
+            }
+        }
+
+        div {
+            "flex" : "1";
+            "height" : "100%";
+            "display" : "flex";
+            "flex-direction" : "column";
+            "justify-content" : "top";
+            "align-items" : "center";
+            text "See Golden" {
+                "class" : "fade_in";
+                "opacity" : "0"; 
+                "transform" : "translateY(100px)"; 
+                "transition" : "opacity 0.6s ease, transform 0.6s ease";
+                "text-align" : "center";
+                "color" : "rgb(205, 122, 62)";
+                "font-size" : "40px";
+                text_one_theme;
+                "onclick" : "goTo('/Golden')";
+            }
+        }
+
+
+        bottom_banner;
+    }
+
+    script "
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if(entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('.fade_in').forEach(el => observer.observe(el));
+    ";
+}
+
+##
+    global bool tracer_on; tracer_on = false;
+    global string shapestr; shapestr = "";
+    global Node trace_reload_target; trace_reload_target = deadnode;
+    register Golden;
+    "Golden" {
+        in htmlemiting {
+            ctx.source.append("<!DOCTYPE html><html><head>");
+            ctx.source.append("<link rel='icon' type='image/png' href='web/goldensystems/files/favicon.png'>");
+            ctx.source.append("<body>");
+            emit_contents;
+            ctx.source.append("</head></body></html>");
+        }
+        in fraging {
+            string src = ctx.source;
+            string target = src.slice(0,src.find(" "));
+            string instr = src.slice(" ",1,2);
+            string content = src.slice(src.find(" ",0,2)+1,src.length);
+            print("TARGET: ",target);        
+            print("INSTR: ",instr);
+            print("CONTENT: ",content);
+            if(target.length!=0) {                
+                Node to_edit = find_node(target,ctx.node);                
+                ctx.source = "";            
+                if(instr=="run") {
+                    Node root = compile(content);           
+                    execut root;        
+                }
+                htmlemit to_edit;            
+            } else {                
+                print("No target for frag request!");            
+            }
+        }
+    }
+##
+
+
+Golden {
+    style "
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+    ";
+    script read_file("web/webcorn.js");
+    div {
+        "display" : "flex";
+        "width" : "100%";
+        "height" : "100%";
+        "align-items" : "top";
+        "justify-content" : "center";
+        "flex-direction" : "column";
+
+        script "
+            let points = [];
+            let preview_line = null;
+
+            function screen_to_svg(e) {
+                const img = document.getElementById('trace_canvas').querySelector('img');
+                const scaleX = 1920 / img.offsetWidth;
+                const scaleY = 1080 / img.offsetHeight;
+                return {
+                    x: e.offsetX * scaleX,
+                    y: e.offsetY * scaleY
+                };
+            }
+
+            function distance(a, b) {
+                return Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2);
+            }
+
+            function draw_trace() {
+                const svg = document.getElementById('trace_svg');
+                document.querySelectorAll('.trace_mark').forEach(el => el.remove());
+
+                points.forEach((p, i) => {
+                    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    circle.setAttribute('cx', p.x);
+                    circle.setAttribute('cy', p.y);
+                    circle.setAttribute('r', '6');
+                    circle.setAttribute('fill', 'gold');
+                    circle.classList.add('trace_mark');
+                    if(i === 0) circle.id = 'first_point';
+                    svg.appendChild(circle);
+                });
+
+                if(points.length > 1) {
+                    const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+                    polyline.setAttribute('points', points.map(p => p.x+','+p.y).join(' '));
+                    polyline.setAttribute('stroke', 'gold');
+                    polyline.setAttribute('stroke-width', '2');
+                    polyline.setAttribute('fill', 'none');
+                    polyline.classList.add('trace_mark');
+                    svg.appendChild(polyline);
+                }
+            }
+
+            function close_shape() {
+                if(preview_line) { preview_line.remove(); preview_line = null; }
+                document.querySelectorAll('.trace_mark').forEach(el => el.remove());
+
+                const d = 'M ' + points.map(p => p.x+','+p.y).join(' L ') + ' Z';
+                console.log('PATH: ', d);
+                points = [];
+                fragthree('trace_canvas','run','print(\"'+d+'\"); shapestr.append(\"'+d+'|\");');
+            }
+
+            function handle_trace_click(e) {
+                if(document.getElementById('trace_canvas').style.cursor !== 'crosshair') return;
+                const {x, y} = screen_to_svg(e);
+
+                if(points.length > 2 && distance({x,y}, points[0]) < 20) {
+                    close_shape();
+                    return;
+                }
+
+                points.push({x, y});
+                draw_trace();
+            }
+
+            function handle_trace_move(e) {
+                if(points.length === 0) return;
+                if(document.getElementById('trace_canvas').style.cursor !== 'crosshair') return;
+
+                const svg = document.getElementById('trace_svg');
+                const {x, y} = screen_to_svg(e);
+
+                if(!preview_line) {
+                    preview_line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    preview_line.setAttribute('stroke', 'gold');
+                    preview_line.setAttribute('stroke-width', '2');
+                    preview_line.setAttribute('stroke-dasharray', '4');
+                    svg.appendChild(preview_line);
+                }
+
+                const last = points[points.length-1];
+                preview_line.setAttribute('x1', last.x);
+                preview_line.setAttribute('y1', last.y);
+                preview_line.setAttribute('x2', x);
+                preview_line.setAttribute('y2', y);
+
+                const first = document.getElementById('first_point');
+                if(first && points.length > 2 && distance({x,y}, points[0]) < 20) {
+                    first.setAttribute('fill', 'white');
+                    first.setAttribute('r', '10');
+                } else if(first) {
+                    first.setAttribute('fill', 'gold');
+                    first.setAttribute('r', '6');
+                }
+            }
+
+            function setup_tracer() {
+                const canvas = document.getElementById('trace_canvas');
+                canvas.removeEventListener('click', handle_trace_click);
+                canvas.removeEventListener('mousemove', handle_trace_move);
+                canvas.addEventListener('click', handle_trace_click);
+                canvas.addEventListener('mousemove', handle_trace_move);
+            }
+        ";
+
+        main_banner;
+
+        html "<audio id='GoldenOne' src='web/goldensystems/files/GoldenOne.wav' preload='auto'></audio>";
+        html "<audio id='TheMiceRise' src='web/goldensystems/files/TheMiceRise.wav' preload='auto'></audio>";
+
+        div trace_display {
+            "display" : "flex";
+            "flex-direction" : "column";
+            div {
+                "flex" : "20";
+                "id" : "trace_canvas";
+                "heigth" : "90%";
+                "position" : "relative";  
+                "background-color" : "black";
+                if(tracer_on) {
+                    "cursor" : "crosshair";
+                    script "
+                        (function() {
+                            setup_tracer();
+                        })();
+                    ";
+                }
+                img {
+                    "width" : "100%";
+                    "height" : "auto";
+                    "display" : "block";
+                    "src" : "web/goldensystems/files/campfire.png";
+                }
+                div {
+                    style "
+                        .eyes path {
+                            fill-opacity: 0;
+                            transition: fill-opacity 0.2s ease;
+                        }
+                        .eyes:hover path {
+                            fill-opacity: 0.6;
+                        }
+                        .ears path {
+                            fill-opacity: 0;
+                            transition: fill-opacity 0.2s ease;
+                        }
+                        .ears:hover path {
+                            fill-opacity: 0.6;
+                        }
+                    ";
+
+                    svg {
+                        "id" : "trace_svg";
+                        "viewBox" : "0 0 1920 1080";
+                        "style" : "position:absolute;top:0;left:0;width:100%;height:100%";
+                        string eye_colour = "rgb(175, 105, 55)";
+                        g {
+                            "class" : "eyes";
+                            "onclick" : "goTo('/videos')";
+                            path {
+                                "d" : "M665.5 188H649.5L644.5 197V208L657.5 220.5H671L679 211L677 197L665.5 188Z";
+                                "fill" : eye_colour;
+                            }
+                            path {
+                                "d" : "M722.5 206L717.5 217.5L722.5 227.5H732L744 220.5L747.5 208L744 197H733.5L722.5 206Z";
+                                "fill" : eye_colour;
+                            }
+                        }
+                        
+                        string ear_colour = "rgb(190, 70, 100)";
+                        g {
+                            "class" : "ears";
+                            "onclick" : "
+                                const a = document.getElementById('GoldenOne');
+                                if(a.paused) { a.play(); } else { a.pause(); a.currentTime = 0; }
+                            ";
+
+                            path {
+                                "d" : "M 647.3647871116225,322.4539877300614 L 711.4384349827387,382.0858895705522 L 711.4384349827387,430.6748466257669 L 671.6685845799769,457.17791411042947 L 618.6421173762946,443.9263803680982 L 603.1760644418872,377.66871165644176 Z";
+                                "fill" : ear_colour;
+                            }
+                            path {
+                                "d" : "M 790.9781357882623,311.4110429447853 L 788.7686996547756,373.25153374233133 L 793.187571921749,406.3803680981595 L 808.6536248561564,417.4233128834356 L 815.2819332566168,390.92024539877303 L 810.8630609896433,337.9141104294479 Z";
+                                "fill" : ear_colour;
+                            }
+                        }
+
+                        g {
+                            "class" : "ears";
+                            "onclick" : "
+                                const a = document.getElementById('TheMiceRise');
+                                if(a.paused) { a.play(); } else { a.pause(); a.currentTime = 0; }
+                            ";
+
+                            path {
+                                "d" : "M 1150.6938775510203,327.7871825876663 L 1171.5918367346937,335.6227327690447 L 1184.6530612244896,361.74123337363966 L 1185.9591836734694,395.69528415961304 L 1168.9795918367347,429.6493349455865 L 1141.5510204081631,437.4848851269649 L 1108.8979591836735,411.36638452237 L 1112.816326530612,382.63603385731557 Z";
+                                "fill" : ear_colour;
+                            }
+                            path {
+                                "d" : "M 974.3673469387754,338.23458282950423 L 992.6530612244898,356.5175332527207 L 1010.938775510204,389.16565900846433 L 1014.8571428571428,416.590084643289 L 995.2653061224489,446.62636033857314 L 970.4489795918366,445.3204353083434 L 957.3877551020407,428.3434099153567 L 952.1632653061224,394.3893591293833 L 956.0816326530611,360.43530834340993 Z";
+                                "fill" : ear_colour;
+                            }
+                        }
+
+                        Ptr string shapes = split_str(shapestr,"|");
+                        for(int i=0;i<shapes.length;i++) {
+                            path {
+                                "d" : shapes.get(i);
+                                "fill" : eye_colour;
+                            }
+                        }
+                    }
+                }
+            }
+            div {
+                "flex" : "1";
+                button {
+                    text "Trace" {text_theme;}
+                    "onclick" : capture(
+                        js_do("
+                            document.getElementById('trace_canvas').style.cursor = 
+                                document.getElementById('trace_canvas').style.cursor === 'crosshair' 
+                                ? 'default' 
+                                : 'crosshair';
+                                setup_tracer();
+                        ");
+                    ){
+                        tracer_on = !tracer_on;
+                    }
+                }
+                button {
+                    text "SAVE" {text_theme;}
+                    "onclick" : capture {
+                        write_file("web/goldensystems/files/tracesave",shapestr);
+                        trace_display.reload;
+                    }
+                }
+                button {
+                    text "LOAD" {text_theme;}
+                    "onclick" : capture{
+                        shapestr = read_file("web/goldensystems/files/tracesave");
+                        trace_display.reload;
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+
+##
+    register videos;
+    "videos" {
+        in htmlemiting {
+            ctx.source.append("<!DOCTYPE html><html><head>");
+            ctx.source.append("<link rel='icon' type='image/png' href='web/goldensystems/files/favicon.png'>");
+            ctx.source.append("<body>");
+            emit_contents;
+            ctx.source.append("</head></body></html>");
+        }
+    }
+##
+
+videos {
+    style "
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+    ";
+    script read_file("web/webcorn.js");
+
+    div {
+        "display" : "flex";
+        "width" : "100%";
+        "height" : "100%";
+        "align-items" : "top";
+        "justify-content" : "center";
+        "flex-direction" : "column";
+        "gap" : "24px";
+        "padding" : "40px";
+
+        stateless template div video_card(string vid) {
+            video {
+                "width" : "100%";
+                "border-radius" : "8px";
+                "controls" : "true";
+                "src" : "web/goldensystems/files/"+vid+".mov";
+            }
+        }
+
+        video_card("CityBuildierProofOfConcept");
+        video_card("Eureka");
+        video_card("Cuttery");
+        video_card("ConfigPanel");
+        video_card("GoldenDemoMemory");
+        video_card("GoldenStart");
+        video_card("GoldenStart2");
+        video_card("EarlyModernGUI");
+        video_card("ModernGUI");
+    }
+}
+
+##
+    register codelog;
+    "codelog" {
+        in htmlemiting {
+            ctx.source.append("<!DOCTYPE html><html><head>");
+            ctx.source.append("<link rel='icon' type='image/png' href='web/goldensystems/files/favicon.png'>");
+            ctx.source.append("<body>");
+            emit_contents;
+            ctx.source.append("</head></body></html>");
+        }
+    }
+##
+
+codelog {
+    style "
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+    ";
+    script read_file("web/webcorn.js");
+    div {
+        "display" : "flex";
+        "width" : "100%";
+        "min-height" : "400vh";
+        "align-items" : "top";
+        "justify-content" : "center";
+        "flex-direction" : "column";
+        background_theme;
+        main_banner;
+
+        div {
+            "flex" : "1";
+            "gap" : "1%";
+            Ptr string logs = split_str(read_file("web/goldensystems/files/codelog.txt"),"\n");
+            for(int i=0;i<logs.length;i++) {
+                text logs.get(i) {
+                    golden_color_theme;
+                    "margin" : "20px";
+                    text_one_theme;
+                }
+            }
+        }
+
+        bottom_banner;
+    }
+}

@@ -145,6 +145,52 @@
         }
     }
 
+    register svg; 
+    "svg" {
+        in htmlemiting {
+            ctx.source.append("<svg ");
+            ctx.source.append("xmlns=\"http://www.w3.org/2000/svg\" ");
+            ctx.source.append("xmlns:xlink=\"http://www.w3.org/1999/xlink\" ");
+            set_in_svg(true);
+            emit_inline_html;
+            ctx.source.append(">");
+            emit_contents;
+            ctx.source.append("</svg>");
+            set_in_svg(false);
+        }
+    }
+
+    register path;
+    "path" {
+        in htmlemiting {
+            ctx.source.append("<path ");
+            emit_inline_html;
+            ctx.source.append("/>");
+        }
+    }
+
+    register g;
+    "g" {
+        in htmlemiting {
+            ctx.source.append("<g ");
+            emit_inline_html;
+            ctx.source.append(">");
+            emit_contents;
+            ctx.source.append("</g>");
+        }
+    }
+
+    register video;
+    "video" {
+        in htmlemiting {
+            ctx.source.append("<video ");
+            emit_inline_html;
+            ctx.source.append(">");
+            emit_contents;
+            ctx.source.append("</video>");
+        }
+    }
+
     register table;
     "table" {
         in htmlemiting {
@@ -205,22 +251,208 @@
         }
     }
 
-    global string get_nsrc(string target) {
-        string nsrc = "FRAG "+target+" ";
-        return nsrc;
+
+    global int emit_js(string js) {
+        if(ctx.source.length!=0) {if(ctx.source=="go") {} else { ctx.source.append("@"); }}
+        ctx.source+=("RUN "+js);
     }
     global string emit_reload(Context c, Node n) {
-        ctx.source.append(get_nsrc(node_str_id((n))));
+        if(c.source.length!=0) {
+            if(c.source=="go") {} else { c.source.append("@"); }
+        }
+        c.source+=("FRAG " + node_str_id(n) + " ");
+        string oldsrc = c.source;
+        ctx.source = "";
         htmlemit n;
-        c.source.append(ctx.source);
+        c.source = (oldsrc+ctx.source);
         return ctx.source;
     }
-
     "component" {
         on ".\"reload\"" {
             emit_reload(ctx.sub,ctx.node.left.scope_owner);
         }
     }
+    global string emit_full_page_reload(Context c){
+        c.source = "RELOAD";
+        return ctx.source;
+    }
+
+    global int set_cell(Ptr cellptr, string valstr) {
+        duck val = from_string(valstr);
+        print("SC Val: ",val," ",SV#val);
+        if(is_live(*cellptr)) {
+            *(*cellptr) = val;
+        } else {
+            *cellptr = get_ticket(find_sheet(getpool(cellptr),#storesheet),0);
+            *(*cellptr) = val;
+        }
+    }
+
+    global Ptr create_form_question(int spool, int col, int row, string type) {
+        Ptr metaptr = makePtr3(find_sheet(spool,#metadatasheet,1),col,row);
+        set_cell(metaptr,type);
+        Ptr formptr = makePtr3(find_sheet(spool,#formsheet),col,row);
+        *formptr = get_ticket(find_sheet(spool,#storesheet),0);
+        *formptr.clear;
+        return formptr;
+    }
+
+    global int add_dropdown_option(int spool, Ptr fp, string label, string value) {
+        duck val = from_string(value);
+        int vofa = V#val;
+        if(vofa==(#string)) {
+            fp.push(get_ticket(find_sheet(spool,#storesheet),32));
+        } else {
+            fp.push(val);
+        }
+        int idx = fp.length-1;
+        fp.get(idx)=val;
+        setsidx(fp,idx);
+        fp.celllabel(label);
+    }
+
+    int generate_redberry_sheet() {
+        int spool = create_sheet;
+        add_form(spool);
+        int oncol = 0;
+        Ptr cellptr = makePtr3(spool,0,0);
+        Ptr formptr = deadptr;
+        Ptr fp = deadptr;
+
+        add_column_to_sheet(spool); csetlabel(spool,oncol,"Employee Name");
+        add_row_to_sheet(spool);
+            setidx(cellptr,oncol);
+            set_cell(cellptr,"Fir");
+            formptr = create_form_question(spool,oncol,0,"Input");
+            fp = *formptr;
+            csetlabel(getpool(fp),getidx(fp),"Employee Name");
+        oncol++;
+
+        add_column_to_sheet(spool); csetlabel(spool,oncol,"Report Date");
+            setidx(cellptr,oncol);
+            set_cell(cellptr,"July 5th 2026");
+            formptr = create_form_question(spool,oncol,0,"Input"); //Make Date later once that's fixed
+            fp = *formptr;
+            csetlabel(getpool(fp),getidx(fp),"Report Date");
+        oncol++;
+
+        add_column_to_sheet(spool); csetlabel(spool,oncol,"Place of Supply");
+            formptr = create_form_question(spool,oncol,0,"Dropdown");
+            fp = *formptr;
+            csetlabel(getpool(fp),getidx(fp),"Place of Supply");
+            add_dropdown_option(spool,fp,"NL Newfoundland","NL Newfoundland");
+            add_dropdown_option(spool,fp,"NS Nova Scotia","NS Nova Scotia");
+            add_dropdown_option(spool,fp,"PE Prince Edward Island","PE Prince Edward Island");
+            add_dropdown_option(spool,fp,"NB New Brunswick","NB New Brunswick");
+            add_dropdown_option(spool,fp,"QC Quebec","QC Quebec");
+            add_dropdown_option(spool,fp,"ON Ontario","ON Ontario");
+            add_dropdown_option(spool,fp,"MB Manitoba","MB Manitoba");
+            add_dropdown_option(spool,fp,"SK Saskatchewan","SK Saskatchewan");
+            add_dropdown_option(spool,fp,"AB Alberta","AB Alberta");
+            add_dropdown_option(spool,fp,"BC British Columbia","BC British Columbia");
+            add_dropdown_option(spool,fp,"US United States","US United States");
+        oncol++;
+
+        add_column_to_sheet(spool); csetlabel(spool,oncol,"Transaction Date");
+            formptr = create_form_question(spool,oncol,0,"Input"); //Make Date later once that's fixed
+            fp = *formptr;
+            csetlabel(getpool(fp),getidx(fp),"Transaction Date");
+        oncol++;
+
+        add_column_to_sheet(spool); csetlabel(spool,oncol,"Expense Description");
+            formptr = create_form_question(spool,oncol,0,"Dropdown");
+            fp = *formptr;
+            csetlabel(getpool(fp),getidx(fp),"Expense Description");
+            add_dropdown_option(spool,fp,"1010-Meals","1010-Meals");
+            add_dropdown_option(spool,fp,"1020-Entertainment","1020-Entertainment");
+            add_dropdown_option(spool,fp,"1025-Hotel","1025-Hotel");
+            add_dropdown_option(spool,fp,"1030-Taxi","1030-Taxi");
+            add_dropdown_option(spool,fp,"1040-Kilometres $.72 per KM","1040-Kilometres $.72 per KM");
+            add_dropdown_option(spool,fp,"1045-Parking","1045-Parking");
+            add_dropdown_option(spool,fp,"1050-Fuel","1050-Fuel");
+            add_dropdown_option(spool,fp,"1060-Car rental","1060-Car rental");
+            add_dropdown_option(spool,fp,"1065-Car Rental Fuel","1065-Car Rental Fuel");
+            add_dropdown_option(spool,fp,"1070-Travel Expense","1070-Travel Expense");
+            add_dropdown_option(spool,fp,"1080-Gym membership","1080-Gym membership");
+            add_dropdown_option(spool,fp,"1090-Car maintenance","1090-Car maintenance");
+            add_dropdown_option(spool,fp,"1100-Gift cards","1100-Gift cards");
+            add_dropdown_option(spool,fp,"1110-Cell & Other Telephone","1110-Cell & Other Telephone");
+            add_dropdown_option(spool,fp,"1120-Internet","1120-Internet");
+            add_dropdown_option(spool,fp,"1130-Food Test-Competitive Review","1130-Food Test-Competitive Review");
+            add_dropdown_option(spool,fp,"1140-Food Concepts-Photos","1140-Food Concepts-Photos");
+            add_dropdown_option(spool,fp,"1145-Apartment Rent","1145-Apartment Rent");
+            add_dropdown_option(spool,fp,"2010-Alarm & Surveillance","2010-Alarm & Surveillance");
+            add_dropdown_option(spool,fp,"2020-CHAMPS","2020-CHAMPS");
+            add_dropdown_option(spool,fp,"2030-Cleaning Supplies","2030-Cleaning Supplies");
+            add_dropdown_option(spool,fp,"2040-Computer supplies","2040-Computer supplies");
+            add_dropdown_option(spool,fp,"2050-Document Storage","2050-Document Storage");
+            add_dropdown_option(spool,fp,"2060-Employee Recognition","2060-Employee Recognition");
+            add_dropdown_option(spool,fp,"2070-Equipment Rental","2070-Equipment Rental");
+            add_dropdown_option(spool,fp,"2080-Extermination expenses","2080-Extermination expenses");
+            add_dropdown_option(spool,fp,"2090-Health & Safety","2090-Health & Safety");
+            add_dropdown_option(spool,fp,"2100-Internet & WEB Hosting","2100-Internet & WEB Hosting");
+            add_dropdown_option(spool,fp,"2110-Kitchen Supplies","2110-Kitchen Supplies");
+            add_dropdown_option(spool,fp,"2120-Landscaping","2120-Landscaping");
+            add_dropdown_option(spool,fp,"2130-Licences & permits","2130-Licences & permits");
+            add_dropdown_option(spool,fp,"2140-Maint. Building","2140-Maint. Building");
+            add_dropdown_option(spool,fp,"2150-Maint. Computer Equip.","2150-Maint. Computer Equip.");
+            add_dropdown_option(spool,fp,"2160-Maint. Equipment","2160-Maint. Equipment");
+            add_dropdown_option(spool,fp,"2210-Maint.POS(Cash register)","2210-Maint.POS(Cash register)");
+            add_dropdown_option(spool,fp,"2220-Office Supplies","2220-Office Supplies");
+            add_dropdown_option(spool,fp,"2230-Paper Products","2230-Paper Products");
+            add_dropdown_option(spool,fp,"2240-Postage","2240-Postage");
+            add_dropdown_option(spool,fp,"2250-Courier","2250-Courier");
+            add_dropdown_option(spool,fp,"2260-Professional fees","2260-Professional fees");
+            add_dropdown_option(spool,fp,"2270-Professional Membership","2270-Professional Membership");
+            add_dropdown_option(spool,fp,"2280-Promotional items","2280-Promotional items");
+            add_dropdown_option(spool,fp,"2290-Recruitment","2290-Recruitment");
+            add_dropdown_option(spool,fp,"2300-Restaurant supplies","2300-Restaurant supplies");
+            add_dropdown_option(spool,fp,"2310-Snow removal","2310-Snow removal");
+            add_dropdown_option(spool,fp,"2320-Sponsorships","2320-Sponsorships");
+            add_dropdown_option(spool,fp,"2330-Technical support","2330-Technical support");
+            add_dropdown_option(spool,fp,"2340-Training","2340-Training");
+            add_dropdown_option(spool,fp,"2350-Uniforms","2350-Uniforms");
+            add_dropdown_option(spool,fp,"2370-Waste disposal","2370-Waste disposal");
+            add_dropdown_option(spool,fp,"9000-Other-Enter Comments","9000-Other-Enter Comments");
+        oncol++;
+
+        add_column_to_sheet(spool); csetlabel(spool,oncol,"Department");
+            formptr = create_form_question(spool,oncol,0,"Dropdown");
+            fp = *formptr;
+            csetlabel(getpool(fp),getidx(fp),"Department");
+            add_dropdown_option(spool,fp,"1000-Finance","1000-Finance");
+            add_dropdown_option(spool,fp,"1100-Accounting","1100-Accounting");
+            add_dropdown_option(spool,fp,"1200-Information Technology","1200-Information Technology");
+            add_dropdown_option(spool,fp,"1300-Human Resources","1300-Human Resources");
+            add_dropdown_option(spool,fp,"1400-Executive","1400-Executive");
+            add_dropdown_option(spool,fp,"1600-CCV and Board","1600-CCV and Board");
+            add_dropdown_option(spool,fp,"1700-Real Estate","1700-Real Estate");
+            add_dropdown_option(spool,fp,"1800-Payroll","1800-Payroll");
+            add_dropdown_option(spool,fp,"1900-Project Management","1900-Project Management");
+            add_dropdown_option(spool,fp,"2000-Redberry Operations","2000-Redberry Operations");
+            add_dropdown_option(spool,fp,"2100-Burger King Operations","2100-Burger King Operations");
+            add_dropdown_option(spool,fp,"2400-Taco Bell Operations","2400-Taco Bell Operations");
+            add_dropdown_option(spool,fp,"2500-Jersey Mike Operations","2500-Jersey Mike Operations");
+            add_dropdown_option(spool,fp,"3000-Head Office","3000-Head Office");
+            add_dropdown_option(spool,fp,"5000-Marketing BK","5000-Marketing BK");
+            add_dropdown_option(spool,fp,"7000-Othr Incom/Exp.","7000-Othr Incom/Exp.");
+            add_dropdown_option(spool,fp,"7500-Othr Incom/Exp.Lease","7500-Othr Incom/Exp.Lease");
+        oncol++;
+
+        add_column_to_sheet(spool); csetlabel(spool,oncol,"Vendor");
+            formptr = create_form_question(spool,oncol,0,"Input");
+            fp = *formptr;
+            csetlabel(getpool(fp),getidx(fp),"Vendor");
+        oncol++;
+
+        add_column_to_sheet(spool); csetlabel(spool,oncol,"Total Amount");
+            formptr = create_form_question(spool,oncol,0,"Input");
+            fp = *formptr;
+            csetlabel(getpool(fp),getidx(fp),"Total Amount");
+
+        return spool;
+    }
+    //save_sheet(generate_redberry_sheet,"redberry");
 
     //save_sheet(create_sheet,"wip");
     //save_sheet(create_sheet,"redberry");
@@ -234,6 +466,7 @@ print("Compiling");
     tstart("twig_compile");
 Node twig = compile(read_file("web/thistle/thistle.twg"));
 //Node twig = compile(read_file("web/test.twg"));
+//Node twig = compile(read_file("web/goldensystems/website.twg"));
 print("Compiled in: ",tstop("twig_compile"));
 Node page = twig.children.get(0);
 
@@ -251,30 +484,48 @@ while(0<1) {
         string first_line = req.substr(0, req.find("\r\n"));
         string method = first_line.substr(0, first_line.find(" "));
         string slashpath = first_line.slice(" ", 1, 2);
-        string path = slashpath.substr(1,slashpath.length-1); //Strip the slash
+        string unslashpath = slashpath.substr(1,slashpath.length-1); //Strip the slash
         print("Method: ",method);
         print("Path: ",slashpath);
 
-        if(path.length==0) {
-            path = "root_path"; //For routing
-        } else if(path=="favicon.ico") {
-            close(cfd);
-            print("Unit ",unit_uid," completed favicon request ",cfd);
-            unit_setindex(0);
-            continue;
+        if(unslashpath.find(".")>0) {
+            if(unslashpath.find("web/")==0) {
+                string mime = "application/octet-stream";
+                if(unslashpath.find(".png") > 0) {mime = "image/png";}
+                if(unslashpath.find(".jpg") > 0) {mime = "image/jpeg";}
+                if(unslashpath.find(".js") > 0)  {mime = "application/javascript";}
+                if(unslashpath.find(".css") > 0) {mime = "text/css";}
+                string info = read_file(unslashpath);
+                string response = "HTTP/1.1 200 OK\r\n"
+                                +"Content-Type: " + mime + "\r\n"
+                                +"Content-Length: " + to_string(info.length) + "\r\n"
+                                +"\r\n";
+                response+=info;
+                write(cfd, response);
+                close(cfd);
+                print("Unit ",unit_uid," completed file request ",cfd);
+                unit_setindex(0);
+                continue;
+            }
+        }
+
+        if(unslashpath.length==0) {
+            unslashpath = "root_path"; //For routing
+        } else if(unslashpath=="favicon.ico") {
+            unslashpath = "root_path"; //For routing
         }
 
         if(method=="RESET") {
             print("Recompiled webrunner");
-            twig = compile(read_file("web/test.twg"));
+            //twig = compile(read_file("web/test.twg"));
+            twig = compile(read_file("web/goldensystems/website.twg"));
             page = twig.children.get(0);
             method="GET";
         }   
-        print("METHOD: ",method);
 
         for(int i=0;i<twig.children.length;i++) {
             Node child = twig.children.get(i);
-            if(labels(child.type)==path) {
+            if(labels(child.type)==unslashpath) {
                 page = child; //Because I haven't added break yet
             }
         }
@@ -334,42 +585,36 @@ while(0<1) {
             int body_start = req.find("\r\n\r\n");
             if(body_start>=0) {
                 string src = req.slice(body_start+4,req.length);
-                print("Running:\n",src);
+                if(src.length==0) {
+                    print("Recived a blank run request");
+                } else {
+                    print("Running:\n",src);
 
-                Ptr string args = split_str(src,"@");
-                ctx.source = "go";
-                Ptr pointer = string_to_Ptr(args.get(0));
-                Node root = cast_to_Node(pointer);
+                    Ptr string args = split_str(src,"@");
+                    ctx.source = "go";
+                    Ptr pointer = string_to_Ptr(args.get(0));
+                    Node root = cast_to_Node(pointer);
 
-                if(args.length>1) {
-                    for(int a=1;a<args.length;a++) {
-                        //print("Child ",a,": ",root.children.get(a-1));
-                        //print("Arg ",a,": ",args.get(a));
-                        if(args.get(a)=="[VAR]") {
-                            root.children.get(a-1).value.set(args.get(a+1));
+                    if(args.length>1) {
+                        for(int a=1;a<args.length;a++) {
+                            if(args.get(a)=="[VAR]") {
+                                root.children.get(a-1).value.set(args.get(a+1));
+                            }
                         }
                     }
-                }
 
                     tstart("executing_run_root");
-                execut root;
-                //ursw;
-                //udump;
-                print("Time: ",tstop("executing_run_root"));
-                //write_file("fire.svg",uspan_flame_chart);
+                    execut root;
+                    print("Time: ",tstop("executing_run_root"));
 
-                print("Finished root execution");
-
-                src = ctx.source;
-                string target = src.slice(0,src.find(" "));
-                string instr = src.slice(" ",1,2);
-                string content = src.slice(src.find(" ",0,2)+1,src.length);
-                if(target.length!=0) {
-                    print("TARGET: ",target); 
-                    print("INSTR: ",instr); 
-                    print("CONTENT LEN: ",content.length); 
-                    response_body = content;
-                    //response_body = "<div id=\""+instr+"\">"+uspan_flame_chart+"</div>";
+                    src = ctx.source;
+                    if(src=="RELOAD") {
+                        ctx.source = "";
+                        htmlemit page;
+                        response_body = ctx.source;
+                    } else if(src.length>0) {
+                        response_body = src;
+                    }
                 }
             }
         }

@@ -44,12 +44,11 @@ inlined text_three_theme {
 ##
 
 root_path {
-    script read_file("mixos-acorn/web/thistle/thistle.js");
+    script read_file("web/webcorn.js");
     button {
         text "RESET";
         "onclick" : "resetWebrunner();";
     }
-
 
     div {
         "display" : "flex";

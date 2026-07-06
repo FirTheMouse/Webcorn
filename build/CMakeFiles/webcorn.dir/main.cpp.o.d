@@ -901,11 +901,6 @@ CMakeFiles/webcorn.dir/main.cpp.o: \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__functional/pointer_to_binary_function.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__functional/pointer_to_unary_function.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__functional/unary_negate.h \
-  /Users/jacksonconners/VSCode/Webcorn/web/../GDSL/mixos-acorn/../core/Golden.hpp \
-  /Users/jacksonconners/VSCode/Webcorn/web/../GDSL/mixos-acorn/../core/../ext/g_lib/util/logger.hpp \
-  /Users/jacksonconners/VSCode/Webcorn/web/../GDSL/mixos-acorn/../core/../ext/g_lib/util/../util/util.hpp \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/any \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/fstream \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/filesystem \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/copy_options.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/directory_entry.h \
@@ -924,6 +919,11 @@ CMakeFiles/webcorn.dir/main.cpp.o: \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/path_iterator.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/recursive_directory_iterator.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/u8path.h \
+  /Users/jacksonconners/VSCode/Webcorn/web/../GDSL/mixos-acorn/../core/Golden.hpp \
+  /Users/jacksonconners/VSCode/Webcorn/web/../GDSL/mixos-acorn/../core/../ext/g_lib/util/logger.hpp \
+  /Users/jacksonconners/VSCode/Webcorn/web/../GDSL/mixos-acorn/../core/../ext/g_lib/util/../util/util.hpp \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/any \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/fstream \
   /Users/jacksonconners/VSCode/Webcorn/web/../GDSL/mixos-acorn/../core/../ext/g_lib/util/../util/list.hpp \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/iostream \
   /Users/jacksonconners/VSCode/Webcorn/web/../GDSL/mixos-acorn/../core/../ext/g_lib/util/../util/basic.hpp \
@@ -1020,158 +1020,7 @@ CMakeFiles/webcorn.dir/main.cpp.o: \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/_types/_s_ifmt.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/_types/_filesec_t.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/arpa/inet.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/mach.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/std_types.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/boolean.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/machine/boolean.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/arm/boolean.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/kern_return.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/machine/kern_return.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/arm/kern_return.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/port.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/machine/vm_types.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/arm/vm_types.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/vm_types.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/mach_types.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/host_info.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/message.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/vm_statistics.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/machine.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/time_value.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/host_notify.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/host_special_ports.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/memory_object_types.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/vm_prot.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/vm_sync.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/exception_types.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/machine/exception.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/arm/exception.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/thread_status.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/machine/thread_status.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/arm/thread_status.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/machine/thread_state.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/arm/thread_state.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach_debug/ipc_info.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/mach_voucher_types.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/processor_info.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/machine/processor_info.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/arm/processor_info.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/task_info.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/policy.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/task_inspect.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/task_policy.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/task_special_ports.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/thread_info.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/thread_policy.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/thread_special_ports.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/clock_types.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/vm_attributes.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/vm_inherit.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/vm_purgable.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/vm_behavior.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/vm_region.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/machine/vm_param.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/arm/vm_param.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/vm_page_size.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/kmod.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/dyld_kernel.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/_types/_fsid_t.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/_types/_fsobj_id_t.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/mach_interface.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/clock_priv.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/ndr.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/libkern/OSByteOrder.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/notify.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/mig_errors.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/mig.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/mig_strncpy_zerofill_support.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/host_priv.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach_debug/mach_debug_types.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach_debug/vm_info.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach_debug/zone_info.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach_debug/page_info.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach_debug/hash_info.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach_debug/lockgroup_info.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/host_security.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/processor.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/processor_set.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/semaphore.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/sync_policy.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/task.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/thread_act.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/vm_map.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/mach_port.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/mach_init.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/mach_traps.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/mach_host.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/thread_switch.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/rpc.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/machine/rpc.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/arm/rpc.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/mach_error.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach/error.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/include/mbedtls/x509_crt.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/drivers/builtin/include/mbedtls/private_access.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/include/mbedtls/build_info.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/include/tf-psa-crypto/build_info.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/include/psa/crypto_config.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/include/tf-psa-crypto/private/crypto_adjust_config_synonyms.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/include/tf-psa-crypto/private/crypto_adjust_config_auto_enabled.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/include/tf-psa-crypto/private/crypto_adjust_config_dependencies.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/include/tf-psa-crypto/private/crypto_adjust_config_key_pair_types.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/include/tf-psa-crypto/private/crypto_adjust_config_derived.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/drivers/builtin/include/mbedtls/private/crypto_adjust_config_enable_builtins.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/include/tf-psa-crypto/private/crypto_adjust_config_support.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/drivers/builtin/include/mbedtls/private/crypto_adjust_config_tweak_builtins.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/include/mbedtls/mbedtls_config.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/include/mbedtls/private/config_adjust_x509.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/include/mbedtls/private/config_adjust_ssl.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/include/mbedtls/x509.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/include/mbedtls/asn1.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/include/mbedtls/platform_util.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/include/mbedtls/platform_time.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h \
-  /Library/Developer/CommandLineTools/usr/lib/clang/15.0.0/include/inttypes.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/inttypes.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/xlocale/_inttypes.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/include/mbedtls/compat-3-crypto.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/include/psa/crypto_values.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/include/psa/crypto_types.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/include/psa/crypto_platform.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/drivers/builtin/include/mbedtls/private/bignum.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/include/mbedtls/pk.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/include/mbedtls/md.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/include/psa/crypto.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/include/psa/crypto_sizes.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/include/psa/crypto_struct.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/include/psa/crypto_driver_contexts_primitives.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/include/psa/crypto_driver_common.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/drivers/builtin/include/mbedtls/private/crypto_builtin_primitives.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/drivers/builtin/include/mbedtls/private/md5.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/drivers/builtin/include/mbedtls/private/ripemd160.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/drivers/builtin/include/mbedtls/private/sha1.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/drivers/builtin/include/mbedtls/private/sha256.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/drivers/builtin/include/mbedtls/private/sha512.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/drivers/builtin/include/mbedtls/private/sha3.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/drivers/builtin/include/mbedtls/private/cipher.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/include/psa/crypto_driver_contexts_composites.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/drivers/builtin/include/mbedtls/private/crypto_builtin_composites.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/drivers/builtin/include/mbedtls/private/cmac.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/drivers/builtin/include/mbedtls/private/gcm.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/drivers/builtin/include/mbedtls/private/ccm.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/drivers/builtin/include/mbedtls/private/chachapoly.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/drivers/builtin/include/mbedtls/private/poly1305.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/drivers/builtin/include/mbedtls/private/chacha20.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/drivers/builtin/include/mbedtls/private/ecdsa.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/drivers/builtin/include/mbedtls/private/ecp.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/drivers/builtin/include/mbedtls/private/ecjpake.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/include/psa/crypto_driver_contexts_key_derivation.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/drivers/builtin/include/mbedtls/private/crypto_builtin_key_derivation.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/include/psa/crypto_extra.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/include/psa/crypto_compat.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/include/mbedtls/x509_crl.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/include/mbedtls/ssl.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/include/mbedtls/ssl_ciphersuites.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/include/mbedtls/net_sockets.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/include/mbedtls/error.h \
-  /Users/jacksonconners/VSCode/Webcorn/ext/mbedtls/tf-psa-crypto/drivers/builtin/include/mbedtls/private/error_common.h
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/execinfo.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/os/base.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/os/availability.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/uuid/uuid.h

@@ -2694,3 +2694,66 @@ while(0<1) {
     print("Dispatching server to handle request ",cfd);
     dispatch_unit(session,cfd,req,unitcode);
 }  
+
+
+[:]TEMP STORAGE
+
+//init_tls("/etc/letsencrypt/live/goldensystems.ca/fullchain.pem", "/etc/letsencrypt/live/goldensystems.ca/privkey.pem");
+//init_tls("web/files/cert.pem","web/files/key.pem");
+
+string unitcode = read_file("web/webrunner.gld");
+
+start_session_manager(unitcode);
+print("Started the session manager");
+
+//string botcode = read_file("web/botrunner.gld");
+//start_bot_manager(botcode);
+//print("Started the bot manager");
+//dispatch_bot(1,"example.com",botcode);
+
+int fd = socket;
+int port = 8080;
+bind(fd,port);
+listen(fd);
+print("Opened a new server on ",port);
+
+
+
+while(0<1) {
+    int cfd = accept(fd);
+    if(cfd>0) {
+        string req = read(cfd);
+        string session = get_cookie(req,"session");
+        print("Dispatching server to handle request ",cfd);
+        dispatch_unit(session,cfd,req,unitcode);
+    }
+}  
+
+
+
+[:]OLD RUN-FRAG HANDLER
+string instr = src.slice(0,src.find(" "));
+string target = src.slice(" ",1,2);
+string content = src.slice(src.find(" ",0,2)+1,src.length);
+if(instr=="FRAG") {
+    if(target.length!=0) {
+        print("TARGET: ",target); 
+        print("INSTR: ",instr); 
+        print("CONTENT LEN: ",content.length); 
+        response_body = content;
+    }
+}
+
+
+[:]RUN BASED EMIT_RELOAD
+global string emit_reload(Context c, Node n) {
+    if(c.source.length!=0) {
+        if(c.source=="go") {} else { c.source.append("@"); }
+    }
+    c.source+=("RUN const el = document.getElementById('"+node_str_id(n)+"'); if(el) el.outerHTML = '");
+    string oldsrc = c.source;
+    ctx.source = "";
+    htmlemit n;
+    c.source = (oldsrc+ctx.source+"';");
+    return ctx.source;
+}
