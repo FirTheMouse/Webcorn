@@ -311,7 +311,7 @@
         fp.celllabel(label);
     }
 
-    int generate_redberry_sheet() {
+    global int generate_redberry_sheet() {
         int spool = create_sheet;
         add_form(spool);
         int oncol = 0;
@@ -321,16 +321,12 @@
 
         add_column_to_sheet(spool); csetlabel(spool,oncol,"Employee Name");
         add_row_to_sheet(spool);
-            setidx(cellptr,oncol);
-            set_cell(cellptr,"Fir");
             formptr = create_form_question(spool,oncol,0,"Input");
             fp = *formptr;
             csetlabel(getpool(fp),getidx(fp),"Employee Name");
         oncol++;
 
         add_column_to_sheet(spool); csetlabel(spool,oncol,"Report Date");
-            setidx(cellptr,oncol);
-            set_cell(cellptr,"July 5th 2026");
             formptr = create_form_question(spool,oncol,0,"Date");
             fp = *formptr;
             csetlabel(getpool(fp),getidx(fp),"Report Date");
@@ -413,13 +409,22 @@
             add_dropdown_option(spool,fp,"2340-Training","2340-Training");
             add_dropdown_option(spool,fp,"2350-Uniforms","2350-Uniforms");
             add_dropdown_option(spool,fp,"2370-Waste disposal","2370-Waste disposal");
+            add_dropdown_option(spool,fp,"3000-Pre-Opening 1","3000-Pre-Opening 1");
             add_dropdown_option(spool,fp,"9000-Other-Enter Comments","9000-Other-Enter Comments");
         oncol++;
 
-        add_column_to_sheet(spool); csetlabel(spool,oncol,"Department");
+        add_column_to_sheet(spool); csetlabel(spool,oncol,"G&A / Store Expense");
             formptr = create_form_question(spool,oncol,0,"Dropdown");
             fp = *formptr;
-            csetlabel(getpool(fp),getidx(fp),"Department");
+            csetlabel(getpool(fp),getidx(fp),"G&A / Store Expense");
+            add_dropdown_option(spool,fp,"2-G&A","2-G&A");
+            add_dropdown_option(spool,fp,"3-Store Expense","3-Store Expense");
+        oncol++;
+
+        add_column_to_sheet(spool); csetlabel(spool,oncol,"Department / Store #");
+            formptr = create_form_question(spool,oncol,0,"Dropdown");
+            fp = *formptr;
+            csetlabel(getpool(fp),getidx(fp),"Department / Store #");
             add_dropdown_option(spool,fp,"1000-Finance","1000-Finance");
             add_dropdown_option(spool,fp,"1100-Accounting","1100-Accounting");
             add_dropdown_option(spool,fp,"1200-Information Technology","1200-Information Technology");
@@ -452,14 +457,13 @@
 
         return spool;
     }
-    //save_sheet(generate_redberry_sheet,"web/thistle/users/fir/sheets/redberry");
 ##
 
 global Session session;
 int guest_counter = 0;
 bool allow_guests = false;
+bool debug_mode = true;
 global string redirected_from = "";
-
 print("Compiling");
     tstart("twig_compile");
 Node twig = compile(read_file("web/thistle/thistle.twg"));
@@ -523,23 +527,34 @@ while(0<1) {
                         }
                         response_body.append(ctx.source);
                     } else {
-                        if(slashpath=="/login") {
-
-                        } else {
-                            redirected_from = slashpath;
+                        if(debug_mode) { //Auto log in as Fir for debug
+                            cry("SESSION:Fir");
+                            string session_token = unit_label;
+                            string do_str = "document.cookie = 'session="+session_token+"; path=/';";
                             ctx.source = "";
                             emit_block {
-                                script js_do("window.location.href = '/login';");
+                                script js_do(do_str);
                             }
                             response_body.append(ctx.source);
-                            should_emit_page = false;
+                            //save_sheet(generate_redberry_sheet,"web/thistle/users/Fir/sheets/blank");
+                        } else {
+                            if(slashpath=="/login") {
+
+                            } else {
+                                redirected_from = slashpath;
+                                ctx.source = "";
+                                emit_block {
+                                    script js_do("window.location.href = '/login';");
+                                }
+                                response_body.append(ctx.source);
+                                should_emit_page = false;
+                            }
                         }
                     }
                 }
             }
 
             if(should_emit_page) {
-               
                 if(unslashpath.length==0) {
                     unslashpath = "root_path"; //For routing
                 } else if(unslashpath=="favicon.ico") {

@@ -18,15 +18,14 @@ void crash_handler(int sig) {
 }
 #endif
 
-
 int main(int argc, char* argv[]) {
     print("TEST START");
 
-    // signal(SIGSEGV, crash_handler);
-    // signal(SIGABRT, crash_handler);
+    signal(SIGSEGV, crash_handler);
+    signal(SIGABRT, crash_handler);
     #ifndef _WIN32
-    signal(SIGBUS, crash_handler);
-    signal(SIGPIPE, SIG_IGN);
+        signal(SIGBUS, crash_handler);
+        signal(SIGPIPE, SIG_IGN);
     #endif
     // std::set_terminate([](){
     //     fprintf(stderr, "std::terminate called!\n");
@@ -40,6 +39,7 @@ int main(int argc, char* argv[]) {
         g_ptr<Acorn::Webcorn_Core> webcorn =  Acorn::make_unit<Acorn::Webcorn_Core>();
         //webcorn->setup_trace_res_flipbook();
         webcorn->run(webcorn->process(readFile("web/webcorn.gld")));
+        //webcorn->run(webcorn->process(readFile("GDSL/mixos-acorn/test.gld")));
     } catch(std::exception& e) {
         print("FATAL EXCEPTION: ", e.what());
     } catch(...) {

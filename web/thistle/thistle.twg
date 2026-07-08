@@ -85,7 +85,10 @@ inlined basic_button {
     global Node sidebar_reload_target;
     global bool sidebar_open;
     global string sidebar_open_form; sidebar_open_form = " ";
+    global bool inbox_enabled;
+    inbox_enabled = false;
 ##
+
 
 div side_bar(string in_route) {
     "id" : "side_bar";
@@ -146,7 +149,7 @@ div side_bar(string in_route) {
                 "font-size" : "14px";
                 text_theme;
             }
-        } else {
+        } else if(inbox_enabled) {
             Ptr string files = list_files_in_directory(session.userpath+"inbox");
             div {
                 "onclick" : "goTo('/inbox')";
@@ -222,8 +225,8 @@ div side_bar(string in_route) {
         func_btn_temp("goTo('/new')","rgb(101, 157, 81)","New");
         func_btn_temp("goTo('/build')","rgb(73, 135, 177)","Build");
         func_btn_temp("goTo('/audit')","rgb(197, 148, 85)","Audit");
-        func_btn_temp(capture{dump_sheet(sheetpool);},"rgb(108, 103, 101)","Dump");
-        func_btn_temp(capture{darkmode=!darkmode; emit_full_page_reload(ctx); },(darkmode?"white":"black"),"Dark");
+        //func_btn_temp(capture{dump_sheet(sheetpool);},"rgb(108, 103, 101)","Dump");
+        //func_btn_temp(capture{darkmode=!darkmode; emit_full_page_reload(ctx); },(darkmode?"white":"black"),"Dark");
     }
     
     div {
@@ -258,7 +261,7 @@ div side_bar(string in_route) {
                 "height" : "36px";
                 "white-space" : "nowrap";
                 "border-radius" : "6px";
-                "background-color" : "transparent";
+                "background-color" : (id==sheetname?"rgba(130, 43, 111, 0.12)":"transparent");
                 "transition" : "background-color 0.15s ease";
 
                 "onmouseenter" : "if(this.style.backgroundColor==='transparent')this.style.backgroundColor='rgba(0,0,0,0.04)'";
@@ -293,7 +296,8 @@ div side_bar(string in_route) {
                 div {
                     "id" : sf_cm_id;
                     "class" : "sidebar_form_context_menu";
-                    "display" : (sidebar_open_form==id?"block":"none");
+                    "display" : (sidebar_open_form==id?"flex":"none");
+                    "flex-direction" : "column";
                     "position" : "absolute";
                     "top" : "100%";
                     "right" : "0";
@@ -304,21 +308,85 @@ div side_bar(string in_route) {
                     "box-shadow" : "0 4px 12px rgba(0,0,0,0.12)";
                     "min-width" : "120px";
                     "padding" : "4px";
-                    text id {
-                        text_theme;
+
+                    text id {text_theme;}
+
+                    button {
+                        text "COPY" {text_theme;}
+                        "padding" : "6px";
+                        "onclick" : capture(
+                            js_do("event.stopPropagation();"),
+                            string recive_sheetname ; js_lit(id),
+                            string recive_path ; js_lit(filepath)
+                        ) {
+                            if(sheetname==recive_sheetname) {} else {
+                                sheetname = recive_sheetname;
+                                sheetpool = load_sheet(recive_path+"/"+sheetname);
+                            }  
+                            int old_sheetpool = sheetpool;
+                            string old_sheetname = sheetname;
+
+                            Ptr string existing = list_files_in_directory(recive_path); 
+                            string copy_name = recive_sheetname+"_0";
+                            int copy_num = 1;
+                            bool found = true;
+                            while(found) {
+                                found = false;
+                                for(int i=0;i<existing.length;i++) {
+                                    if(existing.get(i)==copy_name) {
+                                        copy_name = recive_sheetname+"_"+to_string(copy_num);
+                                        copy_num++;
+                                        found = true;
+                                    }
+                                }
+                            }
+                            string copy_path = recive_path+"/"+copy_name;
+                            save_sheet(sheetpool,copy_path);
+                            sheetpool = load_sheet(copy_path);
+                            sheetname = copy_name;
+                            rename_sheet(sheetpool,copy_name);
+
+                            sheetpool = old_sheetpool;
+                            sheetname = old_sheetname;
+
+                            emit_js("window.location.reload();");
+                        }
                     }
-                    div {
+
+                    button {
+                        text "RESET" {text_theme;}
                         "padding" : "6px";
                         "background-color" : "red";
                         "onclick" : capture(
                             js_do("event.stopPropagation();"),
                             string fidt ; js_lit(id),
-                            string fpath ; js_lit(filepath),
+                            string fpath ; js_lit(filepath)
                         ) {
-                            print("Saving ",fidt);
                             int to_save = create_sheet;
-                            print("Saved as index ",to_save);
+                            print("Reseting ",fidt," as ",to_save);
                             save_sheet(to_save,fpath+"/"+fidt);
+                        }
+                    }
+
+                    button {
+                        text "DELETE" {text_theme;}
+                        "padding" : "6px";
+                        "background-color" : "red";
+                        "onclick" : capture(
+                            js_do("event.stopPropagation();"),
+                            string recive_sheetname ; js_lit(id),
+                            string recive_path ; js_lit(filepath)
+                        ) {
+                           if(sheetname==recive_sheetname) {} else {
+                                sheetname = recive_sheetname;
+                                sheetpool = load_sheet(recive_path+"/"+sheetname);
+                            }  
+                            print("Deleting ",sheetname);
+                            delete_sheet(sheetpool);
+                            remove_file(recive_path+"/"+recive_sheetname);
+                            sheetpool = 0;
+                            sheetname = "";
+                            emit_js("window.location.reload();");
                         }
                     }
                 }
@@ -349,10 +417,10 @@ div side_bar(string in_route) {
                            js_do("
                                 event.stopPropagation(); 
                                 const context_menu = document.getElementById('"+sf_cm_id+"');
-                                if(context_menu.style.display==='block') {
+                                if(context_menu.style.display==='flex') {
                                     context_menu.style.display='none';
                                 } else {
-                                    context_menu.style.display='block';
+                                    context_menu.style.display='flex';
                                 }
                                 document.querySelectorAll('.sidebar_form_context_menu').forEach(el => {
                                     if(el!=context_menu) {
@@ -517,6 +585,8 @@ login {
             }
 
             * {
+                margin: 0;
+                padding: 0;
                 box-sizing: border-box;
             }
         ";
@@ -1195,6 +1265,8 @@ inbox {
             }
 
             * {
+                margin: 0;
+                padding: 0;
                 box-sizing: border-box;
             }
         ";
@@ -1357,6 +1429,8 @@ build {
             }
 
             * {
+                margin: 0;
+                padding: 0;
                 box-sizing: border-box;
             }
         ";
@@ -1364,7 +1438,7 @@ build {
         script read_file("web/webcorn.js");
 
         background_theme;
-        div {
+        div build_main_panel {
             "display" : "flex";
             "min-height" : "100vh";
                 side_bar("build");
@@ -1390,13 +1464,32 @@ build {
                                     } 
                                 }
 
-                                if(session.userpath.length==0) {
-                                    
-                                } else {
-                                    control_btns("S",capture{save_sheet(sheetpool,session.userpath+"sheets/"+sheetname);});
+                                input {
+                                    "flex" : "1";
+                                    "value" : sheetname;
+                                    air_input_theme;
+                                    "onchange" : capture(
+                                        string myval ; "this.value"
+                                    ) {
+                                        print("Renaming ",sheetname," to ",myval);
+                                        rename_sheet(sheetpool,myval);
+                                        rename_file(session.userpath+"sheets/"+sheetname,session.userpath+"sheets/"+myval);
+                                        sheetname = myval;
+                                        save_sheet(sheetpool,session.userpath+"sheets/"+myval);
+                                        build_main_panel.reload;
+                                    }
                                 }
-                                control_btns("+C",capture{add_column_to_sheet(sheetpool); build_sheet_panel.reload;});
-                                control_btns("+R",capture{add_row_to_sheet(sheetpool); build_sheet_panel.reload;});                              
+
+                                div {
+                                    "flex" : "4";
+                                    if(session.userpath.length==0) {
+                                        
+                                    } else {
+                                        control_btns("S",capture{save_sheet(sheetpool,session.userpath+"sheets/"+sheetname);});
+                                    }
+                                    control_btns("+C",capture{add_column_to_sheet(sheetpool); build_sheet_panel.reload;});
+                                    control_btns("+R",capture{add_row_to_sheet(sheetpool); build_sheet_panel.reload;});  
+                                }                            
                         }
 
                         div {
@@ -1449,6 +1542,8 @@ new {
             }
 
             * {
+                margin: 0;
+                padding: 0;
                 box-sizing: border-box;
             }
         ";
@@ -1486,17 +1581,71 @@ new {
                                 "width" : "100%";
                                 render_form(sheetpool,false);
                             }             
+
+                            div {
+                                "display" : "flex";
+                                "justify-content" : "center";
+                                "align-items" : "center";
+                                "gap" : "5%";
+                                "flex-direction" : "row";
+                                    button {
+                                        "display" : "flex";
+                                        "justify-content" : "center";
+                                        "align-items" : "center";
+                                        "height" : "36px";
+                                        "width" : "120px";
+                                        "border" : "none";
+                                        "border-radius" : "6px";
+                                        "cursor" : "pointer";
+                                        text "CSV" {
+                                            "font-size" : "14px";
+                                            text_theme;
+                                        }
+                                        "onclick" : capture {
+                                            emit_js("
+                                                const csv = " + js_lit(sheets_to_CSV(sheetpool)) + ";
+                                                const blob = new Blob([csv], {type: 'text/csv'});
+                                                const url = URL.createObjectURL(blob);
+                                                const a = document.createElement('a');
+                                                a.href = url;
+                                                a.download = '" + sheetname + ".csv';
+                                                a.click();
+                                                URL.revokeObjectURL(url);
+                                            ");
+                                        }
+                                    }
+                                    button {
+                                        "display" : "flex";
+                                        "justify-content" : "center";
+                                        "align-items" : "center";
+                                        "height" : "36px";
+                                        "width" : "120px";
+                                        "border" : "none";
+                                        "border-radius" : "6px";
+                                        "cursor" : "pointer";
+                                        text "JSON" {
+                                            "font-size" : "14px";
+                                            text_theme;
+                                        }
+                                        "onclick" : capture {
+                                            emit_js("
+                                                const json = " + js_lit(sheets_to_JSON(sheetpool)) + ";
+                                                const blob = new Blob([json], {type: 'application/json'});
+                                                const url = URL.createObjectURL(blob);
+                                                const a = document.createElement('a');
+                                                a.href = url;
+                                                a.download = '" + sheetname + ".json';
+                                                a.click();
+                                                URL.revokeObjectURL(url);
+                                            ");
+                                        }
+                                    }
+                            }
                         }
                 }
         }
     }
 }
-
-
-
-
-
-
 
 ##
     register audit;
@@ -1595,6 +1744,8 @@ audit {
             }
 
             * {
+                margin: 0;
+                padding: 0;
                 box-sizing: border-box;
             }
         ";
@@ -1635,21 +1786,6 @@ audit {
                                 "margin-top" : "auto";
                                 "width" : "100%";
                                     button {
-                                        "id" : "approve";
-                                        "display" : "flex";
-                                        "justify-content" : "center";
-                                        "align-items" : "center";
-                                        "height" : "36px";
-                                        "width" : "120px";
-                                        "border" : "none";
-                                        "border-radius" : "6px";
-                                        "cursor" : "pointer";
-                                        text "Approve" {
-                                            "font-size" : "14px";
-                                            text_theme;
-                                        }
-                                    }
-                                    button {
                                         "display" : "flex";
                                         "justify-content" : "center";
                                         "align-items" : "center";
@@ -1663,7 +1799,16 @@ audit {
                                             text_theme;
                                         }
                                         "onclick" : capture {
-                                            write_file("mixos-acorn/tests/test.txt",sheets_to_CSV(sheetpool));
+                                            emit_js("
+                                                const csv = " + js_lit(sheets_to_CSV(sheetpool)) + ";
+                                                const blob = new Blob([csv], {type: 'text/csv'});
+                                                const url = URL.createObjectURL(blob);
+                                                const a = document.createElement('a');
+                                                a.href = url;
+                                                a.download = '" + sheetname + ".csv';
+                                                a.click();
+                                                URL.revokeObjectURL(url);
+                                            ");
                                         }
                                     }
                                     button {
@@ -1680,7 +1825,16 @@ audit {
                                             text_theme;
                                         }
                                         "onclick" : capture {
-                                            write_file("mixos-acorn/tests/test.txt",sheets_to_JSON(sheetpool));
+                                            emit_js("
+                                                const json = " + js_lit(sheets_to_JSON(sheetpool)) + ";
+                                                const blob = new Blob([json], {type: 'application/json'});
+                                                const url = URL.createObjectURL(blob);
+                                                const a = document.createElement('a');
+                                                a.href = url;
+                                                a.download = '" + sheetname + ".json';
+                                                a.click();
+                                                URL.revokeObjectURL(url);
+                                            ");
                                         }
                                     }
                             }
@@ -1688,8 +1842,10 @@ audit {
                                 "display" : "flex";
                                 "justify-content" : "center";
                                 "width" : "100%";
-                                "overflow-x" : "auto";    
-                                audit_render_sheet(sheetpool);
+                                "overflow-x" : "auto";
+                                if(sheetpool!=0) {   
+                                    audit_render_sheet(sheetpool);
+                                }
                             }                            
                         }
                 }
@@ -1749,6 +1905,8 @@ admin {
             }
 
             * {
+                margin: 0;
+                padding: 0;
                 box-sizing: border-box;
             }
             @keyframes fadeIn {

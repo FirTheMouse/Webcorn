@@ -509,72 +509,75 @@ namespace Acorn {
             std::string request = "";
 
             if(fd==-1) return request;
+            try {
+                #if USE_TLS
+                if(current_tls) {
+                    mbedtls_ssl_context* ssl = &current_tls->ssl;
+                    //print("Starting TLS read on fd ",fd);
+                    while(true) {
+                        int bytes = mbedtls_ssl_read(ssl, (unsigned char*)buffer, sizeof(buffer)-1);
+                        //print("TLS read returned: ",bytes);
+                        if(bytes == MBEDTLS_ERR_SSL_WANT_READ) {print("WANT_READ"); continue;}
+                        if(bytes == MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET) {print("SESSION_TICKET"); continue;}
+                        if(bytes == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {print("PEER_CLOSE"); break;}
+                        if(bytes == MBEDTLS_ERR_NET_CONN_RESET) {
+                            break; //Browser dropped the connection, just return empty
+                        }
+                        if(bytes <= 0) {
+                            char err[256]; mbedtls_strerror(bytes, err, sizeof(err));
+                            print("TLS read error: ",err);
+                            break;
+                        }
+                        buffer[bytes] = 0;
+                        print("Read ",bytes," bytes: ",std::string(buffer,std::min(bytes,50)));
+                        request += buffer;
+                        size_t header_end = request.find("\r\n\r\n");
+                        if(header_end != std::string::npos) {
+                            size_t cl_pos = request.find("Content-Length: ");
+                            if(cl_pos == std::string::npos) break; // No body, we're done
+                            int content_length = std::stoi(request.substr(cl_pos+16));
+                            std::string body = request.substr(header_end+4);
+                            while((int)body.length() < content_length) {
+                                int b = mbedtls_ssl_read(ssl, (unsigned char*)buffer, sizeof(buffer)-1);
+                                if(b == MBEDTLS_ERR_SSL_WANT_READ) continue;
+                                if(b <= 0) break;
+                                buffer[b] = 0;
+                                body += buffer;
+                            }
+                            request = request.substr(0, header_end+4) + body;
+                            break;
+                        }
+                    }
+                    print("TLS read done, request length: ",request.length());
+                    return request;
+                }
+                #endif
 
-            #if USE_TLS
-            if(current_tls) {
-                mbedtls_ssl_context* ssl = &current_tls->ssl;
-                //print("Starting TLS read on fd ",fd);
                 while(true) {
-                    int bytes = mbedtls_ssl_read(ssl, (unsigned char*)buffer, sizeof(buffer)-1);
-                    //print("TLS read returned: ",bytes);
-                    if(bytes == MBEDTLS_ERR_SSL_WANT_READ) {print("WANT_READ"); continue;}
-                    if(bytes == MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET) {print("SESSION_TICKET"); continue;}
-                    if(bytes == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {print("PEER_CLOSE"); break;}
-                    if(bytes == MBEDTLS_ERR_NET_CONN_RESET) {
-                        break; //Browser dropped the connection, just return empty
-                    }
-                    if(bytes <= 0) {
-                        char err[256]; mbedtls_strerror(bytes, err, sizeof(err));
-                        print("TLS read error: ",err);
-                        break;
-                    }
+                    int bytes = READ_SOCKET(fd, buffer, sizeof(buffer)-1);
+                    if(bytes <= 0) break;
                     buffer[bytes] = 0;
-                    //print("Read ",bytes," bytes: ",std::string(buffer,std::min(bytes,50)));
                     request += buffer;
-                    size_t header_end = request.find("\r\n\r\n");
-                    if(header_end != std::string::npos) {
-                        size_t cl_pos = request.find("Content-Length: ");
-                        if(cl_pos == std::string::npos) break; // No body, we're done
+                    if(bytes < (int)sizeof(buffer)-1) break;
+                }
+                
+                size_t header_end = request.find("\r\n\r\n");
+                if(header_end != std::string::npos) {
+                    size_t cl_pos = request.find("Content-Length: ");
+                    if(cl_pos != std::string::npos) {
                         int content_length = std::stoi(request.substr(cl_pos+16));
                         std::string body = request.substr(header_end+4);
                         while((int)body.length() < content_length) {
-                            int b = mbedtls_ssl_read(ssl, (unsigned char*)buffer, sizeof(buffer)-1);
-                            if(b == MBEDTLS_ERR_SSL_WANT_READ) continue;
-                            if(b <= 0) break;
-                            buffer[b] = 0;
+                            int bytes = READ_SOCKET(fd, buffer, sizeof(buffer)-1);
+                            if(bytes <= 0) break;
+                            buffer[bytes] = 0;
                             body += buffer;
                         }
                         request = request.substr(0, header_end+4) + body;
-                        break;
                     }
                 }
-                print("TLS read done, request length: ",request.length());
-                return request;
-            }
-            #endif
-
-            while(true) {
-                int bytes = READ_SOCKET(fd, buffer, sizeof(buffer)-1);
-                if(bytes <= 0) break;
-                buffer[bytes] = 0;
-                request += buffer;
-                if(bytes < (int)sizeof(buffer)-1) break;
-            }
-            
-            size_t header_end = request.find("\r\n\r\n");
-            if(header_end != std::string::npos) {
-                size_t cl_pos = request.find("Content-Length: ");
-                if(cl_pos != std::string::npos) {
-                    int content_length = std::stoi(request.substr(cl_pos+16));
-                    std::string body = request.substr(header_end+4);
-                    while((int)body.length() < content_length) {
-                        int bytes = READ_SOCKET(fd, buffer, sizeof(buffer)-1);
-                        if(bytes <= 0) break;
-                        buffer[bytes] = 0;
-                        body += buffer;
-                    }
-                    request = request.substr(0, header_end+4) + body;
-                }
+            } catch(std::exception& e) {
+                print(red("webcorn:webcorn_read exception thrown: "),e.what());   
             }
             return request;
         }
@@ -950,7 +953,7 @@ namespace Acorn {
             #endif
             server->setlabel(message);
             server->setfd(server_fd);
-            // print("Server fd is now ",server->getfd());
+            print("Server fd is now ",server->getfd());
         });
 
         bool is_websocket_upgrade(const std::string& request) {
@@ -1646,15 +1649,44 @@ namespace Acorn {
             return to_return;
         }
 
-        //ADD NORMALIZATION LATER WHEN THIS NEEDS TO WORK WITH MULTIPLE POOLS
         void delete_sheet(uint32_t sheetpool) {
             if(sheetpool>=types.length()) {print(red("webcorn:delete_sheet sheetpool "+std::to_string(sheetpool)+" out of bounds for types length "+std::to_string(types.length()))); return;}
             sheetpool = find_sheet_pools_start(sheetpool);
+            
+            uint32_t first_removed = sheetpool;
+            uint32_t num_removed = 0;
+            
             while(sheetpool < types.length() && types[sheetpool].tag != storesheet_id) {
                 types.removeAt(sheetpool);
+                num_removed++;
             }
             if(sheetpool < types.length()) {
                 types.removeAt(sheetpool);
+                num_removed++;
+            }
+            
+            // Normalize all remaining Ptrs that pointed above the deleted range
+            for(int p=0;p<types.length();p++) {
+                for(int c=0;c<types[p].length();c++) {
+                    Col& col = types[p][c];
+                    if(col.heterogenous) {
+                        // skip for now
+                    } else if(col.tag==ptr_id||col.tag==string_id) {
+                        for(int r=0;r<col.length();r++) {
+                            Ptr ptr = *(Ptr*)col[r];
+                            if(is_live(ptr)) {
+                                if(ptr.pool >= first_removed+num_removed) {
+                                    ptr.pool -= num_removed;
+                                    col.set(r,(void*)&ptr);
+                                } else if(ptr.pool >= first_removed) {
+                                    // Ptr pointed into the deleted sheet — invalidate it
+                                    ptr = deadptr;
+                                    col.set(r,(void*)&ptr);
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -1739,7 +1771,7 @@ namespace Acorn {
                 if(c > 0) to_return += ",";
                 to_return += "\"" + datasheet->get(c).label.to_std() + "\"";
             }
-            to_return += "\n";
+            to_return += "\r\n";
             int lenr = datasheet->empty() ? 0 : datasheet->get(0).length();
             for(int r = 0; r < lenr; r++) {
                 for(int c = 0; c < datasheet->length(); c++) {
@@ -1750,7 +1782,7 @@ namespace Acorn {
                         to_return += "\"" + value_as_string(p) + "\"";
                     }
                 }
-                to_return += "\n";
+                to_return += "\r\n";
             }
 
             string output = resolve_string_ticket(ctx.node());
@@ -1805,9 +1837,25 @@ namespace Acorn {
         });
         uint32_t rename_sheet_id = add_function("rename_sheet",[this](Context& ctx){
             standard_sub_process(ctx);
-            uint32_t sheetpool = *(uint32_t*)ctx.node().children()[0].value().get();
-            string name = resolve_string_ticket(ctx.node().children()[1]);
-            rename_sheet(sheetpool,name.to_std());
+            uint32_t sheetpool = 0;
+            std::string name = "";
+            if(ctx.node().children()[0].value().type()==int_id) {
+                sheetpool = *(uint32_t*)ctx.node().children()[0].value().get();
+            } else if(ctx.node().children()[0].value().type()==string_id) {
+                bool found = false;
+                std::string label = resolve_string_ticket(ctx.node().children()[0]).to_std();
+                for(int p=0;p<types.length();p++) {
+                    if(types[p].tag==datasheet_id&&types[p].label==label) {
+                        sheetpool = p; found = true; break;
+                    }   
+                }
+                if(!found) {
+                    print(red("webcorn:rename_sheet rename failed because "+label+" was not found!"));
+                    return;
+                }
+            }
+            name = resolve_string_ticket(ctx.node().children()[1]).to_std();
+            rename_sheet(sheetpool,name);
         });
         uint32_t add_form_id = add_function("add_form",[this](Context& ctx){
             standard_sub_process(ctx);
@@ -1873,7 +1921,6 @@ namespace Acorn {
             uint32_t idx = *(uint32_t*)ctx.node().children()[0].value().get();
             string s(*(Ptr*)ctx.node().children()[1].value().get());
             cry("FILE:SAVE:"+std::to_string(idx)+":"+s.to_std());
-            //save_sheet(idx,("web/thistle/users/fir/sheets/"+s.to_std()));
         });
         uint32_t load_sheet_id = add_function("load_sheet",[this](Context& ctx){
             standard_sub_process(ctx);

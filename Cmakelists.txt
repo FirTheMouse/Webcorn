@@ -4,26 +4,27 @@ project(Webcorn)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2")
 
-# mbedTLS
+find_program(CCACHE_PROGRAM ccache)
+if(CCACHE_PROGRAM)
+    set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
+endif()
+
 set(MBEDTLS_PSA_CRYPTO_C OFF CACHE BOOL "" FORCE)
 set(ENABLE_TESTING OFF CACHE BOOL "" FORCE)
 set(ENABLE_PROGRAMS OFF CACHE BOOL "" FORCE)
 add_subdirectory(ext/mbedtls)
 
-# Your executable
 add_executable(webcorn main.cpp)
 add_custom_command(TARGET webcorn POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:webcorn> ${CMAKE_SOURCE_DIR}/webcorn
 )
 
-# Include paths
 target_include_directories(webcorn PRIVATE
     GDSL
     ext/mbedtls/include
     ext/mbedtls/tf-psa-crypto/include
 )
 
-# Link mbedTLS
 target_link_libraries(webcorn PRIVATE
     mbedtls
 )
