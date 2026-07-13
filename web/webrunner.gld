@@ -461,12 +461,18 @@
 
 global Session session;
 int guest_counter = 0;
-bool allow_guests = false;
-bool debug_mode = true;
+bool allow_guests = !unit_has_arg("--private");
+bool debug_mode = unit_has_arg("--debug");
 global string redirected_from = "";
+global bool auto_log; auto_log = debug_mode;
+
+string twigpath = "web/test.twg";
+string arg_twigpath = unit_get_arg("--twigcode=");
+if(arg_twigpath.length!=0) {twigpath = arg_twigpath;}
+
 print("Compiling");
     tstart("twig_compile");
-Node twig = compile(read_file("web/thistle/thistle.twg"));
+Node twig = compile(read_file(twigpath));
 //Node twig = compile(read_file("web/test.twg"));
 //Node twig = compile(read_file("web/goldensystems/website.twg"));
 print("Compiled in: ",tstop("twig_compile"));
@@ -527,7 +533,7 @@ while(0<1) {
                         }
                         response_body.append(ctx.source);
                     } else {
-                        if(debug_mode) { //Auto log in as Fir for debug
+                        if(auto_log) { //Auto log in as Fir for debug
                             cry("SESSION:Fir");
                             string session_token = unit_label;
                             string do_str = "document.cookie = 'session="+session_token+"; path=/';";
@@ -536,7 +542,7 @@ while(0<1) {
                                 script js_do(do_str);
                             }
                             response_body.append(ctx.source);
-                            //save_sheet(generate_redberry_sheet,"web/thistle/users/Fir/sheets/blank");
+                            //save_sheet(generate_redberry_sheet,"web/thistle/users/Fir/sheets/Blank");
                         } else {
                             if(slashpath=="/login") {
 
@@ -563,8 +569,7 @@ while(0<1) {
 
                 if(method=="RESET") {
                     print("Recompiled webrunner");
-                    //twig = compile(read_file("web/test.twg"));
-                    twig = compile(read_file("web/goldensystems/website.twg"));
+                    twig = compile(read_file(twigpath));
                     page = twig.children.get(0);
                     method="GET";
                 }   
@@ -639,7 +644,7 @@ while(0<1) {
                             Node root = cast_to_Node(pointer);
 
                             if(args.length>1) {
-                                for(int a=1;a<args.length;a++) {
+                                for(int a=1;(a+1)<args.length;a++) {
                                     if(args.get(a)=="[VAR]") {
                                         root.children.get(a-1).value.set(args.get(a+1));
                                     }

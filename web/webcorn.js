@@ -9,6 +9,15 @@ function resetWebrunner() {
     });
 }
 
+const parser = new DOMParser();
+const doc = parser.parseFromString(html, 'text/html');
+Array.from(doc.body.children).forEach(newEl => {
+    if(newEl.id) {
+        const targets = Array.from(document.querySelectorAll('#'+newEl.id));
+        targets.forEach(el => el.outerHTML = newEl.outerHTML);
+    }
+});
+
 function run(ptr, ...captures) {
     const body = [ptr, ...captures].join('@'); //@ is the delmiter we use for runs
     fetch(window.location.pathname, {
@@ -22,8 +31,7 @@ function run(ptr, ...captures) {
                 const space = instr.indexOf(' ', 5);
                 const target = instr.slice(5, space);
                 const content = instr.slice(space + 1);
-                const el = document.getElementById(target);
-                if(el) el.outerHTML = content;
+                document.querySelectorAll('#'+target).forEach(el => el.outerHTML = content);
             } else if(instr.startsWith('LOG ')) {
                 console.log('[TwigSnap]', instr.slice(4));
             } else if(instr === 'RELOAD') {

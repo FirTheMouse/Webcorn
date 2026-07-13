@@ -16,6 +16,9 @@ inlined card_theme {
         "background-color" : "rgb(247, 244, 244)";
     }
 }
+inlined banner_theme {
+    "background-color" : "rgb(211, 211, 211)";
+}
 inlined component_theme {
     if(darkmode) {
         "background-color" : "rgb(52, 52, 52)";
@@ -79,16 +82,267 @@ inlined basic_button {
 }
 
 
+inlined hoverable_theme {
+    "background-color" : transparent;
+    "transition" : "background-color 0.15s ease";
+    "onmouseenter" : "if(this.style.backgroundColor==='transparent')this.style.backgroundColor='rgba(0,0,0,0.04)'";
+    "onmouseleave" : "if(this.style.backgroundColor==='rgba(0, 0, 0, 0.04)')this.style.backgroundColor='transparent'";
+}
+inlined popup_background_theme {
+   "position" : "fixed";
+    "top" : "0";
+    "left" : "0";
+    "width" : "100%";
+    "height" : "100%";
+    "background-color" : "rgba(0,0,0,0.4)";
+    "z-index" : "1000";
+    "display" : "flex";
+    "justify-content" : "center";
+    "align-items" : "center";
+    "onclick" : "event.stopPropagation();";
+}
+
+inlined popup_panel_theme {
+    "background-color" : "white";
+    "border-radius" : "12px";
+    "padding" : "24px";
+    "display" : "flex";
+    "flex-direction" : "column";
+    "gap" : "16px";
+    "align-items" : "center";
+    "box-shadow" : "0 8px 32px rgba(0,0,0,0.2)";
+    "onclick" : "event.stopPropagation();";
+}
+
+
 ##
     global int sheetpool;
     global string sheetname;
     global Node sidebar_reload_target;
     global bool sidebar_open;
     global string sidebar_open_form; sidebar_open_form = " ";
+    global bool sidebar_popup_open;
     global bool inbox_enabled;
-    inbox_enabled = false;
+    inbox_enabled = true;
 ##
 
+
+div message_draft_panel(string selected_filepath, string selected_id) {
+    static string user_search; user_search = "";
+    static string send_to_list; send_to_list = "";
+    static string message_to_send; message_to_send = "";
+
+    div draft_message {
+        "display" : (sidebar_popup_open?"flex":"none");
+        "onclick" : capture(js_do("event.stopPropagation();")) {
+            sidebar_popup_open = false;
+            draft_message.reload;
+        }
+        popup_background_theme;
+
+        div draft_message_display {
+            popup_panel_theme;
+
+            div inbox_context_menu_portion {
+                div {
+                    "display" : "flex";
+                    "flex-wrap" : "wrap";
+                    "align-items" : "center";
+                    "gap" : "4px";
+                    "border" : "1px solid rgb(200,200,200)";
+                    "border-radius" : "8px";
+                    "padding" : "4px 8px";
+                    "cursor" : "text";
+                    "onclick" : "event.stopPropagation(); document.getElementById('user_search_input').focus();";
+
+                    Ptr string sending_to = split_str(send_to_list,",");
+                    for(int i=0;i<sending_to.length;i++) {
+                        string uname = sending_to.get(i);
+                        if(uname.length>0) {
+                            div {
+                                "display" : "flex";
+                                "align-items" : "center";
+                                "gap" : "4px";
+                                "background-color" : "rgb(172, 57, 147)";
+                                "border-radius" : "4px";
+                                "padding" : "2px 8px";
+                                text uname {
+                                    "color" : "white";
+                                    "font-size" : "12px";
+                                    text_theme;
+                                }
+                                text "×" {
+                                    "color" : "white";
+                                    "font-size" : "14px";
+                                    "cursor" : "pointer";
+                                    "onclick" : capture(
+                                        string fusername ; js_lit(uname),
+                                        js_do("event.stopPropagation();")
+                                    ) {
+                                        string searchfor = fusername+",";
+                                        int idx = send_to_list.find(searchfor);
+                                        int len = fusername.length+1;
+                                        string before = send_to_list.substr(0,idx);
+                                        int after_start = idx+len;
+                                        int after_len = (send_to_list.length)-after_start;
+                                        after_start; after_len;
+                                        string after = send_to_list.substr(after_start,after_len);
+                                        send_to_list = before+after;
+                                        inbox_context_menu_portion.reload;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    input {
+                        "id" : "user_search_input";
+                        "placeholder" : (send_to_list.length==0?"Search users...":"");
+                        "value" : user_search;
+                        "autocomplete" : "off";
+                        "border" : "none";
+                        "background" : "transparent";
+                        "outline" : "none";
+                        "font-size" : "13px";
+                        "font-family" : "system-ui, sans-serif";
+                        "min-width" : "80px";
+                        "flex" : "1";
+                        "onclick" : "event.stopPropagation(); document.getElementById('user_search_dropdown').style.display='flex';";
+                        "onblur" : "setTimeout(()=>{ document.getElementById('user_search_dropdown').style.display='none'; }, 150);";
+                        "oninput" : "
+                            event.stopPropagation();
+                            const val = this.value.toLowerCase();
+                            const already_sent = '"+send_to_list+"';
+                            document.querySelectorAll('.user_search_card').forEach(el => {
+                                const name = el.dataset.username;
+                                el.style.display = (name && name.toLowerCase().includes(val) && !already_sent.includes(name+',')) ? 'block' : 'none';
+                            });
+                        ";
+                    }
+                }
+
+                div {
+                    "id" : "user_search_dropdown";
+                    "display" : "none";
+                    "flex-direction" : "column";
+                    "max-height" : "150px";
+                    "overflow-y" : "auto";
+                    "gap" : "2px";
+                    "border" : "1px solid rgb(200,200,200)";
+                    "border-radius" : "8px";
+                    "margin-top" : "4px";
+                    "padding" : "4px";
+
+                    stateless template div user_card(string username) {
+                        if(username == session.username) {} else {
+                            string card_id = "ucard_"+username;
+                            div {
+                                "id" : card_id;
+                                "class" : "user_search_card";
+                                "data-username" : username;
+                                hoverable_theme;
+                                "padding" : "6px 8px";
+                                "border-radius" : "4px";
+                                "cursor" : "pointer";
+                                text username {text_theme;}
+                                "onclick" : capture(
+                                    string fusername ; js_lit(username),
+                                    js_do("event.stopPropagation();")
+                                ) {
+                                    send_to_list += (fusername+",");
+                                    user_search = "";
+                                    inbox_context_menu_portion.reload;
+                                }
+                            }
+                        }
+                    }
+
+                    Ptr string directories = list_directories_in_directory("web/thistle/users");
+                    for(int i=0;i<directories.length;i++) {
+                        string user = directories.get(i);
+                        string useraslookup = user+",";
+                        if(send_to_list.find(useraslookup)<0) {
+                            user_card(user);
+                        }
+                    }
+                }
+            }
+
+            input {
+                "placeholder" : "Message";
+                "value" : message_to_send;
+                "onchange" : capture(
+                    string myval ; "this.value"
+                ) {
+                    message_to_send = myval;
+                }
+            }
+
+            button {
+                text "Send" {text_theme;}
+                "onclick" : capture(
+                    string fid ; js_lit(selected_id),
+                    string fpath ; js_lit(selected_filepath),
+                    js_do("event.stopPropagation();")
+                ) {
+                    int old_sheetpool = sheetpool;
+                    string old_sheetname = sheetname;
+
+                    sheetname = fid;
+                    sheetpool = load_sheet(fpath+"/"+fid);
+                    int header_at = 0;
+                    Ptr ribbon = deadptr;
+                    if(has_sheet(sheetpool,#headerpool)) {
+                        remove_sheet(find_sheet(sheetpool,#headerpool));
+                    } 
+                    header_at = sheetpool+1;
+                    ColCol npool = create_pool_at(header_at);
+                    npool.tag(#headerpool);
+                    ribbon = npool.add; ribbon.element_size(ptr_size); ribbon.tag(#ptr);
+
+                    Ptr stor = get_ticket(header_at,0);
+                    *stor = session.username;
+                    ribbon.push(stor);
+                    (ribbon|S=0).celllabel("sent by");
+
+                    Ptr stor2 = get_ticket(header_at,0);
+                    *stor2 = unit_standard_time;
+                    ribbon.push(stor2);
+                    (ribbon|S=1).celllabel("time");
+
+                    Ptr stor3 = get_ticket(header_at,0);
+                    *stor3 = send_to_list;
+                    ribbon.push(stor3);
+                    (ribbon|S=2).celllabel("sent to");
+
+                    Ptr stor4 = get_ticket(header_at,0);
+                    *stor4 = message_to_send;
+                    ribbon.push(stor4);
+                    (ribbon|S=3).celllabel("message");
+
+                    Ptr stor5 = get_ticket(header_at,0);
+                    *stor5 = "unknown";
+                    ribbon.push(stor5);
+                    (ribbon|S=4).celllabel("status");
+                    
+                    //dump_sheet(sheetpool);
+
+                    Ptr string recipients = split_str(send_to_list,",");
+                    for(int i=0;i<recipients.length;i++) {
+                        string recipient = recipients.get(i);
+                        if(recipient.length>0) {
+                            save_sheet(sheetpool,"web/thistle/users/"+recipient+"/inbox/"+sheetname);
+                        }
+                    }
+                    save_sheet(sheetpool,session.userpath+"sent/"+sheetname);
+
+                    sheetname = old_sheetname;
+                    sheetpool = old_sheetpool;
+                }
+            }
+        }   
+    }
+}
 
 div side_bar(string in_route) {
     "id" : "side_bar";
@@ -225,8 +479,14 @@ div side_bar(string in_route) {
         func_btn_temp("goTo('/new')","rgb(101, 157, 81)","New");
         func_btn_temp("goTo('/build')","rgb(73, 135, 177)","Build");
         func_btn_temp("goTo('/audit')","rgb(197, 148, 85)","Audit");
-        //func_btn_temp(capture{dump_sheet(sheetpool);},"rgb(108, 103, 101)","Dump");
+        func_btn_temp(capture{dump_sheet(sheetpool);},"rgb(108, 103, 101)","Dump");
         //func_btn_temp(capture{darkmode=!darkmode; emit_full_page_reload(ctx); },(darkmode?"white":"black"),"Dark");
+    }
+
+    static string selected_filepath; selected_filepath = "";
+    static string selected_id; selected_id = "";
+    div sidebar_popup {
+        message_draft_panel(selected_filepath,selected_id);
     }
     
     div {
@@ -244,7 +504,6 @@ div side_bar(string in_route) {
                 return 'done';
             }
         ";
-
         stateless template div form_temp(string filepath, string id, string bar_in_route) {
             div {
                 "class" : "form_box";
@@ -281,7 +540,7 @@ div side_bar(string in_route) {
                     sheetname = recive_sheetname;
                     sheetpool = load_sheet(recive_path+"/"+sheetname);
                     print("Loaded as ",sheetpool);
-                    emit_reload(ctx,sidebar_reload_target);
+                    emit_js("window.location.reload();");
                 }
 
                 text id {
@@ -393,17 +652,14 @@ div side_bar(string in_route) {
                 if(bar_in_route=="inbox") {
                      text ">" {
                         "onclick" : capture(
-                            string fid ; js_lit(id),
+                            js_do("event.stopPropagation();"),
                             string fpath ; js_lit(filepath),
-                            js_do("event.stopPropagation();")
+                            string fid ; js_lit(id)
                         ) {
-                            move_file(fpath+"/"+fid,session.userpath+"inbox");
-                            print("Moved ",fid," to inbox");
-                            if(is_live(sidebar_reload_target)) {
-                                emit_reload(ctx,sidebar_reload_target);
-                            } else {
-                                print("No reload target for sidebar");
-                            }
+                            selected_filepath = fpath;
+                            selected_id = fid;
+                            sidebar_popup_open = true;
+                            sidebar_popup.reload;
                         }
                         "class" : "label";
                         "opacity" : (sidebar_open ? "1" : "0");
@@ -430,7 +686,6 @@ div side_bar(string in_route) {
                             "),
                             string fid ; js_lit(id)
                         ) {
-                            print("Toggled sidebar");
                             sidebar_open_form = (sidebar_open_form==fid ? "" : fid);
                         }
                         "class" : "label";
@@ -475,6 +730,184 @@ div side_bar(string in_route) {
     ";
 }
 
+
+div top_bar(string in_route) {
+    div {
+        "display" : "flex";
+        "flex-direction" : "row";
+        "width" : "100%";
+        "height" : "8%";
+        "align-items" : "center";
+        "justify-content" : "center";
+        "padding" : "10px";
+        card_theme;
+        div {
+            "flex" : "1";
+        }
+        div {
+            "flex" : "3";
+            "display" : "flex";
+            "flex-direction" : "row";
+        }
+
+        static bool popup_open; popup_open = false;
+        div profile_display {
+            "flex" : "1";
+            "padding" : "24px";
+            "display" : "flex";
+            "justify-content" : "flex-end";
+
+            if(popup_open) {
+                div {
+                    "onclick" : capture(js_do("event.stopPropagation();")) {
+                        popup_open = false;
+                        profile_display.reload;
+                    }
+                    popup_background_theme;
+                    static string given_username;
+                    static string given_password;
+                    string userinfo = read_file("web/thistle/users/"+session.username+"/userinfo");
+                    given_username = session.username;
+                    given_password = userinfo;
+
+                    div create_user_display {
+                        popup_panel_theme;
+                        text "Username" {
+                            "font-size" : "15px";
+                            text_theme;
+                        }
+                        input {
+                            if(given_username=="") {
+                                "border" : "none";
+                                "border-bottom" : "2px solid rgb(255, 0, 0)";
+                            } else {
+                                "value" : given_username;
+                            }
+                            form_input_theme;
+                            "onchange" : capture(string myval ; "this.value"){
+                                given_username = myval;
+                                create_user_display.reload;
+                            }
+                        }   
+
+                        text "Password" {
+                            "font-size" : "15px";
+                            text_theme;
+                        }
+                        input {
+                            if(given_password=="") {
+                                "border" : "none";
+                                "border-bottom" : "2px solid rgb(255, 0, 0)";
+                            } else {
+                                "value" : given_password;
+                            }
+                            form_input_theme;
+                            "onchange" : capture(string myval ; "this.value"){
+                                given_password = myval;
+                                create_user_display.reload;
+                            }
+                        }   
+
+                        button {
+                            text "Confirm";
+                            "onclick" : capture(
+                                js_do("event.stopPropagation();")
+                            ){
+                                string usingname = session.username;
+                                string new_path = "web/thistle/users/"+usingname;
+                                print(session.username," changed their password to ",given_password);
+                                write_file(new_path+"/userinfo",given_password);
+                                print(session.username," renamed themselves to ",given_username);
+                                rename_file(new_path, "web/thistle/users/"+given_username);
+                                session.username = given_username;
+                                session.userpath = "web/thistle/users/"+given_username;
+                                popup_open = false;
+                                profile_display.reload;
+                            }
+                        }
+                    }
+                }
+            }
+            
+
+            static bool profile_menu_open; profile_menu_open = false; //To remove on reloads or page changes
+            div {
+                "position" : "relative";
+                "height" : "42px";
+                "width" : "42px";
+                "flex-shrink" : "0";
+                div {
+                    "id" : "profile_menu";
+                    "display" : (profile_menu_open?"flex":"none");
+                    "flex-direction" : "column";
+                    "position" : "absolute";
+                    "top" : "calc(100% + 8px)";  //8px gap below the dot
+                    "right" : "0";
+                    "z-index" : "100";
+                    "width" : "210px";
+                    "border-radius" : "10px";
+                    "padding" : "6px";
+                    "box-shadow" : "0 4px 16px rgba(0,0,0,0.15)";
+                    "gap" : "2px";
+                    component_theme;
+
+                    text session.username {
+                        "padding" : "8px 10px";
+                        "font-size" : "16px";
+                        "opacity" : "0.6";
+                        "text-align" : "right";
+                        text_theme;
+                    }
+
+                    stateless template div profile_btn(string label, string behaviour) {
+                        button {
+                            text label {"font-size" : "16x"; text_theme;}
+                            "padding" : "8px 10px";
+                            "border-radius" : "6px";
+                            "border" : "none";
+                            "text-align" : "left";
+                            "width" : "100%";
+                            "onclick" : behaviour;
+                            hoverable_theme;
+                        }
+                        
+                    }
+
+                    profile_btn("Change password",capture{popup_open = true; profile_display.reload;});
+                    profile_btn("Log out",capture{
+                        auto_log = false;
+                        emit_js("
+                            document.cookie = 'session=loggedout; path=/';
+                            window.location.href = '/login';
+                        ");});
+                }
+            
+                div {
+                    "height" : "42px";
+                    "width" : "42px";
+                    "flex-shrink" : "0";
+                    "border-radius" : "50%";
+                    "border" : "3px solid white";
+                    "background-color" : "rgb(86, 176, 255)";
+                    "onclick" : capture(
+                        js_do("
+                            event.stopPropagation(); 
+                            const profile_menu = document.getElementById('profile_menu');
+                            if(profile_menu.style.display==='flex') {
+                                profile_menu.style.display='none';
+                            } else {
+                                profile_menu.style.display='flex';
+                            }
+                        ");
+                    ) {
+                        profile_menu_open = !profile_menu_open;
+                    }
+                }
+            }
+        }
+    }
+}   
+
 ##
     register root_path;
     "root_path" {
@@ -488,77 +921,175 @@ div side_bar(string in_route) {
 ##
 
 root_path {
+    style "
+        td:hover {
+            background-color:rgb(234, 234, 234);
+        }
+        input:focus {
+            outline: none;
+        }
+        textarea:focus {
+            outline: none;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        p {
+            margin: revert;
+            padding: revert;
+        }
+    ";
+
+    script read_file("web/webcorn.js");
+
+    background_theme;
+
     div {
+        "display" : "flex";
+        "flex-direction" : "row";
+        "width" : "100%";
+        "height" : "100%";
+
+        side_bar("root_path");
+
         div {
-            background_theme;
             "display" : "flex";
-            "min-height" : "100vh";
+            "width" : "100%";
+            "height" : "100%";
+            "align-items" : "top";
+            "flex-direction" : "column";
+            
+            top_bar("root_path");
+
+            string display_tab;
+            display_tab = "Dashboard";
+            div display_root {
+                "flex" : "1";
+                "display" : "flex";
+                "flex-direction" : "row";
+                "gap" : "10px";
+                div {
+                    "width" : "20%";
+                    "height" : "100%";
+                    stateless template div sidebar_nav(string label) {
+                        div {
+                            "display" : "flex";
+                            "align-items" : "center";
+                            "justify-content" : "center";
+                            "border-radius" : "8px";
+                            "background-color" : (display_tab==label?"rgb(146, 213, 239)":"transparent");
+                            "onmouseenter" : "if(this.style.backgroundColor==='transparent')this.style.backgroundColor='rgba(0,0,0,0.04)'";
+                            "onmouseleave" : "if(this.style.backgroundColor==='rgba(0, 0, 0, 0.04)')this.style.backgroundColor='transparent'";
+                            text label {
+                                "font-size" : "14px";
+                                "color" : "rgb(66, 66, 66)";
+                                text_theme;
+                            }
+                            "onclick" : capture(
+                                string flabel ; js_lit(label)
+                            ){
+                                display_tab = flabel;
+                                display_root.reload;
+                            }
+                        }
+                    }
+                    "background-color" : "rgb(240, 240, 240)";
+                    sidebar_nav("Dashboard");
+                    sidebar_nav("Settings");
+                    sidebar_nav("Profile");
+                    sidebar_nav("Billing");
+                }
                 div {
                     "flex" : "1";
                     "display" : "flex";
-                    "flex-direction" : "column";
-                    "justify-content" : "center";
+                    "width" : "80%";
+                    "padding" : "40px";
                     "align-items" : "center";
-                        if(session.username.length==0) {
-                            text "Hello guest" {
-                                "font-size" : "30px";
-                                text_theme;
-                            }
-                        } else {
-                            text "Welcome back "+session.username {
-                                "font-size" : "30px";
-                                text_theme;
-                            }
+                    "justify-content" : "center";
+                    "background-color" : "rgb(203, 203, 203)";
+                    "flex-direction" : "column";
+                    "gap" : "5%";
+                    div {
+                        "flex" : "1";
+                        "display" : "flex";
+                        "align-items" : "center";
+                        "justify-content" : "flex-start";
+                        "width" : "100%";
+                        "height" : "100%";
+                        "padding" : "-16px";
+                        text "Dashboard" {
+                            "color" : "rgb(60, 60, 60)";
+                            "font-size" : "24px";
+                            text_theme;
                         }
-                        div {
-                            "display" : "flex";
-                            "justify-content" : "center";
-                            "align-items" : "center";
-                            "width" : "480px";
-                            "height" : "200px";
-                            "padding" : "40px";
-                            "gap" : "24px";
-                            card_theme;
-                            "border-radius" : "12px";
-                            "box-shadow" : "0 4px 24px rgba(0,0,0,0.08)";
-                                button {
-                                    "id" : "to_new";
-                                    "onclick" : "goTo('/new')";
-                                    text "New" {
-                                        "font-size" : "18px";
-                                        text_theme;
-                                    }
-                                    basic_button;
-                                }
-                                button {
-                                    "id" : "to_todo";
-                                    "onclick" : "goTo('/build')";
-                                    text "Build" {
-                                        "font-size" : "18px";
-                                        text_theme;
-                                    }
-                                    basic_button;
-                                }
-                                button {
-                                    "id" : "to_sent";
-                                    "onclick" : "goTo('/audit')";
-                                    text "Audit" {
-                                        "font-size" : "18px";
-                                        text_theme;
-                                    }
-                                    basic_button;
-                                }
-                        }
-                }
-        }
+                    }
 
-        script "
-            function goTo(route) {
-                window.location.href = route;
+                    div {
+                        "flex" : "2";
+                        "display" : "flex";
+                        "flex-direction" : "row";
+                        "border-radius" : "10px";
+                        "align-items" : "center";
+                        "justify-content" : "center";
+                        "width" : "100%";
+                        "margin" : "4px";
+                        "gap" : "5%";
+                        stateless template div dashboard_card(string label, string data) {
+                            div {
+                                "flex" : "1";
+                                "display" : "flex";
+                                "flex-direction" : "column";
+                                "padding" : "8px";
+                                "border-radius" : "10px";
+                                "background-color" : "rgb(246, 246, 246)";
+                                text label {
+                                    "margin-top" : "8px";
+                                    "margin-bottom" : "0";
+                                    "font-weight" : "600";
+                                    "color" : "rgb(110, 109, 109)";
+                                    text_theme;
+                                }
+                                text data {
+                                    "margin-top" : "0";
+                                    "margin-bottom" : "0";
+                                    "font-size" : "24px";
+                                    "color" : "rgb(42, 42, 42)";
+                                    text_theme;
+                                }
+                            }
+                        }
+                        dashboard_card("Total users","1,284");
+                        dashboard_card("Revenue","$8,492");
+                        dashboard_card("Active sessions","342");
+                    }
+                    div {
+                        "flex" : "5";
+                        "display" : "flex";
+                        "border-radius" : "10px";
+                        "flex-direction" : "column"
+                        "width" : "100%";
+                        "padding" : "16px";
+                        "background-color" : "rgb(236, 236, 236)";
+                        text "Recent activity" {
+                            "font-size" : "18px";
+                            "color" : "rgb(66, 66, 66)";
+                            text_theme;
+                        }
+                        text "No activity yet." {
+                            "font-weight" : "600";
+                            "color" : "rgb(69, 69, 69)";
+                            text_theme;
+                        }
+                    }
+                }
             }
-        ";
+        }
     }
 }
+
 
 ##
     register login;
@@ -1250,7 +1781,7 @@ stateless template div build_render_sheet(int spool) {
 
 inbox {
     Ptr string files;
-    string inbox_path;
+    string inbox_path; inbox_path = session.userpath+"/inbox";
     div inbox_root {
         sidebar_reload_target = call_owner(inbox_root);
         style "
@@ -1320,7 +1851,7 @@ inbox {
                                 ) {
                                     move_file(fpatht+"/"+fidt,session.userpath+"sheets");
                                     print("Moved ",fidt," to sheets");
-                                    inbox_root.reload;
+                                    emit_js("window.location.reload();");
                                 }
                                 text id {
                                     "font-size" : "14px";
@@ -1332,7 +1863,7 @@ inbox {
                         if(inbox_on_tab=="Inbox") {
                             files = list_files_in_directory(session.userpath+"inbox");
                         } else if(inbox_on_tab=="Sent") {
-                            files = list_files_in_directory(session.userpath+"sheets");
+                            files = list_files_in_directory(session.userpath+"sent");
                         }
                         
                         div {
@@ -1394,7 +1925,33 @@ inbox {
                             "box-shadow" : "0 4px 24px rgba(0,0,0,0.08)";
                             card_theme;
                             if(inbox_sheetpool!=0) {
+                                string return_to = "";
+                                if(has_sheet(inbox_sheetpool,#headerpool)) {
+                                    int header_at = find_sheet(inbox_sheetpool,#headerpool);
+                                    Ptr ribbon = makePtr3(header_at,0,0);
+                                    for(int i=0;i<ribbon.length;i++) {
+                                        Ptr field = (ribbon|S=i);
+                                        text field.celllabel+": "+value_as_string(*field) {text_theme}
+                                        if(field.celllabel=="sent by") {
+                                            return_to = value_as_string(*field);
+                                        }
+                                    }   
+                                }
+
                                 render_form(inbox_sheetpool,false);
+
+                                if(return_to.length!=0) {
+                                    button {
+                                        text "Return" {text_theme;}
+                                        "onclick" : capture(
+                                            string reciver ; js_lit(return_to)
+                                        ) { 
+                                            save_sheet(inbox_sheetpool,"web/thistle/users/"+reciver+"/inbox/"+inbox_sheetname);
+                                            move_file(session.userpath+"inbox/"+inbox_sheetname, session.userpath+"sent");
+                                            inbox_display.reload;
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -1865,31 +2422,6 @@ audit {
     global string admin_selected_user;  admin_selected_user = "";
 ##
 
-inlined popup_background_theme {
-   "position" : "fixed";
-    "top" : "0";
-    "left" : "0";
-    "width" : "100%";
-    "height" : "100%";
-    "background-color" : "rgba(0,0,0,0.4)";
-    "z-index" : "1000";
-    "display" : "flex";
-    "justify-content" : "center";
-    "align-items" : "center";
-    "onclick" : "event.stopPropagation();";
-}
-
-inlined popup_panel_theme {
-    "background-color" : "white";
-    "border-radius" : "12px";
-    "padding" : "24px";
-    "display" : "flex";
-    "flex-direction" : "column";
-    "gap" : "16px";
-    "align-items" : "center";
-    "box-shadow" : "0 8px 32px rgba(0,0,0,0.2)";
-    "onclick" : "event.stopPropagation();";
-}
 
 admin {
     div {

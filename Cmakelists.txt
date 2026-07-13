@@ -19,6 +19,14 @@ add_custom_command(TARGET webcorn POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:webcorn> ${CMAKE_SOURCE_DIR}/webcorn
 )
 
+option(USE_TLS "Enable TLS" OFF)
+
+if(USE_TLS)
+    target_compile_definitions(webcorn PRIVATE USE_TLS=1)
+else()
+    target_compile_definitions(webcorn PRIVATE USE_TLS=0)
+endif()
+
 target_include_directories(webcorn PRIVATE
     GDSL
     ext/mbedtls/include

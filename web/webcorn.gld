@@ -1,7 +1,19 @@
-//init_tls("/etc/letsencrypt/live/goldensystems.ca/fullchain.pem", "/etc/letsencrypt/live/goldensystems.ca/privkey.pem");
-//init_tls("web/files/cert.pem","web/files/key.pem");
+string arg_tls = unit_get_arg("--tls=");
+if(arg_tls.length!=0) {
+    if(arg_tls=="cert") {
+        init_tls("/etc/letsencrypt/live/goldensystems.ca/fullchain.pem", "/etc/letsencrypt/live/goldensystems.ca/privkey.pem");
+    } else if(arg_tls=="self") {
+        init_tls("web/files/cert.pem","web/files/key.pem");
+    }
+}
 
-string unitcode = read_file("web/webrunner.gld");
+string unitcode_path = "web/webrunner.gld";
+string arg_unitcode = unit_get_arg("--unitcode=");
+if(arg_unitcode.length!=0) {
+    unitcode_path = arg_unitcode;
+} 
+
+string unitcode = read_file(unitcode_path);
 
 start_session_manager(unitcode);
 print("Started the session manager");
@@ -12,20 +24,34 @@ print("Started the session manager");
 //dispatch_bot(1,"example.com",botcode);
 
 int fd = socket;
-int port = 443;
+int port = 8080;
+
+string arg_port = unit_get_arg("--port=");
+if(arg_port.length!=0) {
+    port = stoi(arg_port);
+}
+
 bind(fd,port);
 listen(fd);
 print("Opened a new server on ",port);
 
-
-
 while(0<1) {
     int cfd = accept(fd);
+    catch {
+        terminate_all_servers; 
+        print("Finished terminating servers");
+        break;
+    }
+
     if(cfd>0) {
         string req = read(cfd);
+        catch {
+            print("Failed to read a request");
+            continue;
+        }
         string session = get_cookie(req,"session");
         print("Request at ",unit_time_precise," Session: ",session);
         print("Dispatching server to handle request ",cfd);
         dispatch_unit(session,cfd,req,unitcode);
     }
-}  
+}
