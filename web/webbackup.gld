@@ -3072,3 +3072,141 @@ root_path {
         }
     }
 }
+
+
+
+
+
+
+void send_message(string fid, string fpath, string user_search, string send_to_list, string message_to_send) {
+    int old_sheetpool = sheetpool;
+    string old_sheetname = sheetname;
+
+    sheetname = fid;
+    sheetpool = load_sheet(fpath+"/"+fid);
+    int header_at = 0;
+    Ptr ribbon = deadptr;
+    if(has_sheet(sheetpool,#headerpool)) {
+        delete_pool(find_sheet(sheetpool,#headerpool));
+    } 
+    header_at = sheetpool+1;
+    ColCol npool = create_pool_at(header_at);
+    npool.tag(#headerpool);
+    ribbon = npool.add; ribbon.element_size(ptr_size); ribbon.tag(#ptr);
+
+    Ptr stor = get_ticket(header_at,0);
+    *stor = session.username;
+    ribbon.push(stor);
+    (ribbon|S=0).celllabel("sent by");
+
+    Ptr stor2 = get_ticket(header_at,0);
+    *stor2 = unit_standard_time;
+    ribbon.push(stor2);
+    (ribbon|S=1).celllabel("time");
+
+    Ptr stor3 = get_ticket(header_at,0);
+    *stor3 = send_to_list;
+    ribbon.push(stor3);
+    (ribbon|S=2).celllabel("sent to");
+
+    Ptr stor4 = get_ticket(header_at,0);
+    *stor4 = message_to_send;
+    ribbon.push(stor4);
+    (ribbon|S=3).celllabel("message");
+
+    Ptr stor5 = get_ticket(header_at,0);
+    *stor5 = "unknown";
+    ribbon.push(stor5);
+    (ribbon|S=4).celllabel("status");
+    
+    //dump_sheet(sheetpool);
+
+    Ptr string recipients = split_str(send_to_list,",");
+    for(int i=0;i<recipients.length;i++) {
+        string recipient = recipients.get(i);
+        if(recipient.length>0) {
+            save_sheet(sheetpool,"web/thistle/users/"+recipient+"/inbox/"+sheetname);
+        }
+    }
+    save_sheet(sheetpool,session.userpath+"sent/"+sheetname);
+
+    sheetname = old_sheetname;
+    sheetpool = old_sheetpool;
+}
+
+
+
+
+
+void send_message(string fid, string fpath, string user_search, string send_to_list, string message_to_send) {
+    int old_sheetpool = sheetpool;
+    string old_sheetname = sheetname;
+
+    sheetname = fid;
+    sheetpool = load_sheet(fpath+"/"+fid);
+    int header_at = 0;
+    Ptr ribbon = deadptr;
+    ColCol npool;
+    if(has_sheet(sheetpool,#headerpool)) {
+        npool = get_sheet(sheetpool,#headerpool);
+        ribbon = npool.get(0);
+    } else {
+        npool = create_pool_at(sheetpool+1);
+        npool.tag(#headerpool);
+        ribbon = npool.add; ribbon.element_size(ptr_size); ribbon.tag(#ptr);
+    } 
+
+    if(ribbon.has("sent by")) {
+        *ribbon.get("sent by") = session.username;
+    } else {
+        Ptr stor = get_ticket(header_at,0);
+        *stor = session.username;
+        ribbon.put("sent by",stor);
+    }
+
+    if(ribbon.has("time")) {
+        *ribbon.get("time") = unit_standard_time;
+    } else {
+        Ptr stor = get_ticket(header_at,0);
+        *stor = unit_standard_time;
+        ribbon.put("time",stor);
+    }
+
+    if(ribbon.has("sent to")) {
+        *ribbon.get("sent to") = send_to_list;
+    } else {
+        Ptr stor = get_ticket(header_at,0);
+        *stor = send_to_list;
+        ribbon.put("sent to",stor);
+    }
+
+    if(ribbon.has("message")) {
+        *ribbon.get("message") = message_to_send;
+    } else {
+        Ptr stor = get_ticket(header_at,0);
+        *stor = message_to_send;
+        ribbon.put("message",stor);
+    }
+
+    if(ribbon.has("status")) {
+        *ribbon.get("status") = "unkown";
+    } else {
+        Ptr stor = get_ticket(header_at,0);
+        *stor = "unkown";
+        ribbon.put("status",stor);
+    }
+        
+    //dump_sheet(sheetpool);
+
+    Ptr string recipients = split_str(send_to_list,",");
+    for(int i=0;i<recipients.length;i++) {
+        string recipient = recipients.get(i);
+        if(recipient.length>0) {
+            save_sheet(sheetpool,"web/thistle/users/"+recipient+"/inbox/"+sheetname);
+        }
+    }
+    save_sheet(sheetpool,session.userpath+"sent/"+sheetname);
+
+    sheetname = old_sheetname;
+    sheetpool = old_sheetpool;
+}

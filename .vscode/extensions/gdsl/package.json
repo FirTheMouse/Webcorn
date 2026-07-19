@@ -1,0 +1,15 @@
+{
+    "name": "gdsl",
+    "displayName": "GDSL",
+    "version": "0.6.9",
+    "engines": { "vscode": "^1.60.0" },
+    "contributes": {
+      "languages": [
+        {
+          "id": "gdsl",
+          "extensions": [".gld"],
+          "configuration": "./language-configuration.json"
+        }
+      ]
+    }
+  }

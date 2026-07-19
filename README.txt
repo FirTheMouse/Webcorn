@@ -16,6 +16,7 @@ For running webcorn (./webcorn)
     --tls=[cert/self] : with tls on, select from the self certification or the proper letsencrypt certification.
     --private : disables guests and forces login
     --debug : turns debug features on, namely no terminate handler, and Thistle will auto-log in as Fir.
+    --files : directories to whiteliest, only goes one directory deep, seperated by commas
 
 
 

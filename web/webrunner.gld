@@ -251,7 +251,6 @@
         }
     }
 
-
     global int emit_js(string js) {
         if(ctx.source.length!=0) {if(ctx.source=="go") {} else { ctx.source.append("@"); }}
         ctx.source+=("RUN "+js);
@@ -309,6 +308,29 @@
         fp.get(idx)=val;
         setsidx(fp,idx);
         fp.celllabel(label);
+    }
+
+    global int generate_ledger() {
+        int spool = create_sheet;
+        int oncol = 0;
+
+        delete_pool(find_sheet(spool,#metadatasheet));
+        delete_pool(find_sheet(spool,#scriptsheet));
+        delete_pool(find_sheet(spool,#notesheet));
+
+        dump_sheet(spool);
+
+        add_column_to_sheet(spool); csetlabel(spool,oncol,"Employee Name"); oncol++;
+        add_column_to_sheet(spool); csetlabel(spool,oncol,"Report Date"); oncol++;
+        add_column_to_sheet(spool); csetlabel(spool,oncol,"Place of Supply"); oncol++;
+        add_column_to_sheet(spool); csetlabel(spool,oncol,"Transaction Date"); oncol++;
+        add_column_to_sheet(spool); csetlabel(spool,oncol,"Expense Description"); oncol++;
+        add_column_to_sheet(spool); csetlabel(spool,oncol,"G&A / Store Expense"); oncol++;
+        add_column_to_sheet(spool); csetlabel(spool,oncol,"Department / Store #"); oncol++;
+        add_column_to_sheet(spool); csetlabel(spool,oncol,"Vendor"); oncol++;
+        add_column_to_sheet(spool); csetlabel(spool,oncol,"Total Amount"); oncol++;
+
+        return spool;
     }
 
     global int generate_redberry_sheet() {
@@ -465,16 +487,25 @@ bool allow_guests = !unit_has_arg("--private");
 bool debug_mode = unit_has_arg("--debug");
 global string redirected_from = "";
 global bool auto_log; auto_log = debug_mode;
+global string valid_login_capture;
+
 
 string twigpath = "web/test.twg";
 string arg_twigpath = unit_get_arg("--twigcode=");
 if(arg_twigpath.length!=0) {twigpath = arg_twigpath;}
 
+Ptr bool file_whitelist;
+string arg_whitelist = unit_get_arg("--files=");
+if(arg_whitelist.length!=0) {
+    Ptr string files = split_str(arg_whitelist,",");
+    for(int i=0;i<files.length;i++) {
+        file_whitelist.put(files.get(i),true);
+    }
+}
+
 print("Compiling");
     tstart("twig_compile");
 Node twig = compile(read_file(twigpath));
-//Node twig = compile(read_file("web/test.twg"));
-//Node twig = compile(read_file("web/goldensystems/website.twg"));
 print("Compiled in: ",tstop("twig_compile"));
 Node page = twig.children.get(0);
 
@@ -487,6 +518,9 @@ while(0<1) {
         tstart("request_timer");
         print("Unit ",unit_uid," recived request ",cfd);
         string req = unit_label;
+
+        string current_session_token = get_cookie(req,"session");
+
         //print("Req:\n",req);
 
         string first_line = req.substr(0, req.find("\r\n"));
@@ -501,7 +535,12 @@ while(0<1) {
         bool should_emit_page = true;
 
         if(unslashpath.find(".")>0) {
-            if(unslashpath.find("web/")==0) {
+            string strip_to_directory = "";
+            for(int i=unslashpath.length-1;i>0;i=i-1)  {
+                if(unslashpath.slice(i-1,i)=="/") {strip_to_directory = unslashpath.slice(0,i-1); i=0;}
+            }
+            if(strip_to_directory.length>0&&((strip_to_directory==session.userpath)||file_whitelist.has(strip_to_directory))) {
+                print("Serving file ",unslashpath);
                 string mime = "application/octet-stream";
                 if(unslashpath.find(".png") > 0) {mime = "image/png";}
                 if(unslashpath.find(".jpg") > 0) {mime = "image/jpeg";}
@@ -515,16 +554,33 @@ while(0<1) {
                 response+=info;
                 write(cfd, response);
                 close(cfd);
-                print("Unit ",unit_uid," completed file request ",cfd);
+                print("Unit ",unit_uid," completed file request ",cfd," in ",tstop("request_timer"));
+                unit_setindex(0);
+                continue;
+            } else {
+                string response = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
+                write(cfd, response);
+                close(cfd);
+                print("Unit ",unit_uid," attempted to access an unauthorized file: ",unslashpath," took ",tstop("request_timer"));
                 unit_setindex(0);
                 continue;
             }
         } else {
-            if(slashpath=="/favicon.ico") {} else {
-                if((session.username.length==0)) {
-                    if(allow_guests) {
-                        string new_guest_id = "guest_"+to_string(unit_uid)+"-"+to_string(guest_counter++);
-                        cry("SESSION:"+new_guest_id);
+            if((session.username.length==0)) {
+                if(allow_guests) {
+                    string new_guest_id = "guest_"+to_string(unit_uid)+"-"+to_string(guest_counter++);
+                    cry("SESSION:"+new_guest_id);
+                    string session_token = unit_label;
+                    string do_str = "document.cookie = 'session="+session_token+"; path=/';";
+                    ctx.source = "";
+                    emit_block {
+                        script js_do(do_str);
+                    }
+                    response_body.append(ctx.source);
+                } else {
+                    if(auto_log&&current_session_token!="loggedout") { //Auto log in as Fir for debug
+                        print("Auto logging");
+                        cry("SESSION:Fir");
                         string session_token = unit_label;
                         string do_str = "document.cookie = 'session="+session_token+"; path=/';";
                         ctx.source = "";
@@ -532,29 +588,23 @@ while(0<1) {
                             script js_do(do_str);
                         }
                         response_body.append(ctx.source);
+                        //save_sheet(generate_redberry_sheet,"web/thistle/users/Fir/sheets/Blank");
                     } else {
-                        if(auto_log) { //Auto log in as Fir for debug
-                            cry("SESSION:Fir");
-                            string session_token = unit_label;
-                            string do_str = "document.cookie = 'session="+session_token+"; path=/';";
+                        if(slashpath=="/login") {
+                            if(method=="RUN") {
+                                if(valid_login_capture.length==0) {
+                                    print("No valid login capture was registered, unable to run");
+                                    should_emit_page = false;
+                                }
+                            }
+                        } else {
+                            redirected_from = slashpath;
                             ctx.source = "";
                             emit_block {
-                                script js_do(do_str);
+                                script js_do("window.location.href = '/login';");
                             }
                             response_body.append(ctx.source);
-                            //save_sheet(generate_redberry_sheet,"web/thistle/users/Fir/sheets/Blank");
-                        } else {
-                            if(slashpath=="/login") {
-
-                            } else {
-                                redirected_from = slashpath;
-                                ctx.source = "";
-                                emit_block {
-                                    script js_do("window.location.href = '/login';");
-                                }
-                                response_body.append(ctx.source);
-                                should_emit_page = false;
-                            }
+                            should_emit_page = false;
                         }
                     }
                 }
@@ -607,28 +657,6 @@ while(0<1) {
                     }
                 }
 
-                if(method=="RUN_RAW") {
-                    int body_start = req.find("\r\n\r\n");
-                    if(body_start>=0) {
-                        string src = req.slice(body_start+4,req.length);
-                        print("Running raw:\n",src);
-
-                        Node root = compile(src);
-                        execut root;
-
-                        src = ctx.source;
-                        string target = src.slice(0,src.find(" "));
-                        string instr = src.slice(" ",1,2);
-                        string content = src.slice(src.find(" ",0,2)+1,src.length);
-                        if(target.length!=0) {
-                            print("TARGET: ",target); 
-                            print("INSTR: ",instr); 
-                            print("CONTENT LEN: ",content.length);
-                            response_body = content;
-                        }
-                    }
-                }
-
                 if(method=="RUN") {
                     int body_start = req.find("\r\n\r\n");
                     if(body_start>=0) {
@@ -640,28 +668,47 @@ while(0<1) {
 
                             Ptr string args = split_str(src,"@");
                             ctx.source = "go";
-                            Ptr pointer = string_to_Ptr(args.get(0));
-                            Node root = cast_to_Node(pointer);
+                            if(args.length>0) {
 
-                            if(args.length>1) {
-                                for(int a=1;(a+1)<args.length;a++) {
-                                    if(args.get(a)=="[VAR]") {
-                                        root.children.get(a-1).value.set(args.get(a+1));
+                                string ptrstring = args.get(0);        
+                                if(unslashpath=="login") {
+                                    string valid_ptr = valid_login_capture.slice("'",1,2);
+                                    if(ptrstring!=valid_ptr) {
+                                        string response = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
+                                        write(cfd, response);
+                                        close(cfd);
+                                        print("Unit ",unit_uid," attempted to run an unauthorized function from the login page: ",ptrstring," took ",tstop("request_timer"));
+                                        unit_setindex(0);
+                                        continue;
                                     }
                                 }
-                            }
+                                
+                                Ptr pointer = string_to_Ptr(ptrstring);
+                                if(is_live(pointer)) {
+                                    Node root = cast_to_Node(pointer);
+                                    if(args.length>1) {
+                                        for(int a=1;(a+1)<args.length;a++) {
+                                            if(args.get(a)=="[VAR]") {
+                                                root.children.get(a-1).value.set(args.get(a+1));
+                                            }
+                                        }
+                                    }
 
-                            tstart("executing_run_root");
-                            execut root;
-                            print("Time: ",tstop("executing_run_root"));
+                                    ctx.source = "go";
 
-                            src = ctx.source;
-                            if(src=="RELOAD") {
-                                ctx.source = "";
-                                htmlemit page;
-                                response_body = ctx.source;
-                            } else if(src.length>0) {
-                                response_body = src;
+                                    tstart("executing_run_root");
+                                    execut root;
+                                    print("Time: ",tstop("executing_run_root"));
+
+                                    src = ctx.source;
+                                    if(src=="RELOAD") {
+                                        ctx.source = "";
+                                        htmlemit page;
+                                        response_body = ctx.source;
+                                    } else if(src.length>0) {
+                                        response_body = src;
+                                    }
+                                }
                             }
                         }
                     }

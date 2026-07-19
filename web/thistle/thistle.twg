@@ -121,21 +121,97 @@ inlined popup_panel_theme {
     global Node sidebar_reload_target;
     global bool sidebar_open;
     global string sidebar_open_form; sidebar_open_form = " ";
-    global bool sidebar_popup_open;
+    global bool message_draft_panel_open;
     global bool inbox_enabled;
     inbox_enabled = true;
 ##
 
 
-div message_draft_panel(string selected_filepath, string selected_id) {
+void send_message(string fid, string fpath, string user_search, string send_to_list, string message_to_send) {
+    int old_sheetpool = sheetpool;
+    string old_sheetname = sheetname;
+
+    sheetname = fid;
+    sheetpool = load_sheet(fpath+"/"+fid);
+    int header_at = 0;
+    Ptr ribbon = deadptr;
+    ColCol npool;
+    if(has_sheet(sheetpool,#headerpool)) {
+        npool = get_sheet(sheetpool,#headerpool);
+        ribbon = npool.get(0);
+        header_at = find_sheet(sheetpool,#headerpool);
+    } else {
+        npool = create_pool_at(sheetpool+1);
+        npool.tag(#headerpool);
+        ribbon = npool.add; ribbon.element_size(ptr_size); ribbon.tag(#ptr);
+        header_at = sheetpool+1;
+    } 
+
+    if(ribbon.has("sent by")) {
+        *ribbon.get("sent by") = session.username;
+    } else {
+        Ptr stor = get_ticket(header_at,0);
+        *stor = session.username;
+        ribbon.put("sent by",stor);
+    }
+
+    if(ribbon.has("time")) {
+        *ribbon.get("time") = unit_standard_time;
+    } else {
+        Ptr stor = get_ticket(header_at,0);
+        *stor = unit_standard_time;
+        ribbon.put("time",stor);
+    }
+
+    if(ribbon.has("sent to")) {
+        *ribbon.get("sent to") = send_to_list;
+    } else {
+        Ptr stor = get_ticket(header_at,0);
+        *stor = send_to_list;
+        ribbon.put("sent to",stor);
+    }
+
+    if(ribbon.has("message")) {
+        *ribbon.get("message") = message_to_send;
+    } else {
+        Ptr stor = get_ticket(header_at,0);
+        *stor = message_to_send;
+        ribbon.put("message",stor);
+    }
+
+    if(ribbon.has("status")) {
+        *ribbon.get("status") = "unkown";
+    } else {
+        Ptr stor = get_ticket(header_at,0);
+        *stor = "unkown";
+        ribbon.put("status",stor);
+    }
+        
+    //dump_sheet(sheetpool);
+
+    Ptr string recipients = split_str(send_to_list,",");
+    for(int i=0;i<recipients.length;i++) {
+        string recipient = recipients.get(i);
+        if(recipient.length>0) {
+            save_sheet(sheetpool,"web/thistle/users/"+recipient+"/inbox/"+sheetname);
+        }
+    }
+    save_sheet(sheetpool,session.userpath+"sent/"+sheetname);
+
+    sheetname = old_sheetname;
+    sheetpool = old_sheetpool;
+}
+
+
+div message_draft_panel(string selected_filepath, string selected_id, int selected_pool) {
     static string user_search; user_search = "";
     static string send_to_list; send_to_list = "";
     static string message_to_send; message_to_send = "";
 
     div draft_message {
-        "display" : (sidebar_popup_open?"flex":"none");
+        "display" : (message_draft_panel_open?"flex":"none");
         "onclick" : capture(js_do("event.stopPropagation();")) {
-            sidebar_popup_open = false;
+            message_draft_panel_open = false;
             draft_message.reload;
         }
         popup_background_theme;
@@ -171,10 +247,11 @@ div message_draft_panel(string selected_filepath, string selected_id) {
                                     "font-size" : "12px";
                                     text_theme;
                                 }
-                                text "×" {
+                                text "x" {
                                     "color" : "white";
                                     "font-size" : "14px";
                                     "cursor" : "pointer";
+                                    text_theme;
                                     "onclick" : capture(
                                         string fusername ; js_lit(uname),
                                         js_do("event.stopPropagation();")
@@ -285,59 +362,7 @@ div message_draft_panel(string selected_filepath, string selected_id) {
                     string fpath ; js_lit(selected_filepath),
                     js_do("event.stopPropagation();")
                 ) {
-                    int old_sheetpool = sheetpool;
-                    string old_sheetname = sheetname;
-
-                    sheetname = fid;
-                    sheetpool = load_sheet(fpath+"/"+fid);
-                    int header_at = 0;
-                    Ptr ribbon = deadptr;
-                    if(has_sheet(sheetpool,#headerpool)) {
-                        remove_sheet(find_sheet(sheetpool,#headerpool));
-                    } 
-                    header_at = sheetpool+1;
-                    ColCol npool = create_pool_at(header_at);
-                    npool.tag(#headerpool);
-                    ribbon = npool.add; ribbon.element_size(ptr_size); ribbon.tag(#ptr);
-
-                    Ptr stor = get_ticket(header_at,0);
-                    *stor = session.username;
-                    ribbon.push(stor);
-                    (ribbon|S=0).celllabel("sent by");
-
-                    Ptr stor2 = get_ticket(header_at,0);
-                    *stor2 = unit_standard_time;
-                    ribbon.push(stor2);
-                    (ribbon|S=1).celllabel("time");
-
-                    Ptr stor3 = get_ticket(header_at,0);
-                    *stor3 = send_to_list;
-                    ribbon.push(stor3);
-                    (ribbon|S=2).celllabel("sent to");
-
-                    Ptr stor4 = get_ticket(header_at,0);
-                    *stor4 = message_to_send;
-                    ribbon.push(stor4);
-                    (ribbon|S=3).celllabel("message");
-
-                    Ptr stor5 = get_ticket(header_at,0);
-                    *stor5 = "unknown";
-                    ribbon.push(stor5);
-                    (ribbon|S=4).celllabel("status");
-                    
-                    //dump_sheet(sheetpool);
-
-                    Ptr string recipients = split_str(send_to_list,",");
-                    for(int i=0;i<recipients.length;i++) {
-                        string recipient = recipients.get(i);
-                        if(recipient.length>0) {
-                            save_sheet(sheetpool,"web/thistle/users/"+recipient+"/inbox/"+sheetname);
-                        }
-                    }
-                    save_sheet(sheetpool,session.userpath+"sent/"+sheetname);
-
-                    sheetname = old_sheetname;
-                    sheetpool = old_sheetpool;
+                    send_message(fid,fpath,user_search,send_to_list,message_to_send);
                 }
             }
         }   
@@ -486,7 +511,7 @@ div side_bar(string in_route) {
     static string selected_filepath; selected_filepath = "";
     static string selected_id; selected_id = "";
     div sidebar_popup {
-        message_draft_panel(selected_filepath,selected_id);
+        message_draft_panel(selected_filepath,selected_id,0);
     }
     
     div {
@@ -658,7 +683,7 @@ div side_bar(string in_route) {
                         ) {
                             selected_filepath = fpath;
                             selected_id = fid;
-                            sidebar_popup_open = true;
+                            message_draft_panel_open = true;
                             sidebar_popup.reload;
                         }
                         "class" : "label";
@@ -1195,7 +1220,7 @@ login {
 
                                 button {
                                     "id" : "login";
-                                    "onclick" : capture(
+                                    string tes = capture(
                                         string given_username ; "getel('username').value",
                                         string given_password ; "getel('password').value"
                                     ) {
@@ -1211,7 +1236,6 @@ login {
                                                         document.cookie = 'session="+session_token+"; path=/';
                                                         window.location.href = '"+(redirected_from.length==0?"/":redirected_from)+"';
                                                     ");
-                                                    
                                                 } else {
                                                     print("WRONG PASSWORD FOR ",user);
                                                 }
@@ -1219,6 +1243,9 @@ login {
                                             }
                                         }
                                     }
+                                    "onclick" : tes;
+                                    valid_login_capture = tes;
+
                                     text "Login" {
                                         "font-size" : "14px";
                                         text_theme;
@@ -1523,7 +1550,8 @@ stateless template div form_question(int spool, Ptr cellptr, bool editable) {
 }
 
 stateless template div render_form(int spool, bool editable) {
-    div {
+    static int on_row = 0;
+    div form_display {
         "display" : "flex";
         "justify-content" : "center";
         "flex-direction" : "column";
@@ -1538,9 +1566,47 @@ stateless template div render_form(int spool, bool editable) {
             }
         }
         if(has_sheet(spool,#formsheet)) {
+
+            div {
+                "display" : "flex";
+                "flex-direction" : "row";
+                if(on_row>0) {
+                    button {
+                        text "<" {text_theme;}
+                        "onclick" : capture{
+                            on_row=on_row-1;
+                            form_display.reload;
+                        }
+                    }
+                }
+
+                text to_string(on_row+1)+"/"+to_string(lenr) {text_theme;}
+
+                if(on_row<(lenr-1)) {
+                    button {
+                        text ">" {text_theme;}
+                        "onclick" : capture{
+                            on_row=on_row+1;
+                            form_display.reload;
+                        }
+                    }
+                } else {
+                    button {
+                        text "+" {text_theme;}
+                        "onclick" : capture{
+                            duplicate_row_on_sheet(spool);
+                            on_row=on_row+1;
+                            form_display.reload;
+                        }
+                    }
+                }
+            }
+            
             for(int r=0;r<lenr;r++) {
-                for(int c=0;c<lenc;c++) {
-                    form_question(spool,makePtr3(spool,c,r),editable);
+                if(r==on_row) {
+                    for(int c=0;c<lenc;c++) {
+                        form_question(spool,makePtr3(spool,c,r),editable);
+                    }
                 }
             }
         }
@@ -1779,9 +1845,40 @@ stateless template div build_render_sheet(int spool) {
     global string inbox_on_tab; inbox_on_tab = "Inbox";
 ##
 
+void return_message(int spool, string shname, string reciver, string comment, string new_status) {
+    if(has_sheet(spool,#headerpool)) {
+        int header_at = find_sheet(spool,#headerpool);
+        Ptr ribbon = makePtr3(header_at,0,0);
+
+        if(ribbon.has("message")) {
+            Ptr stor = ribbon.get("message"); 
+            *stor = comment;
+        } else {
+            Ptr stor = get_ticket(header_at,0);
+            *stor = comment;
+            ribbon.put("message",stor);
+        }
+
+        if(ribbon.has("status")) {
+            Ptr stor = ribbon.get("status");
+            *stor = new_status;
+        } else {
+            Ptr stor = get_ticket(header_at,0);
+            *stor = new_status;
+            ribbon.put("status",stor);
+        }
+    }
+    save_sheet(spool,"web/thistle/users/"+reciver+"/inbox/"+shname);
+    move_file(session.userpath+"inbox/"+shname, session.userpath+"sent");
+}
+
 inbox {
+
+    button {text "REFRESH LEDGER"; "onclick" : capture{save_sheet(generate_ledger,"web/thistle/ledger");}}
+    button {text "APPEND LEDGER"; "onclick" : capture{cry("APPROVE:"+session.userpath+"sheets/TestSheet"); cry("APPROVE:"+session.userpath+"sheets/TestSheetTwo");}}
+
     Ptr string files;
-    string inbox_path; inbox_path = session.userpath+"/inbox";
+    string inbox_path; inbox_path = session.userpath+"inbox";
     div inbox_root {
         sidebar_reload_target = call_owner(inbox_root);
         style "
@@ -1909,7 +2006,11 @@ inbox {
                                 "flex-direction" : "column";
                                 "gap" : "4px";
                                 for(int i=0;i<files.length;i++) {
-                                    file_temp(inbox_path,files.get(i),false);
+                                    if(inbox_on_tab=="Inbox") {
+                                        file_temp(session.userpath+"inbox",files.get(i),false);
+                                    } else if(inbox_on_tab=="Sent") {
+                                        file_temp(session.userpath+"sent",files.get(i),false);
+                                    }
                                 }
                             }
                         }
@@ -1940,15 +2041,35 @@ inbox {
 
                                 render_form(inbox_sheetpool,false);
 
-                                if(return_to.length!=0) {
+                                button {
+                                    text "Dump" {text_theme;}
+                                    "onclick" : capture{ 
+                                        dump_sheet(inbox_sheetpool);
+                                    }
+                                }
+
+                                if(inbox_on_tab=="Inbox") {
                                     button {
-                                        text "Return" {text_theme;}
-                                        "onclick" : capture(
-                                            string reciver ; js_lit(return_to)
-                                        ) { 
-                                            save_sheet(inbox_sheetpool,"web/thistle/users/"+reciver+"/inbox/"+inbox_sheetname);
-                                            move_file(session.userpath+"inbox/"+inbox_sheetname, session.userpath+"sent");
+                                        text "Approve" {text_theme;}
+                                        "onclick" : capture() { 
+                                            string filepath = session.userpath+"inbox/"+inbox_sheetname;
+                                            cry("APPROVE:"+filepath);
+                                            delete_sheet(inbox_sheetpool);
+                                            inbox_sheetpool = 0; inbox_sheetname = "";
+                                            remove_file(filepath);
                                             inbox_display.reload;
+                                        }
+                                    }
+
+                                    if(return_to.length!=0) {
+                                        button {
+                                            text "Return" {text_theme;}
+                                            "onclick" : capture(
+                                                string reciver ; js_lit(return_to)
+                                            ) { 
+                                                return_message(inbox_sheetpool,inbox_sheetname,reciver,"Comments go here","returned");
+                                                inbox_display.reload;
+                                            }
                                         }
                                     }
                                 }

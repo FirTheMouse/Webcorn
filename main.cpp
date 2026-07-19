@@ -1,6 +1,6 @@
-//#include "web/Webcorn-Core.hpp"
+#include "web/Webcorn-Core.hpp"
 //#include "GDSL/mixos-acorn/Acorn-Core.hpp"
-#include "GDSL/mixos-acorn/Acorn-Script.hpp"
+//#include "GDSL/mixos-acorn/Acorn-Script.hpp"
 
 #include <signal.h>
 #include <execinfo.h>
@@ -30,32 +30,32 @@ int main(int argc, char* argv[]) {
         signal(SIGPIPE, SIG_IGN);
     #endif
 
-    // g_ptr<Acorn::Unit> u =  Acorn::make_unit<Acorn::Unit>();
+    // g_ptr<Acorn::Unit> u =  make<Acorn::Unit>(true);
     // u->test_pool_groups();
 
     try {
-        g_ptr<Acorn::Acorn_Script> acorn =  Acorn::make_unit<Acorn::Acorn_Script>();
-        acorn->run(acorn->process(readFile("GDSL/mixos-acorn/test.gld")));
+        // g_ptr<Acorn::Acorn_Script> acorn =  Acorn::make_unit<Acorn::Acorn_Script>();
+        // acorn->run(acorn->process(readFile("GDSL/mixos-acorn/test.gld")));
 
-        // g_ptr<Acorn::Webcorn_Core> webcorn =  Acorn::make_unit<Acorn::Webcorn_Core>();
-        // //webcorn->setup_trace_res_flipbook();
-        // bool in_debug = false;
-        // for(int i = 1; i < argc; i++) {
-        //     std::string arg(argv[i]);
-        //     webcorn->uargs << arg;
-        //     if(arg=="--debug") in_debug = true;
-        // }
-        // if(!in_debug) {
-        //     std::set_terminate([](){
-        //         fprintf(stderr, "std::terminate called!\n");
-        //         void* array[20];
-        //         size_t size = backtrace(array, 20);
-        //         backtrace_symbols_fd(array, size, STDERR_FILENO);
-        //         abort();
-        //     });
-        // }
-        // webcorn->run(webcorn->process(readFile("web/webcorn.gld")));
-        // // webcorn->run(webcorn->process(readFile("GDSL/mixos-acorn/test.gld")));
+        g_ptr<Acorn::Webcorn_Core> webcorn =  Acorn::make_unit<Acorn::Webcorn_Core>();
+        //webcorn->setup_trace_res_flipbook();
+        bool in_debug = false;
+        for(int i = 1; i < argc; i++) {
+            std::string arg(argv[i]);
+            webcorn->uargs << arg;
+            if(arg=="--debug") in_debug = true;
+        }
+        if(!in_debug) {
+            std::set_terminate([](){
+                fprintf(stderr, "std::terminate called!\n");
+                void* array[20];
+                size_t size = backtrace(array, 20);
+                backtrace_symbols_fd(array, size, STDERR_FILENO);
+                abort();
+            });
+        }
+        webcorn->run(webcorn->process(readFile("web/webcorn.gld")));
+        // webcorn->run(webcorn->process(readFile("GDSL/mixos-acorn/test.gld")));
     } catch(std::exception& e) {
         print("FATAL EXCEPTION: ", e.what());
     } catch(...) {

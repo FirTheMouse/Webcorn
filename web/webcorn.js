@@ -24,7 +24,7 @@ function run(ptr, ...captures) {
         method: 'RUN',
         body: body
     }).then(r => r.text()).then(response => {
-        if(!response) return;
+        if(!response) {console.log('no response from run'); return};
         const instructions = response.split('@');
         instructions.forEach(instr => {
             if(instr.startsWith('FRAG ')) {
@@ -37,7 +37,7 @@ function run(ptr, ...captures) {
             } else if(instr === 'RELOAD') {
                 window.location.reload();
             } else if(instr.startsWith('RUN ')) {
-                console.log('RUNNNING:'+instr);
+                console.log('RUNNING:'+instr);
                 eval(instr.slice(4));
             }
         });
@@ -54,31 +54,6 @@ function run(ptr, ...captures) {
     // });
 }
 
-function run_raw(...args) {
-    const body = args.join('').replace(/&quot;/g, '"')
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&#39;/g, "'")
-        .replace(/&apos;/g, "'");
-    fetch(window.location.pathname, {
-        method: "RUN_RAW",
-        body: body
-    }).then(r => r.text()).then(html => {
-        if(!html) {console.log("Returning, html empty"); return;}
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, 'text/html');
-        const newEl = doc.body.firstChild;
-        console.log("NEW EL:", newEl);
-        console.log("NEW EL ID:", newEl?.id);
-        console.log("TARGET:", document.getElementById(newEl?.id));
-        if(newEl && newEl.id) {
-            const target = document.getElementById(newEl.id);
-            if(!target) {console.log("Target not found in DOM"); return;}
-            target.outerHTML = newEl.outerHTML;
-        }
-    });
-}
 
 function fragthree(target, instruction, content) {
     fetch(window.location.pathname, {
