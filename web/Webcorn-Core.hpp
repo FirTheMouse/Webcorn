@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../GDSL/mixos-acorn/Acorn-Script.hpp"
-#include "../GDSL/ext/g_lib/core/thread.hpp"
 
 
 #ifdef _WIN32
@@ -184,7 +183,6 @@ namespace Acorn {
         }
         uint32_t session_col = init_session_type();
 
-        uint32_t headerpool_id = reg_id("headerpool");
         uint32_t datasheet_id = reg_id("datasheet");
         uint32_t metadatasheet_id = reg_id("metadatasheet");
         uint32_t notesheet_id = reg_id("notesheet");
@@ -1190,59 +1188,7 @@ namespace Acorn {
             WRITE_SOCKET(fd, frame.data(), frame.size());
         }
 
-        uint32_t thread_sleep_id = add_function("thread_sleep",[this](Context& ctx){std::this_thread::sleep_for(std::chrono::milliseconds(100));});
-        uint32_t unit_sleep_id = add_function("unit_sleep",[this](Context& ctx){types.live = false;});
-        uint32_t unit_wake_id = add_function("unit_wake",[this](Context& ctx){types.live = true;});
-        uint32_t unit_index_id = add_function("unit_index",[this](Context& ctx){ctx.node().value().set((void*)&types.index);},4,int_id);
-        uint32_t unit_uid_id = add_function("unit_uid",[this](Context& ctx){uint32_t tuid = (uint32_t)uid; ctx.node().value().set((void*)&tuid);},4,int_id);
-        uint32_t unit_setindex_id = add_function("unit_setindex",[this](Context& ctx){int idx = *(int*)ctx.node().children()[0].value().get(); types.index=idx;});
-        uint32_t unit_label_id = add_function("unit_label",[this](Context& ctx){string s = resolve_string_ticket(ctx.node()); s = types.label.to_std();},sizeof(Ptr),string_id);
-
-        uint32_t unit_date_id = add_function("unit_date",[this](Context& ctx){
-            auto now = std::chrono::system_clock::now();
-            std::time_t t = std::chrono::system_clock::to_time_t(now);
-            std::tm* tm = std::localtime(&t);
-            char buf[64];
-            std::strftime(buf, sizeof(buf), "%Y-%m-%d", tm);
-            string s = resolve_string_ticket(ctx.node());
-            s = std::string(buf);
-        },sizeof(Ptr),string_id);
         
-        uint32_t unit_time_id = add_function("unit_time",[this](Context& ctx){
-            auto now = std::chrono::system_clock::now();
-            std::time_t t = std::chrono::system_clock::to_time_t(now);
-            std::tm* tm = std::localtime(&t);
-            char buf[64];
-            std::strftime(buf, sizeof(buf), "%H:%M:%S", tm);
-            string s = resolve_string_ticket(ctx.node());
-            s = std::string(buf);
-        },sizeof(Ptr),string_id);
-
-        uint32_t unit_standard_time_id = add_function("unit_standard_time",[this](Context& ctx){
-            auto now = std::chrono::system_clock::now();
-            std::time_t t = std::chrono::system_clock::to_time_t(now);
-            std::tm* tm = std::localtime(&t);
-            char buf[64];
-            std::strftime(buf, sizeof(buf), "%a, %b %e, %I:%M %p", tm);
-            std::string result(buf);
-            auto pos = result.find("  ");
-            if(pos != std::string::npos) result.erase(pos, 1);
-            string s = resolve_string_ticket(ctx.node());
-            s = result;
-        },sizeof(Ptr),string_id);
-        
-        uint32_t unit_time_precise_id = add_function("unit_time_precise",[this](Context& ctx){
-            auto now = std::chrono::system_clock::now();
-            std::time_t t = std::chrono::system_clock::to_time_t(now);
-            std::tm* tm = std::localtime(&t);
-            auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                now.time_since_epoch()) % 1000;
-            char buf[64];
-            std::snprintf(buf, sizeof(buf), "%02d:%02d:%02d.%03lld",
-                tm->tm_hour, tm->tm_min, tm->tm_sec, (long long)ms.count());
-            string s = resolve_string_ticket(ctx.node());
-            s = std::string(buf);
-        },sizeof(Ptr),string_id);
 
         uint32_t make_webcorn_id = add_function("make_webcorn",[this](Context& ctx){
             standard_sub_process(ctx);
@@ -1325,20 +1271,6 @@ namespace Acorn {
             output = to_js_expr(s.to_std());
         },sizeof(Ptr),string_id);
 
-        std::string escape_js_string(const std::string& s) {
-            std::string out;
-            for(char c : s) {
-                switch(c) {
-                    case '\\': out += "\\\\"; break;
-                    case '\'': out += "\\'"; break;
-                    case '\n': out += "\\n"; break;
-                    case '\r': out += "\\r"; break;
-                    case '\t': out += "\\t"; break;
-                    default: out += c; break;
-                }
-            }
-            return out;
-        }
         std::string to_js_lit(std::string s) {
             return "'"+escape_js_string(s)+"'";
         }
@@ -1388,7 +1320,30 @@ namespace Acorn {
             return is_structural[name] || name.substr(0,5) == "data-";
         }
 
-        uint32_t escape_str_id = add_function("escape_str",[this](Context& ctx){
+        std::string escape_js_string(const std::string& s) {
+            std::string out;
+            for(char c : s) {
+                switch(c) {
+                    case '\\': out += "\\\\"; break;
+                    case '\'': out += "\\'"; break;
+                    case '\n': out += "\\n"; break;
+                    case '\r': out += "\\r"; break;
+                    case '\t': out += "\\t"; break;
+                    default: out += c; break;
+                }
+            }
+            return out;
+        }
+
+        uint32_t escape_js_id = add_function("escape_js",[this](Context& ctx){
+            standard_sub_process(ctx);
+            string content = resolve_string_ticket(ctx.node().children()[0]);
+            std::string escaped = escape_js_string(content.to_std());
+            string output = resolve_string_ticket(ctx.node());
+            output = escaped;
+        },sizeof(Ptr),string_id);
+
+        uint32_t escape_html_id = add_function("escape_html",[this](Context& ctx){
             standard_sub_process(ctx);
             string content = resolve_string_ticket(ctx.node().children()[0]);
             std::string escaped = html_escape_string(content.to_std());

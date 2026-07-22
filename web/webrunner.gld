@@ -509,6 +509,11 @@ Node twig = compile(read_file(twigpath));
 print("Compiled in: ",tstop("twig_compile"));
 Node page = twig.children.get(0);
 
+// print("Dumping full unit");
+//     tstart("dumping");
+// dump_unit(true);
+//     print("Dumped in: ",tstop("dumping"));
+
 //print(unit_info);
 
 int cfd = 0;
@@ -580,7 +585,11 @@ while(0<1) {
                 } else {
                     if(auto_log&&current_session_token!="loggedout") { //Auto log in as Fir for debug
                         print("Auto logging");
-                        cry("SESSION:Fir");
+                        if(unit_uid==2) {
+                            cry("SESSION:Fir");
+                        } else {
+                            cry("SESSION:Ash");
+                        }
                         string session_token = unit_label;
                         string do_str = "document.cookie = 'session="+session_token+"; path=/';";
                         ctx.source = "";
@@ -689,7 +698,8 @@ while(0<1) {
                                     if(args.length>1) {
                                         for(int a=1;(a+1)<args.length;a++) {
                                             if(args.get(a)=="[VAR]") {
-                                                root.children.get(a-1).value.set(args.get(a+1));
+                                                string escapedarg = escape_html(args.get(a+1));
+                                                root.children.get(a-1).value.set(escapedarg);
                                             }
                                         }
                                     }

@@ -1,0 +1,52 @@
+##
+    global string js_close(string id) {
+       return "document.getElementById("+js_lit(id)+").style.display='none'";
+    }
+    global string js_open(string id) {
+       return "document.getElementById("+js_lit(id)+").style.display='flex'";
+    }
+##
+
+inlined hoverable_theme {
+    "background-color" : transparent;
+    "transition" : "background-color 0.15s ease";
+    "onmouseenter" : "if(this.style.backgroundColor==='transparent')this.style.backgroundColor='rgba(0,0,0,0.04)'";
+    "onmouseleave" : "if(this.style.backgroundColor==='rgba(0, 0, 0, 0.04)')this.style.backgroundColor='transparent'";
+}
+inlined popup_background_theme {
+    "position" : "fixed";
+    "top" : "0";
+    "left" : "0";
+    "width" : "100%";
+    "height" : "100%";
+    "background-color" : "rgba(0,0,0,0.4)";
+    "z-index" : "1000";
+    "display" : "flex";
+    "justify-content" : "center";
+    "align-items" : "center";
+    "onclick" : "event.stopPropagation();";
+}
+
+inlined popup_panel_theme {
+    "background-color" : "white";
+    "border-radius" : "12px";
+    "padding" : "24px";
+    "display" : "flex";
+    "flex-direction" : "column";
+    "gap" : "16px";
+    "align-items" : "center";
+    "box-shadow" : "0 8px 32px rgba(0,0,0,0.2)";
+    "onclick" : "event.stopPropagation();";
+}
+
+
+div popup_panel(string on_background_click, func slot) {
+    div full_panel {
+        "onclick" : on_background_click;
+        popup_background_theme;
+        div display_panel {
+            popup_panel_theme;
+            slot();
+        }   
+    }
+}

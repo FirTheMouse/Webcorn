@@ -127,79 +127,89 @@ inlined popup_panel_theme {
 ##
 
 
-void send_message(string fid, string fpath, string user_search, string send_to_list, string message_to_send) {
+void send_message(string fid, string fpath, string name_to_use, string sender, string send_to_list, string message_to_send, string status_to_send) {
     int old_sheetpool = sheetpool;
     string old_sheetname = sheetname;
 
-    sheetname = fid;
-    sheetpool = load_sheet(fpath+"/"+fid);
+    string sent_path = session.userpath+"sent/"+name_to_use;
+    save_sheet(load_sheet(fpath+"/"+fid),sent_path); //Makes a copy
+
+    sheetname = name_to_use;
+    sheetpool = load_sheet(sent_path);
+    rename_sheet(sheetpool,name_to_use);
+
     int header_at = 0;
     Ptr ribbon = deadptr;
     ColCol npool;
     if(has_sheet(sheetpool,#headerpool)) {
         npool = get_sheet(sheetpool,#headerpool);
-        ribbon = npool.get(0);
+        ribbon = npool.add; ribbon.element_size(ptr_size); ribbon.tag(#ptr); ribbon.label("Ribbon");
         header_at = find_sheet(sheetpool,#headerpool);
     } else {
         npool = create_pool_at(sheetpool+1);
         npool.tag(#headerpool);
-        ribbon = npool.add; ribbon.element_size(ptr_size); ribbon.tag(#ptr);
+        ribbon = npool.add; ribbon.element_size(ptr_size); ribbon.tag(#ptr); ribbon.label("Ribbon");
         header_at = sheetpool+1;
     } 
 
+    Ptr stor = deadptr;
     if(ribbon.has("sent by")) {
-        *ribbon.get("sent by") = session.username;
+        stor = ribbon.get("sent by");
     } else {
-        Ptr stor = get_ticket(header_at,0);
-        *stor = session.username;
+        stor = get_ticket(header_at,0);
         ribbon.put("sent by",stor);
     }
+    *stor = sender;
 
     if(ribbon.has("time")) {
-        *ribbon.get("time") = unit_standard_time;
+        stor = ribbon.get("time");
     } else {
-        Ptr stor = get_ticket(header_at,0);
-        *stor = unit_standard_time;
+        stor = get_ticket(header_at,0);
         ribbon.put("time",stor);
     }
+    *stor = unit_standard_time;
 
     if(ribbon.has("sent to")) {
-        *ribbon.get("sent to") = send_to_list;
+        stor = ribbon.get("sent to");
     } else {
-        Ptr stor = get_ticket(header_at,0);
-        *stor = send_to_list;
+        stor = get_ticket(header_at,0);
         ribbon.put("sent to",stor);
     }
+    *stor = send_to_list;
 
     if(ribbon.has("message")) {
-        *ribbon.get("message") = message_to_send;
+        stor = ribbon.get("message");
     } else {
-        Ptr stor = get_ticket(header_at,0);
-        *stor = message_to_send;
+        stor = get_ticket(header_at,0);
         ribbon.put("message",stor);
     }
+    *stor = message_to_send;
 
     if(ribbon.has("status")) {
-        *ribbon.get("status") = "unkown";
+        stor = ribbon.get("status");
     } else {
-        Ptr stor = get_ticket(header_at,0);
-        *stor = "unkown";
+        stor = get_ticket(header_at,0);
         ribbon.put("status",stor);
     }
+    *stor = status_to_send;
         
-    //dump_sheet(sheetpool);
+    dump_sheet(sheetpool);
 
     Ptr string recipients = split_str(send_to_list,",");
     for(int i=0;i<recipients.length;i++) {
         string recipient = recipients.get(i);
         if(recipient.length>0) {
-            save_sheet(sheetpool,"web/thistle/users/"+recipient+"/inbox/"+sheetname);
+            save_sheet(sheetpool,"web/thistle/users/"+recipient+"/inbox/"+name_to_use);
         }
     }
-    save_sheet(sheetpool,session.userpath+"sent/"+sheetname);
 
     sheetname = old_sheetname;
     sheetpool = old_sheetpool;
+}
+
+void return_message(string fid, string reciver, string comment, string new_status) {
+    send_message(fid, session.userpath+"inbox", fid, session.username, reciver+"," , comment, new_status);
+    remove_file(session.userpath+"inbox/"+fid);
 }
 
 
@@ -289,7 +299,7 @@ div message_draft_panel(string selected_filepath, string selected_id, int select
                         "oninput" : "
                             event.stopPropagation();
                             const val = this.value.toLowerCase();
-                            const already_sent = '"+send_to_list+"';
+                            const already_sent = "+js_lit(send_to_list)+";
                             document.querySelectorAll('.user_search_card').forEach(el => {
                                 const name = el.dataset.username;
                                 el.style.display = (name && name.toLowerCase().includes(val) && !already_sent.includes(name+',')) ? 'block' : 'none';
@@ -362,7 +372,7 @@ div message_draft_panel(string selected_filepath, string selected_id, int select
                     string fpath ; js_lit(selected_filepath),
                     js_do("event.stopPropagation();")
                 ) {
-                    send_message(fid,fpath,user_search,send_to_list,message_to_send);
+                    send_message(fid,fpath,unit_timestamp+"_"+fid,session.username,send_to_list,message_to_send,"unknown");
                 }
             }
         }   
@@ -697,7 +707,7 @@ div side_bar(string in_route) {
                         "onclick" : capture(
                            js_do("
                                 event.stopPropagation(); 
-                                const context_menu = document.getElementById('"+sf_cm_id+"');
+                                const context_menu = document.getElementById("+js_lit(sf_cm_id)+");
                                 if(context_menu.style.display==='flex') {
                                     context_menu.style.display='none';
                                 } else {
@@ -1234,7 +1244,7 @@ login {
                                                     string session_token = unit_label;
                                                     emit_js("
                                                         document.cookie = 'session="+session_token+"; path=/';
-                                                        window.location.href = '"+(redirected_from.length==0?"/":redirected_from)+"';
+                                                        window.location.href = "+(redirected_from.length==0?"'/'":js_lit(redirected_from))+";
                                                     ");
                                                 } else {
                                                     print("WRONG PASSWORD FOR ",user);
@@ -1845,33 +1855,6 @@ stateless template div build_render_sheet(int spool) {
     global string inbox_on_tab; inbox_on_tab = "Inbox";
 ##
 
-void return_message(int spool, string shname, string reciver, string comment, string new_status) {
-    if(has_sheet(spool,#headerpool)) {
-        int header_at = find_sheet(spool,#headerpool);
-        Ptr ribbon = makePtr3(header_at,0,0);
-
-        if(ribbon.has("message")) {
-            Ptr stor = ribbon.get("message"); 
-            *stor = comment;
-        } else {
-            Ptr stor = get_ticket(header_at,0);
-            *stor = comment;
-            ribbon.put("message",stor);
-        }
-
-        if(ribbon.has("status")) {
-            Ptr stor = ribbon.get("status");
-            *stor = new_status;
-        } else {
-            Ptr stor = get_ticket(header_at,0);
-            *stor = new_status;
-            ribbon.put("status",stor);
-        }
-    }
-    save_sheet(spool,"web/thistle/users/"+reciver+"/inbox/"+shname);
-    move_file(session.userpath+"inbox/"+shname, session.userpath+"sent");
-}
-
 inbox {
 
     button {text "REFRESH LEDGER"; "onclick" : capture{save_sheet(generate_ledger,"web/thistle/ledger");}}
@@ -2067,7 +2050,7 @@ inbox {
                                             "onclick" : capture(
                                                 string reciver ; js_lit(return_to)
                                             ) { 
-                                                return_message(inbox_sheetpool,inbox_sheetname,reciver,"Comments go here","returned");
+                                                return_message(inbox_sheetname,reciver,"Comments go here","returned");
                                                 inbox_display.reload;
                                             }
                                         }

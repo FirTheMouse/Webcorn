@@ -3210,3 +3210,32 @@ void send_message(string fid, string fpath, string user_search, string send_to_l
     sheetname = old_sheetname;
     sheetpool = old_sheetpool;
 }
+
+
+[:]OLD RETURN MESSAGE
+
+void return_message(int spool, string shname, string reciver, string comment, string new_status) {
+    if(has_sheet(spool,#headerpool)) {
+        int header_at = find_sheet(spool,#headerpool);
+        Ptr ribbon = makePtr3(header_at,0,0);
+
+        Ptr stor = deadptr;
+        if(ribbon.has("message")) {
+            stor = ribbon.get("message"); 
+        } else {
+            stor = get_ticket(header_at,0);
+            ribbon.put("message",stor);
+        }
+        *stor = comment;
+
+        if(ribbon.has("status")) {
+            stor = ribbon.get("status");
+        } else {
+            stor = get_ticket(header_at,0);
+            ribbon.put("status",stor);
+        }
+        *stor = new_status;
+    }
+    save_sheet(spool,"web/thistle/users/"+reciver+"/inbox/"+shname);
+    move_file(session.userpath+"inbox/"+shname, session.userpath+"sent");
+}

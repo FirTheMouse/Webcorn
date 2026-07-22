@@ -5,15 +5,10 @@
             emit_contents;
         }
     }
-
-    MessageData {
-        string sent_by;
-        int sent_date;
-        string return_path;
-        string comments;
-    }
-
 ##
+
+
+include web/partsbin.twg;
 
 root_path {
     script read_file("web/webcorn.js");
@@ -29,5 +24,40 @@ root_path {
             "onclick" : capture{dump_unit(true);};
         }
     }
-    text "Hello World";
+
+    static bool is_open;
+    string popupid;
+    div display_pane {
+        popupid = node_str_id(call_owner(display_pane));
+        "display" : (is_open?"flex":"none");
+        popup_panel(
+            capture(
+                js_do("event.stopPropagation();"+js_close(popupid))
+            ) {
+                is_open = false;
+            },[&]{
+                div {
+                    button {
+                        text "PUSH";
+                        "onclick" : capture{print("Pushed");}
+                    }
+                    button {
+                        text "CLOSE";
+                        "onclick" : capture(
+                            js_do("event.stopPropagation();"+js_close(popupid))   
+                        ){
+                            is_open = false;
+                        }
+                    }
+                }   
+        });
+    }
+    button {
+        text "OPEN";
+        "onclick" : capture(
+            js_do("event.stopPropagation();"+js_open(popupid))   
+        ){
+            is_open = true;
+        }
+    }
 }
