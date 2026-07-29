@@ -1,11 +1,12 @@
-#define TESTING_UNIT_ONLY 1
+#define TESTING_UNIT_ONLY 0
 
 #if TESTING_UNIT_ONLY
     #include "GDSL/mixos-acorn/Acorn-Core.hpp"
 #else
     #include "web/Webcorn-Core.hpp"
 #endif
-//#include "GDSL/mixos-acorn/Acorn-Script.hpp"
+// #include "GDSL/mixos-acorn/Acorn-Script.hpp"
+// #include "GDSL/mixos-acorn/Acorn-Workshop.hpp"
 
 #include <signal.h>
 #include <execinfo.h>
@@ -167,7 +168,7 @@ int main(int argc, char* argv[]) {
         }
     #else 
         try {
-            // g_ptr<Acorn::Acorn_Script> acorn =  Acorn::make_unit<Acorn::Acorn_Script>();
+            // g_ptr<Acorn::Workshop_Unit> acorn =  Acorn::make_unit<Acorn::Workshop_Unit>();
             // acorn->run(acorn->process(readFile("GDSL/mixos-acorn/test.gld")));
 
             g_ptr<Acorn::Webcorn_Core> webcorn =  Acorn::make_unit<Acorn::Webcorn_Core>();
@@ -188,7 +189,7 @@ int main(int argc, char* argv[]) {
                 });
             }
             webcorn->run(webcorn->process(readFile("web/webcorn.gld")));
-            // webcorn->run(webcorn->process(readFile("GDSL/mixos-acorn/test.gld")));
+            webcorn->run(webcorn->process(readFile("GDSL/mixos-acorn/test.gld")));
         } catch(std::exception& e) {
             print("FATAL EXCEPTION: ", e.what());
         } catch(...) {

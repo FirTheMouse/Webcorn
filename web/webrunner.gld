@@ -678,7 +678,6 @@ while(0<1) {
                             Ptr string args = split_str(src,"@");
                             ctx.source = "go";
                             if(args.length>0) {
-
                                 string ptrstring = args.get(0);        
                                 if(unslashpath=="login") {
                                     string valid_ptr = valid_login_capture.slice("'",1,2);
@@ -743,6 +742,23 @@ while(0<1) {
         print("Unit ",unit_uid," completed request ",cfd," in ",tstop("request_timer"));
         unit_setindex(0);
     } else {
-        thread_sleep;
+        Header header;
+        if(check_messages(header)) {
+            tstart("msg_timer");
+            print("Unit ",unit_uid," recived a message");
+            string method = header.getString("Method");
+            print("Method: ",method);
+            if(method=="RUN") {
+                string message = header.getString("Message");
+                discard_message(header);
+                print("Message: ",message);
+                Node msgroot = compile(message);
+                execut msgroot;
+                print("Done");
+            }
+            print("Unit ",unit_uid," completed message in ",tstop("msg_timer"));
+        } else {
+            thread_sleep;
+        }
     }
 }

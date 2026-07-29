@@ -2,6 +2,10 @@
     global bool darkmode; darkmode = false;
 ##
 
+inlined thistle_color {
+    "background-color" : "rgb(172, 57, 147)";
+}
+
 inlined background_theme {
     if(darkmode) {
         "background-color" : "rgb(28, 28, 28)";
@@ -193,7 +197,7 @@ void send_message(string fid, string fpath, string name_to_use, string sender, s
     }
     *stor = status_to_send;
         
-    dump_sheet(sheetpool);
+    //dump_sheet(sheetpool);
 
     Ptr string recipients = split_str(send_to_list,",");
     for(int i=0;i<recipients.length;i++) {
@@ -208,8 +212,10 @@ void send_message(string fid, string fpath, string name_to_use, string sender, s
 }
 
 void return_message(string fid, string reciver, string comment, string new_status) {
+    if(reciver==session.username) {print("You can't return a message to yourself"); return;}
     send_message(fid, session.userpath+"inbox", fid, session.username, reciver+"," , comment, new_status);
     remove_file(session.userpath+"inbox/"+fid);
+    cry("MESSAGE:"+reciver+":RUN:delete_sheet(\""+fid+"\"); inbox_sheetpool = 0; inbox_sheetname = \"\";");
 }
 
 
@@ -217,6 +223,7 @@ div message_draft_panel(string selected_filepath, string selected_id, int select
     static string user_search; user_search = "";
     static string send_to_list; send_to_list = "";
     static string message_to_send; message_to_send = "";
+    static string status_to_send = "unknown";
 
     div draft_message {
         "display" : (message_draft_panel_open?"flex":"none");
@@ -365,6 +372,16 @@ div message_draft_panel(string selected_filepath, string selected_id, int select
                 }
             }
 
+            input {
+                "type" : "checkbox";
+                "onchange" : capture(
+                    string myval ; "this.checked ? 'Template' : 'unknown'"
+                ) {
+                    status_to_send = myval;
+                }
+            }
+            text "Template" {text_theme;}
+
             button {
                 text "Send" {text_theme;}
                 "onclick" : capture(
@@ -372,7 +389,9 @@ div message_draft_panel(string selected_filepath, string selected_id, int select
                     string fpath ; js_lit(selected_filepath),
                     js_do("event.stopPropagation();")
                 ) {
-                    send_message(fid,fpath,unit_timestamp+"_"+fid,session.username,send_to_list,message_to_send,"unknown");
+                    send_message(fid,fpath,unit_timestamp+"_"+fid,session.username,send_to_list,message_to_send,status_to_send);
+                    message_draft_panel_open = false;
+                    draft_message.reload;
                 }
             }
         }   
@@ -765,6 +784,25 @@ div side_bar(string in_route) {
     ";
 }
 
+div name_chip(string label, bool is_person) {
+    div {
+        "width" : "24px";
+        "height" : "24px";
+        "flex-shrink" : "0";
+        "border-radius" : (is_person ? "50%" : "6px");
+        "background-color" : color_of_string(label);
+        "display" : "flex";
+        "align-items" : "center";
+        "justify-content" : "center";
+        text label.substr(0,1) {
+            "color" : "white";
+            "font-size" : "12px";
+            "font-weight" : "700";
+            "font-family" : "system-ui, sans-serif";
+        }
+    }
+}
+
 
 div top_bar(string in_route) {
     div {
@@ -918,12 +956,7 @@ div top_bar(string in_route) {
                 }
             
                 div {
-                    "height" : "42px";
-                    "width" : "42px";
-                    "flex-shrink" : "0";
-                    "border-radius" : "50%";
-                    "border" : "3px solid white";
-                    "background-color" : "rgb(86, 176, 255)";
+                    name_chip(session.username,true);
                     "onclick" : capture(
                         js_do("
                             event.stopPropagation(); 
@@ -947,7 +980,7 @@ div top_bar(string in_route) {
     register root_path;
     "root_path" {
         in htmlemiting {
-            ctx.source.append("<!DOCTYPE html><html><body>");
+            ctx.source.append("<!DOCTYPE html><meta charset=\"UTF-8\"><html><body>");
             emit_contents;
             ctx.source.append("</body></html>");
         }
@@ -1130,7 +1163,7 @@ root_path {
     register login;
     "login" {
         in htmlemiting {
-            ctx.source.append("<!DOCTYPE html><html><body>");
+            ctx.source.append("<!DOCTYPE html><meta charset=\"UTF-8\"><html><body>");
             emit_contents;
             ctx.source.append("</body></html>");
         }
@@ -1844,7 +1877,7 @@ stateless template div build_render_sheet(int spool) {
     register inbox;
     "inbox" {
         in htmlemiting {
-            ctx.source.append("<!DOCTYPE html><html><body>");
+            ctx.source.append("<!DOCTYPE html><meta charset=\"UTF-8\"><html><body>");
             emit_contents;
             ctx.source.append("</body></html>");
         }
@@ -1853,6 +1886,36 @@ stateless template div build_render_sheet(int spool) {
     global int inbox_sheetpool; inbox_sheetpool = 0;
     global string inbox_sheetname; inbox_sheetname = "";
     global string inbox_on_tab; inbox_on_tab = "Inbox";
+    global string inbox_mode; inbox_mode = "Approve";
+
+    global string mode_to_color(string mode) {
+        if(mode=="Approve") {return "rgb(74, 181, 110)";}
+        else if(mode=="Return") {return "rgb(224, 152, 57)";}
+        else if(mode=="Reject") {return "rgb(211, 70, 70)";}
+    }
+
+    static global string inbox_ledger_string; inbox_ledger_string = "";
+    static global int inbox_ledger_pool; inbox_ledger_pool = 0;
+
+    global void begin_inbox_ledger() {
+        if(inbox_ledger_pool>0) {delete_sheet(inbox_ledger_pool);}
+        inbox_ledger_pool = generate_ledger;
+        inbox_ledger_string = "var ledger = []; (()=>{ ledger = [];";
+    }
+
+    static global int last_added; static global string last_added_string;
+    global string append_to_inbox_ledger(int spool) {
+        if(spool==last_added) {return last_added_string;} //Because for some reason the logic is running twice each time, investigate later
+        int ledger_index = webcorn_ledger_append(inbox_ledger_pool,spool); //I'll add this on the C++ side since it's a hot-path
+        string item_id = "inbox_ledger_item_"+to_string(ledger_index);
+        inbox_ledger_string += "ledger.push(document.getElementById("+js_lit(item_id)+"));";
+        last_added_string = item_id; last_added = spool;
+        return item_id;
+    }
+
+    global void finish_inbox_ledger() {
+        inbox_ledger_string += "})()";
+    }
 ##
 
 inbox {
@@ -1889,7 +1952,7 @@ inbox {
             "display" : "flex";
             "min-height" : "100vh";
                 side_bar("inbox");
-                if(session.userpath.length==99) { 
+                if(session.userpath.length==0) { 
                     div {
                         "justify-content" : "center";
                         "align-items" : "center";
@@ -1899,43 +1962,333 @@ inbox {
                         }
                     }
                 } else {
+                    static string inbox_viewing = "";
+                    static Node inbox_view_reload_target = deadptr;
+
+                    string selected_color = "rgba(130, 43, 111, 0.12)";
+                    
+                    string script_str = "
+                        last_id = "+js_lit(inbox_viewing)+";
+                        function toggle_inbox_view(id, el) {
+                            document.querySelectorAll('.inbox_card').forEach(el => {
+                                el.style.backgroundColor = 'rgb(247, 244, 244)';
+                            });
+                            if(id===last_id) {
+                                getel('inbox_view_display').style.display='none';
+                                getel('inbox_view_display').style.width='0%';
+                                getel('inbox_card_display').style.width='100%';
+                                last_id = '';
+                            } else {
+                                getel('inbox_view_display').style.display='flex';
+                                getel('inbox_view_display').style.width='70%';
+                                getel('inbox_card_display').style.width='35%';
+                                el.style.backgroundColor = "+js_lit(selected_color)+";
+                                last_id = id;
+                            }
+                        }
+
+                        function mode_to_color(mode) {
+                            if(mode=='Approve') {return "+js_lit(mode_to_color("Approve"))+";}
+                            else if(mode=='Reject') {return "+js_lit(mode_to_color("Reject"))+";}
+                            else if(mode=='Return') {return "+js_lit(mode_to_color("Return"))+";}
+                            else {return 'White';}
+                        }
+
+                        inbox_mode = "+js_lit(inbox_mode)+";
+                        function switch_mode(el) {
+                            mode = inbox_mode;
+                            if(inbox_mode==='Approve') {mode = 'Return';}
+                            else if(inbox_mode==='Return') {mode = 'Reject';}
+                            else if(inbox_mode==='Reject') {mode = 'Approve';}
+
+                            el.style.backgroundColor=mode_to_color(mode);
+                            document.querySelectorAll('.inbox_mode_button').forEach(el => {
+                                el.style.backgroundColor = mode_to_color(mode);
+                            });
+                            document.querySelectorAll('.inbox_mode_label').forEach(el => {
+                                el.innerText = mode;
+                            });
+                            inbox_mode = mode;
+                            inbox_pending = '';
+                        }
+
+                        inbox_pending = '';
+                    ";
+                    script script_str;
+
+
                     div inbox_display {
                         "width" : "100%";
                         "display" : "flex";
                         "gap" : "8px";
                         "padding" : "8px";
-                          stateless template div file_temp(string filepath, string id, bool is_sent) {
+
+                        stateless template div file_temp(string filepath, string id, bool is_sent) {
+                            string time_sent = "Unknown, Unknown 32, 25:65pm";
+                            string sent_by = "Fir";
+                            string sent_to = "Fir,";
+                            string msg_status = "Unknown";
+                            string data_employee = "Fir";
+                            string data_amount = "0.00";
+                            string data_vendor = "Unknown";
+                            string data_kind = "Unknown";
+
+                            int spool = load_sheet_direct(filepath+"/"+id);
+                            if(has_sheet(spool,#headerpool)) {
+                                int header_at = find_sheet(spool,#headerpool);
+                                Ptr ribbon = deadptr;
+                                int i=plen(header_at)-1;
+                                while(i>=0) {
+                                    ribbon = makePtr3(header_at,i,0);
+                                    if(ribbon.label=="Ribbon") {
+                                        i=0;
+                                    }
+                                    i=i-1;
+                                }
+                                if(is_live(ribbon)) {
+                                    for(int i=0;i<ribbon.length;i++) {
+                                        Ptr field = (ribbon|S=i);
+                                        //text field.celllabel+": "+value_as_string(*field) {text_theme}
+                                        if(field.celllabel=="sent by") {
+                                            sent_by = value_as_string(*field);
+                                        } else if(field.celllabel=="sent to") {
+                                            sent_to = value_as_string(*field);
+                                        } else if(field.celllabel=="time") {
+                                            time_sent = value_as_string(*field);
+                                        } else if(field.celllabel=="status") {
+                                            msg_status = value_as_string(*field);
+                                        }
+                                    }   
+                                } else {
+                                    print("No ribbon found in headerpool at ",header_at);
+                                }
+                            }
+                            if(has_sheet(spool,#datasheet)) {
+                                int data_at = find_sheet(spool,#datasheet);
+                                Ptr dcol = deadptr;
+                                int i=plen(data_at)-1;
+                                while(i>=0) {
+                                    dcol = makePtr3(data_at,i,0);
+                                    Ptr dcol_p = *dcol;
+                                    if(is_live(dcol_p)) {
+                                        if(dcol.label=="Total Amount") {
+                                            data_amount = to_string(*dcol_p);
+                                        } else if(dcol.label=="Vendor") {
+                                            data_vendor = *dcol_p;
+                                        } else if(dcol.label=="Expense Description") {
+                                            data_kind = *dcol_p;
+                                        } else if(dcol.label=="Employee Name") {
+                                            data_employee = *dcol_p;
+                                        }
+                                    }
+                                    i=i-1;
+                                }
+                            }
+                            
+                            string display_amount = "$"+data_amount;
+                            if(display_amount.find(".")>0) {
+                                if((display_amount.find(".")+3)<display_amount.length) {
+                                    display_amount = display_amount.substr(0,display_amount.find(".")+3);
+                                }
+                            }
+                            string display_name = id;
+                            if(id.find("_")>0) {
+                                display_name = id.slice(id.find("_")+1,id.length);
+                            }
+                            string display_date = time_sent;
+                            display_date = display_date.slice(",",1,2);
+                            
                             div {
                                 "display" : "flex";
-                                "flex-direction" : "row";
+                                "flex-direction" : "column";
                                 "gap" : "4px";
                                 "padding" : "6px";
                                 "border-radius" : "4px";
                                 "box-shadow" : "0 4px 24px rgba(0,0,0,0.08)";
+                                "class" : "inbox_card";
+                                "id" : append_to_inbox_ledger(spool);
+                                "order" : "0";
+                                "transition" : "background-color 0.2s ease";
+                                if(inbox_viewing==id) {
+                                    "background-color" : selected_color;
+                                }
+                                "onmouseenter" : "if(this.style.backgroundColor==='rgb(247, 244, 244)')this.style.backgroundColor='rgba(0,0,0,0.04)'";
+                                "onmouseleave" : "if(this.style.backgroundColor==='rgba(0, 0, 0, 0.04)')this.style.backgroundColor='rgb(247, 244, 244)'";
                                 card_theme;
-                                "onclick" : capture(
-                                    string fid ; js_lit(id),
-                                    string fpath ; js_lit(filepath),
-                                    js_do("event.stopPropagation();")
-                                ) {
-                                    inbox_sheetpool = load_sheet(fpath+"/"+fid);
-                                    inbox_sheetname = fid;
-                                    print("Loaded ",fid," as ",inbox_sheetpool);
-                                    inbox_display.reload;
-                                }
-                                "oncontextmenu" : capture(
-                                    string fidt ; js_lit(id),
-                                    string fpatht ; js_lit(filepath),
-                                    js_do("event.preventDefault();"),
-                                    js_do("event.stopPropagation();"),
-                                ) {
-                                    move_file(fpatht+"/"+fidt,session.userpath+"sheets");
-                                    print("Moved ",fidt," to sheets");
-                                    emit_js("window.location.reload();");
-                                }
-                                text id {
-                                    "font-size" : "14px";
-                                    text_theme;
+
+                                if(msg_status=="Template") {
+                                    text display_name {text_theme;}
+                                    "onclick" : capture(
+                                        string fidt ; js_lit(id),
+                                        string fpatht ; js_lit(filepath),
+                                        js_do("event.stopPropagation();"),
+                                    ) {
+                                        string new_name = fidt.slice(fidt.find("_")+1,fidt.length);
+                                        int spool = copy_sheet(fpatht+"/"+fidt);
+                                        rename_sheet(spool,new_name);
+                                        save_sheet(spool,session.userpath+"sheets/"+new_name);
+                                        remove_file(fpatht+"/"+fidt);
+                                        print("Moved ",new_name," to sheets");
+                                        emit_js("window.location.reload();");
+                                    }
+                                } else {
+                                    div {
+                                        "display" : "flex";
+                                        "flex-direction" : "row";
+                                        "align-items" : "center";
+                                        "gap" : "8px";
+                                        "width" : "100%";
+
+                                        name_chip(data_employee,true);
+                                        text data_employee {
+                                            "font-size" : "13px";
+                                            "font-weight" : "600";
+                                            text_theme;
+                                        }
+                                        text "->" {
+                                            "color" : "rgba(119,119,119,0.9)";
+                                            "font-size" : "12px";
+                                            "font-family" : "system-ui, sans-serif";
+                                            "flex-shrink" : "0";
+                                        }
+                                        name_chip(data_vendor,false);
+                                        text data_vendor {
+                                            "font-size" : "13px";
+                                            "font-weight" : "600";
+                                            text_theme;
+                                            "flex" : "1";
+                                            "flex-shrink" : "0";
+                                            "min-width" : "0";
+                                            "overflow" : "hidden";
+                                            "text-overflow" : "ellipsis";
+                                            "white-space" : "nowrap";
+                                        }
+
+                                        button {
+                                            "border-radius" : "20px";
+                                            "class" : "inbox_mode_button";
+                                            "border" : "none";
+                                            "padding" : "6px 14px";
+                                            "flex-shrink" : "0";
+                                            "cursor" : "pointer";                                   
+                                            text inbox_mode {
+                                                "class" : "inbox_mode_label";
+                                                "font-size" : "12px"; 
+                                                "color" : "white"; 
+                                                "font-weight" : "600";
+                                                text_theme;
+                                            }
+                                            "background-color" : mode_to_color(inbox_mode);
+                                            "onclick" : capture(
+                                                string mypool_str ; js_lit(to_string(spool)),
+                                                string mypath ; js_lit(filepath+"/"+id),
+                                                string myname ; js_lit(id),
+                                                string reciver ; js_lit(sent_by),
+                                                string onmode ; js_do("
+                                                    event.stopPropagation(); 
+                                                    id = "+js_lit(id)+"; 
+                                                    if(inbox_pending===id) {
+                                                        this.style.backgroundColor = mode_to_color(inbox_mode);
+                                                        inbox_pending = '';
+                                                        return inbox_mode;
+                                                    } else {
+                                                        inbox_pending = id;
+                                                        document.querySelectorAll('.inbox_mode_button').forEach(el => {
+                                                            el.style.backgroundColor = mode_to_color(inbox_mode);
+                                                        });
+                                                        this.style.backgroundColor = 'gray';
+                                                        return 'Please Confirm';
+                                                    }
+                                                ")
+                                            ){
+                                                int mypool = from_string(mypool_str);                       
+                                                if(onmode=="Approve") {
+                                                    print("Clicked to approve");
+                                                        cry("APPROVE:"+mypath);
+                                                        delete_sheet(mypool);
+                                                        inbox_sheetpool = 0; inbox_sheetname = "";
+                                                        remove_file(mypath);
+                                                        inbox_display.reload;
+                                                } else if(onmode=="Return") {
+                                                    print("Clicked to return");
+                                                        return_message(myname,reciver,"Comments go here","returned");
+                                                        inbox_sheetpool = 0; inbox_sheetname = "";
+                                                        inbox_display.reload;
+                                                } else if(onmode=="Reject") {
+                                                    print("Clicked to reject");
+                                                } else if(onmode=="Please Confirm") {
+                                                    print("Please confirm");
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    div {
+                                        "display" : "flex";
+                                        "flex-direction" : "row";
+                                        "align-items" : "center";
+                                        div {
+                                            "flex" : "4";
+                                            "display" : "flex";
+                                            "flex-direction" : "column";
+                                            div {
+                                                "display" : "flex";
+                                                "flex-direction" : "row";
+                                                "align-items" : "center";
+                                                "gap" : "8px";
+                                                "width" : "100%";
+                                                div {
+                                                    "width" : "36px";
+                                                    "height" : "36px";
+                                                    "flex-shrink" : "0";
+                                                    "border-radius" : "6px";
+                                                    if(msg_status=="unknown") {
+                                                        "background-color" : "grey";
+                                                    } else if(msg_status=="returned") {
+                                                        "background-color" : mode_to_color("Return");
+                                                    } else if(msg_status=="approved") {
+                                                        "background-color" : mode_to_color("Approve");
+                                                    } else if(msg_status=="rejected") {
+                                                        "background-color" : mode_to_color("Reject");
+                                                    }
+                                                }
+                                                div {
+                                                    "flex" : "1";
+                                                    "min-width" : "0";
+                                                    "display" : "flex";
+                                                    "flex-direction" : "column";
+                                                    "gap" : "2px";
+                                                    text display_date {"color" : "rgba(87, 87, 87, 0.9)"; "font-size" : "11px"; text_theme;}
+                                                    text data_kind {"color" : "rgba(61, 61, 61, 0.9)"; "font-size" : "12px"; text_theme;}
+                                                }
+                                            }
+                                        }   
+                                        div {
+                                            "flex" : "3";
+                                            "flex-shrink" : "0";
+                                            "white-space" : "nowrap";
+                                            text display_amount {"font-size" : "16px"; "font-weight" : "600"; text_theme;}
+                                        }
+                                    } 
+                                    "onclick" : capture(
+                                        string fid ; js_lit(id),
+                                        string fpath ; js_lit(filepath),
+                                        js_do("
+                                            toggle_inbox_view("+js_lit(id)+",this);
+                                            event.stopPropagation();
+                                        ")
+                                    ) {
+                                        if(inbox_viewing!=fid) {
+                                            inbox_sheetpool = load_sheet(fpath+"/"+fid);
+                                            inbox_sheetname = fid;
+                                            inbox_viewing = fid;
+                                            if(is_live(inbox_view_reload_target)) {
+                                                emit_reload(ctx,inbox_view_reload_target);
+                                            }
+                                        } else {
+                                            inbox_viewing = "";
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1947,10 +2300,13 @@ inbox {
                         }
                         
                         div {
+                            "id" : "inbox_card_display";
+                            "width" : (inbox_viewing.length>0? "35%" : "100%");
+                            "transition" : "width 0.2s ease";
                             "display" : "flex";
                             "flex-direction" : "column";
-                            "width" : "30%";
                             "gap" : "2%";
+                            "overflow" : "hidden";
                             div {
                                 "flex" : "1";
                                 "display" : "flex";
@@ -1988,6 +2344,112 @@ inbox {
                                 "flex" : "20";
                                 "flex-direction" : "column";
                                 "gap" : "4px";
+
+                                begin_inbox_ledger;
+
+                                div {
+                                    "gap" : "6px";
+                                    "display" : "flex";
+                                    "flex-direction" : "row";
+                                    if(inbox_on_tab=="Inbox") {
+                                        div {
+                                            "width" : "30px";
+                                            "height" : "30px";
+                                            "border-radius" : "8px";
+                                            "background-color" : mode_to_color(inbox_mode);
+                                            "onclick" : capture(
+                                                string onmode ; js_do("switch_mode(this); return inbox_mode;")
+                                            ){
+                                                inbox_mode = onmode;
+                                            }
+                                        }
+
+                                        script "
+                                            var sortcol = '';
+                                            var sortkind = 'none';
+
+                                            function update_sort_labels() {
+                                                document.querySelectorAll('.sortbtn_label').forEach(el => {
+                                                    const col = el.dataset.col;
+                                                    if(col === sortcol && sortkind !== 'none') {
+                                                        el.innerText = el.dataset.name + (sortkind === 'asc' ? ' ↑' : ' ↓');
+                                                    } else {
+                                                        el.innerText =  el.dataset.name + ' –';
+                                                    }
+                                                });
+                                            }
+                                        ";
+
+                                        for(int i=0;i<plen(inbox_ledger_pool);i++) {
+                                            Ptr col_p = makePtr3(inbox_ledger_pool,i,0);
+                                            string collabel = col_p.label;
+                                            button {
+                                                string displaylabel = collabel;
+                                                print(collabel);
+                                                if(collabel=="Employee Name") {"display" : "flex"; displaylabel = "From";}
+                                                else if(collabel=="Report Date") {"display" : "flex"; displaylabel = "Time";}
+                                                else if(collabel=="Total Amount") {"display" : "flex"; displaylabel = "Amount";}
+                                                else if(collabel=="Expense Description") {"display" : "flex"; displaylabel = "Kind";}
+                                                else {"display" : "none";}
+
+                                                "border-radius" : "16px";
+                                                "border" : "none";
+                                                "background-color" : "rgb(255, 255, 255)";
+
+                                                text displaylabel+" –" {
+                                                    "margin" : "6px";
+                                                    text_theme; 
+                                                    class : "sortbtn_label";
+                                                    "data-col" : collabel;
+                                                    "data-name" : displaylabel;
+                                                }
+                                                "onclick" : capture(
+                                                    string coltarget ; js_lit(collabel),
+                                                    string sortkind ; js_do("
+                                                        if(sortcol==="+js_lit(collabel)+"){
+                                                            if(sortkind==='asc') sortkind = 'desc';
+                                                            else if(sortkind==='desc') sortkind = 'none';
+                                                            else if(sortkind==='none') sortkind = 'asc';
+                                                        } else{
+                                                            sortcol = "+js_lit(collabel)+";
+                                                            sortkind = 'asc';
+                                                        }
+                                                        update_sort_labels();
+                                                        return sortkind;
+                                                    ")
+                                                ){
+                                                    string result = makeQuery(col_p).sort(sortkind).asIndexString();
+                                                    //webcorn_ledger_sort(inbox_ledger_pool,coltarget,sortkind);
+                                                    emit_js("
+                                                        const before = {};
+                                                        for(let i = 0; i < ledger.length; i++) {
+                                                            if(ledger[i]) before[i] = ledger[i].getBoundingClientRect();
+                                                        }
+
+                                                        const permutation = "+result+";
+                                                        for(let i = 0; i < permutation.length; i++) {
+                                                            ledger[permutation[i]].style.order = i + 1;
+                                                        }
+
+                                                        for(let i = 0; i < permutation.length; i++) {
+                                                            const el = ledger[permutation[i]];
+                                                            const after = el.getBoundingClientRect();
+                                                            const dy = before[permutation[i]].top - after.top;
+                                                            if(dy === 0) continue;
+                                                            el.style.transition = 'none';
+                                                            el.style.transform = `translateY(${dy}px)`;
+                                                            requestAnimationFrame(() => {
+                                                                el.style.transition = 'transform 0.3s ease';
+                                                                el.style.transform = 'translateY(0)';
+                                                            });
+                                                        }
+                                                    ");
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
                                 for(int i=0;i<files.length;i++) {
                                     if(inbox_on_tab=="Inbox") {
                                         file_temp(session.userpath+"inbox",files.get(i),false);
@@ -1995,64 +2457,63 @@ inbox {
                                         file_temp(session.userpath+"sent",files.get(i),false);
                                     }
                                 }
+
+                                finish_inbox_ledger;
+                                script inbox_ledger_string;
                             }
                         }
 
                         div {
-                            "display" : "flex";
+                            "id" : "inbox_view_display";
+                            "display" : (inbox_viewing.length>0?"flex":"none");
                             "flex" : "2";
-                            "width" : "70%";
                             "flex-direction" : "column";
                             "gap" : "4px";
                             "padding" : "8px";
                             "border-radius" : "12px";
                             "box-shadow" : "0 4px 24px rgba(0,0,0,0.08)";
                             card_theme;
-                            if(inbox_sheetpool!=0) {
-                                string return_to = "";
-                                if(has_sheet(inbox_sheetpool,#headerpool)) {
-                                    int header_at = find_sheet(inbox_sheetpool,#headerpool);
-                                    Ptr ribbon = makePtr3(header_at,0,0);
-                                    for(int i=0;i<ribbon.length;i++) {
-                                        Ptr field = (ribbon|S=i);
-                                        text field.celllabel+": "+value_as_string(*field) {text_theme}
-                                        if(field.celllabel=="sent by") {
-                                            return_to = value_as_string(*field);
-                                        }
-                                    }   
-                                }
-
-                                render_form(inbox_sheetpool,false);
-
-                                button {
-                                    text "Dump" {text_theme;}
-                                    "onclick" : capture{ 
-                                        dump_sheet(inbox_sheetpool);
-                                    }
-                                }
-
-                                if(inbox_on_tab=="Inbox") {
-                                    button {
-                                        text "Approve" {text_theme;}
-                                        "onclick" : capture() { 
-                                            string filepath = session.userpath+"inbox/"+inbox_sheetname;
-                                            cry("APPROVE:"+filepath);
-                                            delete_sheet(inbox_sheetpool);
-                                            inbox_sheetpool = 0; inbox_sheetname = "";
-                                            remove_file(filepath);
-                                            inbox_display.reload;
-                                        }
-                                    }
-
-                                    if(return_to.length!=0) {
-                                        button {
-                                            text "Return" {text_theme;}
-                                            "onclick" : capture(
-                                                string reciver ; js_lit(return_to)
-                                            ) { 
-                                                return_message(inbox_sheetname,reciver,"Comments go here","returned");
-                                                inbox_display.reload;
+                            div inner_inbox_view {
+                                inbox_view_reload_target = call_owner(inner_inbox_view);
+                                if(inbox_sheetpool!=0) {
+                                    string return_to = "";
+                                    if(has_sheet(inbox_sheetpool,#headerpool)) {
+                                        int header_at = find_sheet(inbox_sheetpool,#headerpool);
+                                        Ptr ribbon = deadptr;
+                                        int i=plen(header_at)-1;
+                                        while(i>=0) {
+                                            ribbon = makePtr3(header_at,i,0);
+                                            if(ribbon.label=="Ribbon") {
+                                                i=0;
                                             }
+                                            i=i-1;
+                                        }
+                                        if(is_live(ribbon)) {
+                                            for(int i=0;i<ribbon.length;i++) {
+                                                Ptr field = (ribbon|S=i);
+                                                text field.celllabel+": "+value_as_string(*field) {text_theme}
+                                                if(field.celllabel=="sent by") {
+                                                    return_to = value_as_string(*field);
+                                                }
+                                            }   
+                                        } else {
+                                            print("No ribbon found in headerpool at ",header_at);
+                                        }
+                                    }
+
+                                    render_form(inbox_sheetpool,false);
+
+                                    button {
+                                        text "Dump" {text_theme;}
+                                        "onclick" : capture{ 
+                                            dump_sheet(inbox_sheetpool);
+                                        }
+                                    }
+
+                                    button {
+                                        text "Save" {text_theme;}
+                                        "onclick" : capture{ 
+                                            save_sheet(inbox_sheetpool,session.userpath+"inbox/"+inbox_sheetname);
                                         }
                                     }
                                 }
@@ -2068,7 +2529,7 @@ inbox {
     register build;
     "build" {
         in htmlemiting {
-            ctx.source.append("<!DOCTYPE html><html><body>");
+            ctx.source.append("<!DOCTYPE html><meta charset=\"UTF-8\"><html><body>");
             emit_contents;
             ctx.source.append("</body></html>");
         }
@@ -2182,7 +2643,7 @@ build {
     register new;
     "new" {
         in htmlemiting {
-            ctx.source.append("<!DOCTYPE html><html><body>");
+            ctx.source.append("<!DOCTYPE html><meta charset=\"UTF-8\"><html><body>");
             emit_contents;
             ctx.source.append("</body></html>");
         }
@@ -2240,7 +2701,9 @@ new {
                                 "display" : "flex";
                                 "justify-content" : "center";
                                 "width" : "100%";
-                                render_form(sheetpool,false);
+                                if(sheetpool!=0) {
+                                    render_form(sheetpool,false);
+                                }
                             }             
 
                             div {
@@ -2312,7 +2775,7 @@ new {
     register audit;
     "audit" {
         in htmlemiting {
-            ctx.source.append("<!DOCTYPE html><html><body>");
+            ctx.source.append("<!DOCTYPE html><meta charset=\"UTF-8\"><html><body>");
             emit_contents;
             ctx.source.append("</body></html>");
         }
@@ -2518,7 +2981,7 @@ audit {
     register admin;
     "admin" {
         in htmlemiting {
-            ctx.source.append("<!DOCTYPE html><html><body>");
+            ctx.source.append("<!DOCTYPE html><meta charset=\"UTF-8\"><html><body>");
             emit_contents;
             ctx.source.append("</body></html>");
         }
