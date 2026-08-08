@@ -277,14 +277,26 @@
     }
 
     global int set_cell(Ptr cellptr, string valstr) {
+        ColColCol sheet = cellptr;
         duck val = from_string(valstr);
-        print("SC Val: ",val," ",SV#val);
+        //print("SC Val: ",val," ",SV#val);
         if(is_live(*cellptr)) {
             *(*cellptr) = val;
         } else {
-            *cellptr = get_ticket(find_sheet(getpool(cellptr),#storesheet),0);
+            *cellptr = sheet.getByTag(#storesheet).add;
             *(*cellptr) = val;
         }
+        save_subunit(sheet);
+    }
+
+    global Ptr create_form_question_subunit(Ptr cell, string type) {
+        ColColCol sheet = cell;
+        Ptr metaptr = sheet.getByTag(#metadatasheet);
+        set_cell(metaptr,type);
+        Ptr formptr = sheet.getByTag(#formsheet);
+        *formptr = sheet.getByTag(#storesheet).add;
+        *formptr.clear;
+        return formptr;
     }
 
     global Ptr create_form_question(int spool, int col, int row, string type) {
@@ -311,26 +323,23 @@
     }
 
     global int generate_ledger() {
-        int spool = create_sheet;
-        int oncol = 0;
+        ColCol pool = utypes.add;
+        pool.tag(#datasheet);
 
-        delete_pool(find_sheet(spool,#metadatasheet));
-        delete_pool(find_sheet(spool,#scriptsheet));
-        delete_pool(find_sheet(spool,#notesheet));
+        pool.add("Employee Name").retype(string);
+        pool.add("Report Date").retype(string);
+        pool.add("Place of Supply").retype(string);
+        pool.add("Transaction Date").retype(string);
+        pool.add("Expense Description").retype(string);
+        pool.add("G&A / Store Expense").retype(string);
+        pool.add("Department / Store #").retype(string);
+        pool.add("Vendor").retype(string);
+        pool.add("Total Amount").retype(float);
 
-        dump_sheet(spool);
+        ColCol store = utypes.add;
+        store.tag(#storesheet);
 
-        add_column_to_sheet(spool); csetlabel(spool,oncol,"Employee Name"); oncol++;
-        add_column_to_sheet(spool); csetlabel(spool,oncol,"Report Date"); oncol++;
-        add_column_to_sheet(spool); csetlabel(spool,oncol,"Place of Supply"); oncol++;
-        add_column_to_sheet(spool); csetlabel(spool,oncol,"Transaction Date"); oncol++;
-        add_column_to_sheet(spool); csetlabel(spool,oncol,"Expense Description"); oncol++;
-        add_column_to_sheet(spool); csetlabel(spool,oncol,"G&A / Store Expense"); oncol++;
-        add_column_to_sheet(spool); csetlabel(spool,oncol,"Department / Store #"); oncol++;
-        add_column_to_sheet(spool); csetlabel(spool,oncol,"Vendor"); oncol++;
-        add_column_to_sheet(spool); csetlabel(spool,oncol,"Total Amount"); oncol++;
-
-        return spool;
+        return utypes.indexof(pool);
     }
 
     global int generate_redberry_sheet() {
@@ -479,9 +488,88 @@
 
         return spool;
     }
+
+    global ColCol thistle_ledger = utypes.add;
+    global int append_to_thistle_ledger(int spool) {
+        ColCol pool = utypes.get(spool);
+        int index_to_return = 0;
+        for(int i=0;i<pool.length;i++) {
+            Ptr p = pool.get(i);
+            bool found_col = false;
+            for(int j=0;j<thistle_ledger.length;j++) {
+                Ptr ledger_p = thistle_ledger.get(j);
+                if(ledger_p.label==p.label) {
+                    index_to_return = ledger_p.length;
+                    for(int e=0;e<p.length;e++) {
+                        Ptr element = p.get(e);
+                        if(is_live(element)) {
+                            ledger_p.push(*element);
+                        } else {
+                            ledger_p.push_default;
+                        }
+                    }
+                    found_col = true;
+                    break;
+                }
+            }
+            if(!found_col) {
+                string pstr = p.label;
+                Ptr ledger_p = thistle_ledger.add(pstr);
+                index_to_return = ledger_p.length;
+                ledger_p.label(pstr);
+                for(int e=0;e<p.length;e++) {
+                    Ptr element = p.get(e);
+                    if(is_live(element)) {
+                        if(ledger_p.tag==0) {ledger_p.retype(*element);}
+                        ledger_p.push(*element);
+                    } else {
+                        ledger_p.push_default;
+                    }
+                }
+            }
+        }
+        return index_to_return;
+    }
+    global void header_append_to_thistle_ledger(int header_at) {
+        ColCol pool = utypes.get(header_at);
+        Ptr ribbon = deadptr;
+        int i=pool.length-1;
+        while(i>=0) {
+            ribbon = makePtr3(header_at,i,0);
+            if(ribbon.label=="Ribbon") {
+                i=0;
+            }
+            i=i-1;
+        }
+        if(is_live(ribbon)) {
+            for(int i=0;i<ribbon.length;i++) {
+                Ptr field = (ribbon|S=i);
+                Ptr element = *field;
+                element; //I think the star unary is blocking in m stage, so just doing this for now
+                bool found_col = false;
+                for(int j=0;j<thistle_ledger.length;j++) {
+                    Ptr ledger_p = thistle_ledger.get(j);
+                    if(ledger_p.label==field.celllabel) {
+                        ledger_p.push(*element);
+                        found_col = true;
+                        break;
+                    }
+                }
+                if(!found_col) {
+                    string pstr = field.celllabel;
+                    Ptr ledger_p = thistle_ledger.add(pstr);
+                    ledger_p.label(pstr);
+                    ledger_p.retype(*element);
+                    ledger_p.push(*element);
+                }
+            }   
+        }
+        //dump_pool(thistle_ledger,true);
+    }
 ##
 
 global Session session;
+global ColColCol database;
 int guest_counter = 0;
 bool allow_guests = !unit_has_arg("--private");
 bool debug_mode = unit_has_arg("--debug");
@@ -591,6 +679,9 @@ while(0<1) {
                             cry("SESSION:Ash");
                         }
                         string session_token = unit_label;
+                            string userinfo = read_file(session.userpath+"/userinfo");
+                            session.role = userinfo.slice(0,userinfo.find("\n"));
+                            session.org = userinfo.slice("\n",1,2);
                         string do_str = "document.cookie = 'session="+session_token+"; path=/';";
                         ctx.source = "";
                         emit_block {

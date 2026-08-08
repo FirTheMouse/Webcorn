@@ -10,6 +10,7 @@ For the intial build (cmake -B build):
             make
 
 For running webcorn (./webcorn)
+    --project=[file path] : sets the project path everything will be looked for in
     --unitcode=[file path] : sets what webrunner to use (by default it's webrunner.gld)
     --twigcode=[file path] : sets what project is being launched (by deafult it's test.twg)
     --port=[number] : sets the port (by default its 8080)
@@ -17,6 +18,7 @@ For running webcorn (./webcorn)
     --private : disables guests and forces login
     --debug : turns debug features on, namely no terminate handler, and Thistle will auto-log in as Fir.
     --files : directories to whiteliest, only goes one directory deep, seperated by commas
+    --script : a script to run on startup
 
 
 
@@ -33,6 +35,12 @@ Thistle run production (enable tls first by rebuilding):
 
 Test running
 cmake --build build && ./webcorn --port=443 --twigcode=web/test.twg --debug
+
+Website
+cmake --build build && ./webcorn --port=443 --twigcode=web/goldensystems/website.twg --files=web/goldensystems/files
+
+Election Madness
+cmake --build build && ./webcorn --port=443 --project=web/electionmadness/ --twigcode=web/electionmadness/website.twg --files=web/electionmadness/files --script=web/electionmadness/init.gld
 
 If you don't
 

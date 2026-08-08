@@ -7,6 +7,12 @@ if(arg_tls.length!=0) {
     }
 }
 
+string arg_scriptcode = unit_get_arg("--script=");
+if(arg_scriptcode.length!=0) {
+    Node scriptroot = compile(read_file(arg_scriptcode));
+    execut scriptroot;
+} 
+
 string unitcode_path = "web/webrunner.gld";
 string arg_unitcode = unit_get_arg("--unitcode=");
 if(arg_unitcode.length!=0) {

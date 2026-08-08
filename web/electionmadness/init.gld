@@ -1,0 +1,99 @@
+bool reset = false;
+
+if(reset) {
+    print("Election Madness Reseting");
+    ColColCol sub = usubunits.add("web/electionmadness/data.gsu");
+
+    ColCol ledger = sub.add("Ledger");
+    ColCol emmap = sub.add("Map");
+
+    Header tx_senate = sub.add("TX-Senate");
+        tx_senate.ribbonT("James Talarico") {
+            "image","web/election/files/james-talarico.jpg" ;
+            "link","https://ballotpedia.org/United_States_Senate_election_in_Texas,_2026" ;
+            "party","Democrat" ;
+            "points","6" ;
+            "votes",[char];
+        }
+        tx_senate.ribbonT("Ken Paxton") {
+            "image","web/election/files/ken-paxton.jpg" ;
+            "link","https://ballotpedia.org/United_States_Senate_election_in_Texas,_2026" ;
+            "party","Republican" ;
+            "points","4" ;
+            "votes",[char];
+        }
+
+    Header tx_15 = sub.add("TX-15");
+        tx_15.ribbonT("Bobby Pulido") {
+            "image","web/election/files/bobby-pulido.jpg" ;
+            "link","https://ballotpedia.org/Texas%27_15th_Congressional_District_election,_2026" ;
+            "party","Democrat" ;
+            "points","6" ;
+            "votes",[char];
+        }
+        tx_15.ribbonT("Monica De La Cruz") {
+            "image","web/election/files/monica-de-la-cruz.jpg" ;
+            "link","https://ballotpedia.org/Texas%27_15th_Congressional_District_election,_2026" ;
+            "party","Republican" ;
+            "points","4" ;
+            "votes",[char];
+        }
+
+    Header tx_35 = sub.add("TX-35");
+        tx_35.ribbonT("Johnny Garcia") {
+            "image","web/election/files/johnny-garcia.jpg" ;
+            "link","https://ballotpedia.org/Texas%27_35th_Congressional_District_election,_2026" ;
+            "party","Democrat" ;
+            "points","4" ;
+            "votes",[char];
+        }
+        tx_35.ribbonT("Carlos De La Cruz") {
+            "image","web/election/files/carlos-de-la-cruz.jpg" ;
+            "link","https://ballotpedia.org/Texas%27_35th_Congressional_District_election,_2026" ;
+            "party","Republican" ;
+            "points","6" ;
+            "votes",[char];
+        }
+
+    Header ga_governer = sub.add("GA-Governer");
+        ga_governer.ribbonT("Keisha Bottoms") {
+            "image","web/election/files/Keisha-Bottoms.jpg" ;
+            "link","https://ballotpedia.org/Georgia_gubernatorial_election,_2026" ;
+            "party","Democrat" ;
+            "points","4" ;
+            "votes",[char];
+        }
+        ga_governer.ribbonT("Rick Jackson") {
+            "image","web/election/files/Rick-Jackson.jpg" ;
+            "link","https://ballotpedia.org/Georgia_gubernatorial_election,_2026" ;
+            "party","Republican" ;
+            "points","6" ;
+            "votes",[char];
+        }
+
+    Ptr Header races = ledger.add(Ptr,"races");
+    for(int r=2;r<sub.length;r++) {
+        races.push(sub[r]);
+    }
+    Ptr Ptr Header bystate = ledger.add(Ptr,"bystate");
+    for(int r=0;r<races.length;r++) {
+        Header race = races[r];
+        int abv_split = race.label.find("-");
+        string race_state = race.label.slice(0,abv_split);
+        string race_kind = race.label.substr(abv_split+1);
+        if(bystate.has(race_state)) {
+            bystate.get(race_state).put(race_kind,race);
+        } else {
+            Ptr Header temp = ledger.add(Header,race_state); temp.put(race_kind,race);
+            bystate.put(race_state,temp);
+        }
+    }
+
+    emmap.add("MA",char).push();
+
+
+    //dump_subunit(sub,true);
+    sub.save;
+} else {
+    ColColCol database = load_subunit("web/electionmadness/data.gsu");
+}

@@ -3239,3 +3239,110 @@ void return_message(int spool, string shname, string reciver, string comment, st
     save_sheet(spool,"web/thistle/users/"+reciver+"/inbox/"+shname);
     move_file(session.userpath+"inbox/"+shname, session.userpath+"sent");
 }
+
+[:] OLD SENT INBOX
+
+div {
+    "flex" : "1";
+    "display" : "flex";
+    "flex-direction" : "row";
+    "justify-contents" : "start";
+    "gap" : "2%";
+    stateless template div inbox_tab(string label) {
+        div {
+            "flex" : "1";
+            "display" : "flex";
+            "justify-contents" : "center";
+            "align-items" : "center";
+            "border-radius" : "8px";
+            "background-color" : (inbox_on_tab==label?"rgb(188, 188, 188)":"white");
+            "onclick" : capture(
+                string flabel ; js_lit(label)
+            ){
+                inbox_on_tab=flabel;
+                inbox_display.reload;
+            }
+            "padding" : "4px";
+            text label {
+                "flex" : "1";
+                "margin" : "8px";
+                text_theme;
+            }
+        }
+    }
+    inbox_tab("Inbox");
+    inbox_tab("Sent");
+}
+
+[:]RANDOM
+
+print("Loading a subunit");
+ColColCol ty = load_subunit("savetest");
+acquire(ty) {
+    ty.clear;
+    ColCol ptr_pool = ty.add;
+    ColCol str_pool = ty.add;
+    for(int i=0;i<5;i++) {
+        Ptr col = str_pool.add;
+        col.retype(char);
+        col.push("A"); col.push("B"); col.push("C"); col.push(to_string(i));
+        Ptr p = ptr_pool.add;
+        p.retype(string);
+        p.push(col);
+    }
+    ty.save;
+}
+acquire(ty) {
+    print(ty[0][1][0]);
+    ty[0][1][0] = "WUB";
+}
+ty.bounce;
+acquire(ty) {
+    print(ty[0][1][0]);
+}
+
+
+[:]HEADER MAKING
+
+ColColCol sub = usubunits.add("web/electionmadness/data.gsu");
+
+Header tx_senate = sub.add("TX-Senate");
+    
+    tx_senate.ribbonT("Ken Paxton") {
+        "image","web/election/files/ken-paxton.jpg" ;
+        "link","https://ballotpedia.org/United_States_Senate_election_in_Texas,_2026" ;
+        "party","Republican" ;
+        "votes",[char];
+    }
+
+    Ptr ken = tx_senate.ribbon("Ken Paxton");
+    Ptr char tally = ken["votes"];
+    tally.put("Kacy",'D');
+
+    tx_senate.ribbonT("James Talarico") {
+        "image","web/election/files/james-talarico.jpg" ;
+        "link","https://ballotpedia.org/United_States_Senate_election_in_Texas,_2026" ;
+        "party","Democrat" ;
+        "votes",['R','D','R','R'];
+    }
+
+    print("Made ribbons");
+    Ptr rbns = tx_senate.ribbons;
+    for(int i=0;i<rbns.length;i++) {
+        setsidx(rbns,i);
+        print(rbns.celllabel,": ",rbns[i]);
+    }
+
+dump_subunit(sub,true);
+
+
+
+
+        Ptr& scrollable = database[0]["bystate"];
+        for(int s=0;s<scrollable.length;s++) {
+            setsidx(scrollable,s);
+            string state = scrollable.celllabel;
+            text state {text_theme;}
+            Ptr& races = scrollable[s];
+            render_races(races);
+        }

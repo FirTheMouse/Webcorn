@@ -159,13 +159,52 @@ size_t current_memory_usage() {
 }
 
 namespace Acorn {
+
+    uint32_t session_username_offset;
+    uint32_t session_userpath_offset;
+    uint32_t session_ip_offset;
+    uint32_t session_role_offset;
+    uint32_t session_org_offset;
+    uint32_t session_timestamp_offset;
+
+    struct Session : Ptr {
+        Session() {}
+        Session(Ptr p) : Ptr(p) {}
+ 
+        inline Ptr&         username_ptr(){return *(Ptr*)resolve_to_col(*this).qget(sidx+session_username_offset); }
+        inline Col&         username_col(){return resolve_to_col(username_ptr());}
+        inline void         username(Ptr p){resolve_to_col(*this).qset(sidx+session_username_offset, (void*)&p, sizeof(Ptr)); }
+        inline string       username() {return (string&)username_ptr();}
+   
+        inline Ptr&         userpath_ptr(){return *(Ptr*)resolve_to_col(*this).qget(sidx+session_userpath_offset); }
+        inline Col&         userpath_col(){return resolve_to_col(userpath_ptr());}
+        inline void         userpath(Ptr p){resolve_to_col(*this).qset(sidx+session_userpath_offset, (void*)&p, sizeof(Ptr)); }
+        inline string       userpath() {return (string&)userpath_ptr();}
+   
+        inline int&         timestamp() {return *(int*)resolve_to_col(*this).qget(sidx+session_timestamp_offset); }
+        inline void         timestamp(int t){resolve_to_col(*this).qset(sidx+session_timestamp_offset, (void*)&t, 4); }
+   
+        inline int&         ip()        {return *(int*)resolve_to_col(*this).qget(sidx+session_ip_offset); }
+        inline void         ip(int t)   {resolve_to_col(*this).qset(sidx+session_ip_offset, (void*)&t, 4); }
+
+        inline Ptr&         role_ptr(){return *(Ptr*)resolve_to_col(*this).qget(sidx+session_role_offset); }
+        inline Col&         role_col(){return resolve_to_col(role_ptr());}
+        inline void         role(Ptr p){resolve_to_col(*this).qset(sidx+session_role_offset, (void*)&p, sizeof(Ptr)); }
+        inline string       role() {return (string&)role_ptr();}
+
+        inline Ptr&         org_ptr(){return *(Ptr*)resolve_to_col(*this).qget(sidx+session_org_offset); }
+        inline Col&         org_col(){return resolve_to_col(org_ptr());}
+        inline void         org(Ptr p){resolve_to_col(*this).qset(sidx+session_org_offset, (void*)&p, sizeof(Ptr)); }
+        inline string       org() {return (string&)org_ptr();}
+    };
+
+
     struct Webcorn_Core : public virtual Acorn_Script {
         Webcorn_Core(uint16_t _uid) : Unit(_uid) {init();}
         Webcorn_Core() {init();}
 
-
-
         uint32_t session_id = make_type("Session");
+
         uint32_t init_session_type() {
             ColCol col;
             col.label = "Sessions";
@@ -173,43 +212,24 @@ namespace Acorn {
             types.push(col);
 
             _layout stemp(add_template(session_id));
-            stemp.add_prop(string_id,sizeof(Ptr),"username",char_id,1);
-            stemp.add_prop(string_id,sizeof(Ptr),"userpath",char_id,1);
-            stemp.add_prop(int_id,4,"timestamp");
-            stemp.add_prop(int_id,4,"ip");
+            session_username_offset = stemp.add_prop(string_id,sizeof(Ptr),"username",char_id,1);
+            session_userpath_offset = stemp.add_prop(string_id,sizeof(Ptr),"userpath",char_id,1);
+            session_timestamp_offset = stemp.add_prop(int_id,4,"timestamp");
+            session_ip_offset = stemp.add_prop(int_id,4,"ip");
+            session_role_offset = stemp.add_prop(string_id,sizeof(Ptr),"role");
+            session_org_offset = stemp.add_prop(string_id,sizeof(Ptr),"org");
             layouts.put(session_id,stemp);
             value_printers[session_id] = [this](Context& ctx) {ctx.source("SESSION:"+Ptr_as_string(*(Ptr*)ctx.value().get()));};
             return id;
         }
         uint32_t session_col = init_session_type();
 
-        uint32_t datasheet_id = reg_id("datasheet");
-        uint32_t metadatasheet_id = reg_id("metadatasheet");
-        uint32_t notesheet_id = reg_id("notesheet");
-        uint32_t scriptsheet_id = reg_id("scriptsheet");
-        uint32_t storesheet_id = reg_id("storesheet");
-        uint32_t formsheet_id = reg_id("formsheet");
-
-        struct Session : Ptr {
-            Session() {}
-            Session(Ptr p) : Ptr(p) {}
-       
-            inline Ptr&         username_ptr(){return *(Ptr*)resolve_to_col(*this).qget(sidx+0); }
-            inline Col&         username_col(){return resolve_to_col(username_ptr());}
-            inline void         username(Ptr p){resolve_to_col(*this).qset(sidx+0, (void*)&p, 32); }
-            inline string       username() {return (string&)username_ptr();}
-       
-            inline Ptr&         userpath_ptr(){return *(Ptr*)resolve_to_col(*this).qget(sidx+32); }
-            inline Col&         userpath_col(){return resolve_to_col(userpath_ptr());}
-            inline void         userpath(Ptr p){resolve_to_col(*this).qset(sidx+32, (void*)&p, 32); }
-            inline string       userpath() {return (string&)userpath_ptr();}
-       
-            inline int          timestamp() {return *(int*)resolve_to_col(*this).qget(sidx+64); }
-            inline void         timestamp(int t){resolve_to_col(*this).qset(sidx+64, (void*)&t, 4); }
-       
-            inline int          ip()        {return *(int*)resolve_to_col(*this).qget(sidx+68); }
-            inline void         ip(int t)   {resolve_to_col(*this).qset(sidx+68, (void*)&t, 4); }
-       };
+       uint32_t datasheet_id = reg_id("datasheet");
+       uint32_t metadatasheet_id = reg_id("metadatasheet");
+       uint32_t notesheet_id = reg_id("notesheet");
+       uint32_t scriptsheet_id = reg_id("scriptsheet");
+       uint32_t storesheet_id = reg_id("storesheet");
+       uint32_t formsheet_id = reg_id("formsheet");
 
         struct qeue_request {
             qeue_request() {}
@@ -784,6 +804,15 @@ namespace Acorn {
         uint32_t ledgerpool = 0;
 
         void manage_sessions(const std::string& unitcode) {
+            std::string sessionpath = "web/thistle/";
+            for(std::string& a : uargs) {
+                if(a.find("--project") == 0) {
+                    sessionpath = a.substr(10); //Everything after the prefix
+                    break;
+                }
+            }
+            print("Session path: ",sessionpath);
+
             while(true) {
                 g_ptr<Webcorn_Core> unit = nullptr;
                 qeue_request queued;
@@ -843,7 +872,7 @@ namespace Acorn {
                                 o.username(get_ticket(name_store_id,1,char_id));
                                 o.username() = arg;
                                 o.userpath(get_ticket(name_store_id,1,char_id));
-                                o.userpath() = "web/thistle/users/"+arg+"/";
+                                o.userpath() = sessionpath+"users/"+arg+"/";
                                 uint32_t ts = (uint32_t)std::time(nullptr);
                                 o.timestamp(ts);
                                 server->authourized = true;
@@ -861,6 +890,53 @@ namespace Acorn {
                                 print("Session coppied to unit ",unit->uid);
                             }
                             distributed_tokens.put(token,true);
+
+                            //Setting up the inbox, investiture of capability
+                            std::string userpath = o.userpath().to_std();
+                            list<std::string> files = listFilesInDirectory(userpath);
+                            if(files.has("inbox.gsu")) {
+                                ColColCol* sub = unit->subunits.create(userpath+"inbox.gsu");
+                                sub->unlock();
+                                if(unit->acquire_subunit(sub)) { //All the authentication to make sure it's intilized right
+                                    if(!sub->empty()&&sub->get(0).length()>1) {
+                                        Col& recv = sub->get(0)[0];
+                                        Col& sent = sub->get(0)[1]; 
+                                        if(recv.tag==ptr_id&&sent.tag==ptr_id) { //This is really designed for the specific shape of Thistle, this is not meant to be the final general form
+                                            for(int i=0;i<recv.cells.length();i++) {
+                                                CCol& cell = recv.cells.get(i);
+                                                if(cell.storage) { //We're swapping out each Ptr that was saved for the real Ptr in the new unit, and ensuring it's all ready for use
+                                                    std::string label((const char*)cell.storage, cell.size);
+                                                    Ptr subptr = load_subunit(label);
+                                                    recv.set(cell.index,(void*)&subptr);
+                                                }
+                                            }
+                                            for(int i=0;i<sent.cells.length();i++) {
+                                                CCol& cell = sent.cells.get(i);
+                                                if(cell.storage) {
+                                                    std::string label((const char*)cell.storage, cell.size);
+                                                    Ptr subptr = load_subunit(label);
+                                                    sent.set(cell.index,(void*)&subptr);
+                                                }
+                                            }
+                                        } else {
+                                            print(red("webcorn:manage_sessions:SESSION the inbox.gsu at "+o.userpath().to_std()+" does not have a proper recv or sent ribbon"));
+                                        }
+                                    } else {
+                                        print(red("webcorn:manage_sessions:SESSION the inbox.gsu at "+o.userpath().to_std()+" is missing pools or columns"));
+                                    }
+                                    sub->unlock();
+                                }
+                            } else {
+                                //print(red("webcorn:manage_sessions:SESSION you forgot to add an inbox.gsu file to "+o.userpath().to_std()+"!"));
+                            }
+
+                            //Invest database access
+                            if(subunits.hasKey(sessionpath+"data.gsu")) {
+                                Ptr dataptr = load_subunit(sessionpath+"data.gsu");
+                                if(unit_global_values.hasKey("database")) {
+                                    unit_global_values.get("database").set((void*)&dataptr);
+                                }
+                            }
                         }
                         unit->types.live = true;
                     } else if(cmd=="FILE") {
@@ -890,16 +966,22 @@ namespace Acorn {
                             print(red("webcorn:manage_sessions:APPROVE no valid session column in the main unit! Ensure a session manager was started"));
                         } else {
                             if(server->authourized) {
-                                std::string path = arg;  
-                                uint32_t sheetpool = unit->load_sheet(path);
-                                ColColCol subgraph = unit->copy_subgraph(unit->types,sheetpool);
+                                uint32_t sheetpool = std::stoi(arg);
+                                ColColCol subgraph = unit->copy_subgraph(unit->types,sheetpool,true);
                                 list<ColCol*> ledgerpools = gather_sheet_pools(ledgerpool);
                                 
-                                if(subgraph.length()==2&&subgraph[0].tag==datasheet_id&&subgraph[1].tag==storesheet_id) {
+                                if(subgraph.length()==2) {
                                     ColCol& ledgerdatasheet = *ledgerpools[0];
                                     ColCol& ledgerstoresheet= *ledgerpools[1];
                                     ColCol& subgraphdatasheet = subgraph[0];
                                     ColCol& subgraphstoresheet = subgraph[1];
+                                    
+                                    for(int i=0;i<ledgerdatasheet.length();i++) {
+                                        std::string label = ledgerdatasheet[i].label.to_std();
+                                        if(!ledgerdatasheet.hasKey(label)) {
+                                            ledgerdatasheet.addcell(i,label.data(),label.size(),string_id);
+                                        }
+                                    }   
 
                                     uint32_t subgraphptroffset = ledgerstoresheet.length();
                                     offset_idx_ptrs(subgraphdatasheet, subgraphptroffset);
@@ -911,19 +993,26 @@ namespace Acorn {
                                         ledgerstoresheet.push(subgraphstoresheet[i]);
                                     }
 
-                                    for(int i=0;i<ledgerdatasheet.length();i++) {
-                                        Col& ledgercol = ledgerdatasheet[i];
-                                        for(int j=0;j<subgraphdatasheet.length();j++) {
-                                            if(subgraphdatasheet[j].label.to_std()==ledgercol.label.to_std()) {
-                                                for(int n=0;n<subgraphdatasheet[j].length();n++) {
-                                                    ledgercol.push(subgraphdatasheet[j][n]);
-                                                }
-                                                break;
+                                    for(int i=0;i<subgraphdatasheet.length();i++) {
+                                        if(ledgerdatasheet.hasKey(subgraphdatasheet[i].label.to_std())) {
+                                            Col& ledgercol = *(Col*)ledgerdatasheet.Col::get(subgraphdatasheet[i].label.to_std());
+                                            for(int n=0;n<subgraphdatasheet[i].length();n++) {
+                                                ledgercol.push(subgraphdatasheet[i][n]);
                                             }
+                                        } else {
+                                            Col c;
+                                            c.element_size = subgraphdatasheet[i].element_size;
+                                            c.tag = subgraphdatasheet[i].tag;
+                                            c.label = subgraphdatasheet[i].label;
+                                            ledgerdatasheet.addcell(ledgerdatasheet.length(),c.label.storage,c.label.size,string_id);
+                                            for(int n=0;n<subgraphdatasheet[i].length();n++) {
+                                                c.push(subgraphdatasheet[i][n]);
+                                            }
+                                            ledgerdatasheet.push(c);
                                         }
                                     }
                                 } else {    
-                                    print(red("webcorn:manage_sessions:APPROVE subgraph from "+path+" has unexpected shape: "+
+                                    print(red("webcorn:manage_sessions:APPROVE subgraph from "+arg+" has unexpected shape: "+
                                         std::to_string(subgraph.length())+" pools, expected 2 (datasheet+storesheet). "+
                                         "This indicates a foreign Ptr in the submitted sheet, possible corruption."));
                                 }
@@ -957,6 +1046,65 @@ namespace Acorn {
                                 }
                             }
                         }
+                    } else if(cmd=="SEND") {
+                        if(session_col==0) {
+                            print(red("webcorn:manage_sessions:SEND no valid session column in the main unit! Ensure a session manager was started"));
+                        } else {
+                            if(server->authourized) {
+                                uint32_t sheetpool = std::stoi(arg);
+                                list<ColCol*> sheets = unit->gather_sheet_pools(sheetpool); //Not sure if this should be destructive take or not, though this entire method is a temporary measure so...
+
+                                // editTextFile("printout.txt",[](std::string& source){source="";});
+                                // print("SHEET LEN: ",sheets.length()," IDX: ",unit->types.indexof(sheets[0])," SHEETPOOL: ",sheetpool);
+                                // dump_sheet(sheetpool);
+                                // editTextFile("printout.txt",[](std::string& source){source+="\n\nSHEET ^\n";});
+                                // for(int i=0;i<sheets.length();i++) {
+                                //     dump_pool(*sheets[i],i,false);
+                                // }
+                                // editTextFile("printout.txt",[](std::string& source){source+="\n\nSHEET TRUE^\n";});
+
+                                ColColCol* sentsub = new ColColCol(std::move(unit->take_pools(unit->types,unit->types.indexof(sheets[0]),unit->types.indexof(sheets.last())+1)));
+                                adopt_ptrs(*sentsub,sentsub); //This should perhaps be create, to better centrilize the opperation
+                                std::string newpath = "web/thistle/subunits/"+req[2];
+                                sentsub->label = newpath;
+                                subunits.qput(sentsub,newpath.data(),newpath.size(),string_id);
+                                save_subunit(sentsub);
+
+                                // editTextFile("printout.txt",[](std::string& source){source+="\nSUB v\n";});
+                                // dump_subunit(*sentsub,false);
+
+                                Ptr ubox_ptr = unit->load_subunit(server->session.userpath().to_std()+"inbox.gsu");
+                                ColColCol& ubox = resolve_to_subunit(ubox_ptr);
+                                Col& sent = ubox[0][1]; //We already validated the shape earlier on login
+
+                                Ptr sent_ptr = load_subunit(newpath); 
+                                sent.qput((void*)&sent_ptr,newpath.data(),newpath.size(),string_id);
+                                
+                                ColCol& sessions = types[session_col];
+                                for(std::string recipient : split_str(req[3],',')) {
+                                    if(sessions.hasKey(recipient)) {
+                                        uint32_t seshidx = sessions.getidx(recipient.data(), recipient.length());
+                                        uint32_t unitid = sessions[seshidx].index;
+                                        g_ptr<Unit> target_unit = nullptr;
+                                        {
+                                            std::lock_guard<std::mutex> lock(servers_mutex);
+                                            target_unit = units[unitid];
+                                        }
+                                        Ptr rbox_ptr = target_unit->load_subunit("web/thistle/users/"+recipient+"/inbox.gsu");
+                                        ColColCol& rbox = resolve_to_subunit(rbox_ptr);
+                                        if(acquire_subunit(&rbox)) {
+                                            rbox[0][0].qput((void*)&sent_ptr,newpath.data(),newpath.size(),string_id);
+                                            target_unit->save_subunit(&rbox);
+                                            rbox.unlock();
+                                        }
+                                    } else {
+                                        print(red(recipient+" isn't logged in, so can't send, in the future all units should be created on startup, so this is just temporary"));
+                                    }
+                                }
+
+                                unit->types.label = newpath; //Then hand the unit the path, and it can look in it's sent and make use of it for the lookup
+                            }
+                        }
                     } else {
                         print(red("webcorn:manage_sessions unrecognized command: "+cmd));
                     }
@@ -971,7 +1119,7 @@ namespace Acorn {
                     server->setfd(queued.fd);
                 } 
                 else {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                    std::this_thread::sleep_for(std::chrono::milliseconds(10));
                 }
             }
         }
@@ -1068,10 +1216,16 @@ namespace Acorn {
                     for(int i=0;i<servers.length();i++) {
                         if(servers[i]->unit>1) {
                             print("Terminated unit ",servers[i]->unit);
-                            units[servers[i]->unit]->suspend();
+                            g_ptr<Unit> unit = units[servers[i]->unit];
+                            unit->suspend();
                             int fd = servers[i]->getfd();
                             if(fd > 0) CLOSE_SOCKET(fd);
                             servers[i]->thread->detach();
+                            for(int s=1;s<unit->subunits.length();s++) {
+                                ColColCol* subunit = unit->subunits.get(s);
+                                subunit->unlock();
+                                bounce_subunit(subunit);
+                            }
                         }
                     }
                 }
@@ -1162,6 +1316,11 @@ namespace Acorn {
             }
             return out;
         }
+        uint32_t secure_hash_id = add_function("secure_hash",[this](Context& ctx){
+            standard_sub_process(ctx);
+            string output = resolve_string_ticket(ctx.node());
+            output = sha1_base64(ctx.node().getString(0).to_std());
+        },sizeof(Ptr),string_id);
 
         std::string make_websocket_accept(const std::string& key) {
             return sha1_base64(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11");
@@ -2210,7 +2369,6 @@ namespace Acorn {
             }
             //uspan->endline();
         });
-
 
         uint32_t webcorn_ledger_append_id = add_function("webcorn_ledger_append",[this](Context& ctx){
             standard_sub_process(ctx);

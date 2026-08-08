@@ -128,7 +128,23 @@ inlined popup_panel_theme {
     global bool message_draft_panel_open;
     global bool inbox_enabled;
     inbox_enabled = true;
+    global Node message_draft_panel_reload_target;
 ##
+
+
+ColColCol init_user_inbox(string filepath) {
+    ColColCol box = load_subunit(filepath);
+    acquire(box) {
+        box.clear;
+        ColCol msgpool = box.add;
+            Ptr recvribbon = msgpool.add(Ptr);
+            Ptr sendribbon = msgpool.add(Ptr);
+        ColCol ledgerpool = box.add;
+        ColCol storepool = box.add(#storesheet);
+    }
+    box.bounce;
+    return box;
+}
 
 
 void send_message(string fid, string fpath, string name_to_use, string sender, string send_to_list, string message_to_send, string status_to_send) {
@@ -219,9 +235,9 @@ void return_message(string fid, string reciver, string comment, string new_statu
 }
 
 
-div message_draft_panel(string selected_filepath, string selected_id, int selected_pool) {
+div message_draft_panel(string selected_filepath, string selected_id, int selected_pool, string send_to_passed) {
     static string user_search; user_search = "";
-    static string send_to_list; send_to_list = "";
+    static string send_to_list; send_to_list = send_to_passed;
     static string message_to_send; message_to_send = "";
     static string status_to_send = "unknown";
 
@@ -372,15 +388,19 @@ div message_draft_panel(string selected_filepath, string selected_id, int select
                 }
             }
 
-            input {
-                "type" : "checkbox";
-                "onchange" : capture(
-                    string myval ; "this.checked ? 'Template' : 'unknown'"
-                ) {
-                    status_to_send = myval;
+            if(send_to_passed.length!=0) {
+                status_to_send = "Returned";
+            } else {
+                input {
+                    "type" : "checkbox";
+                    "onchange" : capture(
+                        string myval ; "this.checked ? 'Template' : 'unknown'"
+                    ) {
+                        status_to_send = myval;
+                    }
                 }
+                text "Template" {text_theme;}
             }
-            text "Template" {text_theme;}
 
             button {
                 text "Send" {text_theme;}
@@ -389,9 +409,23 @@ div message_draft_panel(string selected_filepath, string selected_id, int select
                     string fpath ; js_lit(selected_filepath),
                     js_do("event.stopPropagation();")
                 ) {
-                    send_message(fid,fpath,unit_timestamp+"_"+fid,session.username,send_to_list,message_to_send,status_to_send);
                     message_draft_panel_open = false;
-                    draft_message.reload;
+                    if(status_to_send=="Returned") {
+                        print("Returned a message ",fid);
+                        send_message(fid,fpath,fid,session.username,send_to_list,message_to_send,status_to_send);
+                        Ptr string sending_to = split_str(send_to_list,",");
+                        for(int i=0;i<sending_to.length;i++) {
+                            string uname = sending_to.get(i);
+                            if(uname.length>0) {
+                                cry("MESSAGE:"+uname+":RUN:delete_sheet(\""+fid+"\"); inbox_sheetpool = 0; inbox_sheetname = \"\";");
+                            }
+                        }
+                        remove_file(session.userpath+"inbox/"+fid);
+                        emit_js("window.location.reload();");
+                    } else {
+                        send_message(fid,fpath,unit_timestamp+"_"+fid,session.username,send_to_list,message_to_send,status_to_send);
+                        draft_message.reload;
+                    }
                 }
             }
         }   
@@ -540,7 +574,7 @@ div side_bar(string in_route) {
     static string selected_filepath; selected_filepath = "";
     static string selected_id; selected_id = "";
     div sidebar_popup {
-        message_draft_panel(selected_filepath,selected_id,0);
+        message_draft_panel(selected_filepath,selected_id,0,"");
     }
     
     div {
@@ -839,63 +873,80 @@ div top_bar(string in_route) {
                     popup_background_theme;
                     static string given_username;
                     static string given_password;
+                    static string given_role;
+                    static string given_org;
                     string userinfo = read_file("web/thistle/users/"+session.username+"/userinfo");
+
                     given_username = session.username;
-                    given_password = userinfo;
+                    given_role = userinfo.slice(0,userinfo.find("\n"));
+                    given_org = userinfo.slice("\n",1,2);
+                    given_password = userinfo.substr(userinfo.find("\n",0,2)+1);
+
+                    static string input_password;
+                    static string confirm_password;
+
+                    static bool needs_to_be_checked = true;
 
                     div create_user_display {
                         popup_panel_theme;
-                        text "Username" {
-                            "font-size" : "15px";
-                            text_theme;
-                        }
-                        input {
-                            if(given_username=="") {
+
+                        if(needs_to_be_checked) {
+                            text "Current" {
+                                "font-size" : "15px";
+                                text_theme;
+                            }
+                            input {
+                                "placeholder" : "Enter password";
+                                "type" : "password";
                                 "border" : "none";
                                 "border-bottom" : "2px solid rgb(255, 0, 0)";
-                            } else {
-                                "value" : given_username;
+                                form_input_theme;
+                                "oninput" : js_do("this.style.borderBottom = (this.value.length===0?'2px solid rgb(255, 0, 0)':'2px solid rgb(200,200,200)');");
+                                "onchange" : capture(string myval ; "this.value"){
+                                    if(secure_hash(myval)==given_password) {
+                                        needs_to_be_checked = false;
+                                    }
+                                    create_user_display.reload;
+                                }
+                            }   
+                        } else {
+                            text "New Password" {
+                                "font-size" : "15px";
+                                text_theme;
                             }
-                            form_input_theme;
-                            "onchange" : capture(string myval ; "this.value"){
-                                given_username = myval;
-                                create_user_display.reload;
-                            }
-                        }   
-
-                        text "Password" {
-                            "font-size" : "15px";
-                            text_theme;
-                        }
-                        input {
-                            if(given_password=="") {
+                            input {
+                                "id" : "new_password_input";
+                                "placeholder" : "Enter password";
+                                "type" : "password";
                                 "border" : "none";
                                 "border-bottom" : "2px solid rgb(255, 0, 0)";
-                            } else {
-                                "value" : given_password;
+                                form_input_theme;
+                                "oninput" : js_do("this.style.borderBottom = (this.value.length===0?'2px solid rgb(255, 0, 0)':'2px solid rgb(200,200,200)');");
                             }
-                            form_input_theme;
-                            "onchange" : capture(string myval ; "this.value"){
-                                given_password = myval;
-                                create_user_display.reload;
-                            }
-                        }   
+                            input {
+                                "id" : "confirm_password_input";
+                                "placeholder" : "Confirm password";
+                                "type" : "password";
+                                "border" : "none";
+                                "border-bottom" : "2px solid rgb(255, 0, 0)";
+                                form_input_theme;
+                                "oninput" : js_do("this.style.borderBottom = (this.value!==getel('new_password_input').value?'2px solid rgb(255, 0, 0)':'2px solid rgb(200,200,200)');");
+                            }  
 
-                        button {
-                            text "Confirm";
-                            "onclick" : capture(
-                                js_do("event.stopPropagation();")
-                            ){
-                                string usingname = session.username;
-                                string new_path = "web/thistle/users/"+usingname;
-                                print(session.username," changed their password to ",given_password);
-                                write_file(new_path+"/userinfo",given_password);
-                                print(session.username," renamed themselves to ",given_username);
-                                rename_file(new_path, "web/thistle/users/"+given_username);
-                                session.username = given_username;
-                                session.userpath = "web/thistle/users/"+given_username;
-                                popup_open = false;
-                                profile_display.reload;
+                            button {
+                                text "Confirm";
+                                "onclick" : capture(
+                                    js_do("event.stopPropagation();"),
+                                    string fnew ; "getel('new_password_input').value",
+                                    string fconfirm ; "getel('confirm_password_input').value",
+                                ){
+                                    if(fnew==fconfirm) {
+                                        print(session.username," changed their password");
+                                        write_file(session.userpath+"/userinfo",given_role+"\n"+given_org+"\n"+secure_hash(fnew));
+                                        popup_open = false;
+                                        profile_display.reload;
+                                    }
+                                }
                             }
                         }
                     }
@@ -1032,127 +1083,133 @@ root_path {
             
             top_bar("root_path");
 
-            string display_tab;
-            display_tab = "Dashboard";
-            div display_root {
-                "flex" : "1";
-                "display" : "flex";
-                "flex-direction" : "row";
-                "gap" : "10px";
-                div {
-                    "width" : "20%";
-                    "height" : "100%";
-                    stateless template div sidebar_nav(string label) {
-                        div {
-                            "display" : "flex";
-                            "align-items" : "center";
-                            "justify-content" : "center";
-                            "border-radius" : "8px";
-                            "background-color" : (display_tab==label?"rgb(146, 213, 239)":"transparent");
-                            "onmouseenter" : "if(this.style.backgroundColor==='transparent')this.style.backgroundColor='rgba(0,0,0,0.04)'";
-                            "onmouseleave" : "if(this.style.backgroundColor==='rgba(0, 0, 0, 0.04)')this.style.backgroundColor='transparent'";
-                            text label {
-                                "font-size" : "14px";
-                                "color" : "rgb(66, 66, 66)";
-                                text_theme;
-                            }
-                            "onclick" : capture(
-                                string flabel ; js_lit(label)
-                            ){
-                                display_tab = flabel;
-                                display_root.reload;
-                            }
-                        }
-                    }
-                    "background-color" : "rgb(240, 240, 240)";
-                    sidebar_nav("Dashboard");
-                    sidebar_nav("Settings");
-                    sidebar_nav("Profile");
-                    sidebar_nav("Billing");
-                }
-                div {
+            if(session.role=="admin") {
+                string display_tab;
+                display_tab = "Dashboard";
+                div display_root {
                     "flex" : "1";
                     "display" : "flex";
-                    "width" : "80%";
-                    "padding" : "40px";
-                    "align-items" : "center";
-                    "justify-content" : "center";
-                    "background-color" : "rgb(203, 203, 203)";
-                    "flex-direction" : "column";
-                    "gap" : "5%";
+                    "flex-direction" : "row";
+                    "gap" : "10px";
+                    div {
+                        "width" : "20%";
+                        "height" : "100%";
+                        stateless template div sidebar_nav(string label) {
+                            div {
+                                "display" : "flex";
+                                "align-items" : "center";
+                                "justify-content" : "center";
+                                "border-radius" : "8px";
+                                "background-color" : (display_tab==label?"rgb(146, 213, 239)":"transparent");
+                                "onmouseenter" : "if(this.style.backgroundColor==='transparent')this.style.backgroundColor='rgba(0,0,0,0.04)'";
+                                "onmouseleave" : "if(this.style.backgroundColor==='rgba(0, 0, 0, 0.04)')this.style.backgroundColor='transparent'";
+                                text label {
+                                    "font-size" : "14px";
+                                    "color" : "rgb(66, 66, 66)";
+                                    text_theme;
+                                }
+                                "onclick" : capture(
+                                    string flabel ; js_lit(label)
+                                ){
+                                    display_tab = flabel;
+                                    display_root.reload;
+                                }
+                            }
+                        }
+                        "background-color" : "rgb(240, 240, 240)";
+                        sidebar_nav("Dashboard");
+                        sidebar_nav("Settings");
+                        sidebar_nav("Profile");
+                        sidebar_nav("Billing");
+                    }
                     div {
                         "flex" : "1";
                         "display" : "flex";
-                        "align-items" : "center";
-                        "justify-content" : "flex-start";
-                        "width" : "100%";
-                        "height" : "100%";
-                        "padding" : "-16px";
-                        text "Dashboard" {
-                            "color" : "rgb(60, 60, 60)";
-                            "font-size" : "24px";
-                            text_theme;
-                        }
-                    }
-
-                    div {
-                        "flex" : "2";
-                        "display" : "flex";
-                        "flex-direction" : "row";
-                        "border-radius" : "10px";
+                        "width" : "80%";
+                        "padding" : "40px";
                         "align-items" : "center";
                         "justify-content" : "center";
-                        "width" : "100%";
-                        "margin" : "4px";
+                        "background-color" : "rgb(203, 203, 203)";
+                        "flex-direction" : "column";
                         "gap" : "5%";
-                        stateless template div dashboard_card(string label, string data) {
-                            div {
-                                "flex" : "1";
-                                "display" : "flex";
-                                "flex-direction" : "column";
-                                "padding" : "8px";
-                                "border-radius" : "10px";
-                                "background-color" : "rgb(246, 246, 246)";
-                                text label {
-                                    "margin-top" : "8px";
-                                    "margin-bottom" : "0";
-                                    "font-weight" : "600";
-                                    "color" : "rgb(110, 109, 109)";
-                                    text_theme;
-                                }
-                                text data {
-                                    "margin-top" : "0";
-                                    "margin-bottom" : "0";
-                                    "font-size" : "24px";
-                                    "color" : "rgb(42, 42, 42)";
-                                    text_theme;
-                                }
+                        div {
+                            "flex" : "1";
+                            "display" : "flex";
+                            "align-items" : "center";
+                            "justify-content" : "flex-start";
+                            "width" : "100%";
+                            "height" : "100%";
+                            "padding" : "-16px";
+                            text "Dashboard" {
+                                "color" : "rgb(60, 60, 60)";
+                                "font-size" : "24px";
+                                text_theme;
                             }
                         }
-                        dashboard_card("Total users","1,284");
-                        dashboard_card("Revenue","$8,492");
-                        dashboard_card("Active sessions","342");
-                    }
-                    div {
-                        "flex" : "5";
-                        "display" : "flex";
-                        "border-radius" : "10px";
-                        "flex-direction" : "column"
-                        "width" : "100%";
-                        "padding" : "16px";
-                        "background-color" : "rgb(236, 236, 236)";
-                        text "Recent activity" {
-                            "font-size" : "18px";
-                            "color" : "rgb(66, 66, 66)";
-                            text_theme;
+
+                        div {
+                            "flex" : "2";
+                            "display" : "flex";
+                            "flex-direction" : "row";
+                            "border-radius" : "10px";
+                            "align-items" : "center";
+                            "justify-content" : "center";
+                            "width" : "100%";
+                            "margin" : "4px";
+                            "gap" : "5%";
+                            stateless template div dashboard_card(string label, string data) {
+                                div {
+                                    "flex" : "1";
+                                    "display" : "flex";
+                                    "flex-direction" : "column";
+                                    "padding" : "8px";
+                                    "border-radius" : "10px";
+                                    "background-color" : "rgb(246, 246, 246)";
+                                    text label {
+                                        "margin-top" : "8px";
+                                        "margin-bottom" : "0";
+                                        "font-weight" : "600";
+                                        "color" : "rgb(110, 109, 109)";
+                                        text_theme;
+                                    }
+                                    text data {
+                                        "margin-top" : "0";
+                                        "margin-bottom" : "0";
+                                        "font-size" : "24px";
+                                        "color" : "rgb(42, 42, 42)";
+                                        text_theme;
+                                    }
+                                }
+                            }
+                            dashboard_card("Total users","1,284");
+                            dashboard_card("Revenue","$8,492");
+                            dashboard_card("Active sessions","342");
                         }
-                        text "No activity yet." {
-                            "font-weight" : "600";
-                            "color" : "rgb(69, 69, 69)";
-                            text_theme;
+                        div {
+                            "flex" : "5";
+                            "display" : "flex";
+                            "border-radius" : "10px";
+                            "flex-direction" : "column"
+                            "width" : "100%";
+                            "padding" : "16px";
+                            "background-color" : "rgb(236, 236, 236)";
+                            text "Recent activity" {
+                                "font-size" : "18px";
+                                "color" : "rgb(66, 66, 66)";
+                                text_theme;
+                            }
+                            text "No activity yet." {
+                                "font-weight" : "600";
+                                "color" : "rgb(69, 69, 69)";
+                                text_theme;
+                            }
                         }
                     }
                 }
+            } else if(session.role=="employee") {
+                text "You, are an employee" {text_theme;}
+            } else {
+                text "What are you?" {text_theme;}
             }
         }
     }
@@ -1272,9 +1329,13 @@ login {
                                             string user = directories.get(i);
                                             if(user==given_username) {
                                                 string userinfo = read_file("web/thistle/users/"+user+"/userinfo");
-                                                if(given_password==userinfo) {
+                                                string userpass = userinfo.substr(userinfo.find("\n",0,2)+1);
+                                                if(secure_hash(given_password)==userpass) {
                                                     cry("SESSION:"+user);
                                                     string session_token = unit_label;
+                                                    string userinfo = read_file(session.userpath+"/userinfo");
+                                                    session.role = userinfo.slice(0,userinfo.find("\n"));
+                                                    session.org = userinfo.slice("\n",1,2);
                                                     emit_js("
                                                         document.cookie = 'session="+session_token+"; path=/';
                                                         window.location.href = "+(redirected_from.length==0?"'/'":js_lit(redirected_from))+";
@@ -1873,6 +1934,223 @@ stateless template div build_render_sheet(int spool) {
     }
 }
 
+
+stateless template div render_cell_context_menu_subunit(Ptr cell) {
+    ColColCol sheet = cell;
+    div cell_context_menu {
+        "background" : "white";
+        "border" : "1px solid rgb(200,200,200)";
+        "border-radius" : "6px";
+        "box-shadow" : "0 4px 12px rgba(0,0,0,0.12)";
+        "min-width" : "120px";
+        "padding" : "4px";
+
+        Ptr p = *cell;
+        string tostr;
+        if(is_live(p)) {
+            tostr = value_as_string(p);
+        }
+        text to_string(cell)+" : "+tostr {
+            text_theme; 
+        }
+
+        Ptr noteptr = sheet.getByTag(#notesheet);
+        Ptr note_p = *noteptr;
+        string note_tostr;
+        if(is_live(note_p)) {
+            note_tostr = value_as_string(note_p);
+        }
+        input {
+            "value" : note_tostr;
+            "onchange" : capture(
+                string notecap ; js_lit(capture_ptr(noteptr)),
+                string myval ; "this.value"
+            ) {
+                Ptr fnoteptr = from_string(notecap);
+                set_cell(fnoteptr, myval);
+            }
+        }
+
+        static Ptr formptr = sheet.getByTag(#formsheet);
+        static Ptr form_p;
+        if(is_live(formptr)) {
+            form_p = *formptr;
+        }
+        if(is_live(form_p)) {
+            text "Label" {text_theme;}
+            input {
+                "value" : form_p.label;
+                "onchange" : capture (
+                    string myval ; "this.value"
+                ) {
+                    form_p.label(myval);
+                }
+                air_input_theme;
+            }
+            //print("Form question for ",cellptr);
+            //form_question(spool,cellptr,true);
+        } else {
+            button {
+                text "Add a question" {
+                    text_theme;
+                }
+                "onclick" : capture(
+                    string cspool ; js_lit(to_string(spool))
+                ) {
+                    int fspool = from_string(cspool);
+                    if(!is_live(formptr)) {
+                        add_form(fspool);
+                        formptr = makePtr3(find_sheet(fspool,#formsheet),colum,rowe);
+                    }
+                    //create_form_question_subunit(formptr);
+                    *formptr = get_ticket(find_sheet(fspool,#storesheet),0);
+                    cell_context_menu.reload;
+                }
+            }
+        }  
+    }  
+}
+
+stateless template div build_render_subunit(ColColCol sub) {
+    acquire(sub) {
+        static string sheet_context_cell; sheet_context_cell = "";
+        div sheet_context_menu_holder {
+            "display" : "none";
+            "data-cell" : "";
+            "position" : "absolute";
+            "z-index" : "100";
+            "top" : "0";
+            "left" : "100%";
+            hoisted div sheet_context_menu {
+                if(sheet_context_cell.length>0) {
+                    Ptr ctxp = from_string(sheet_context_cell);
+                    render_cell_context_menu_subunit(ctxp);
+                }
+            }
+        }
+        string scm_holder_id = node_str_id(call_owner(sheet_context_menu_holder));
+
+        div {
+            "display" : "flex";
+            "justify-content" : "center";
+            "width" : "100%";
+                table {
+                    "border-collapse" : "collapse";
+                    "width" : "100%";
+                        int lenc = sub[0].length; //Columns
+                        int lenr = 0; //Rows
+
+                        //Headers
+                        row {
+                            stateless template div makeheader(Ptr col) {
+                                input {
+                                    "border" : "none";
+                                    "background-color" : "transparent";
+                                    "width" : "100%";
+                                    "padding" : "8px 4px";
+                                    "font-size" : "13px";
+                                    "font-family" : "system-ui, sans-serif";
+                                    "value" : col.label;
+                                    "onchange" : capture(
+                                        string colcap ; js_lit(capture_ptr(col)),
+                                        string myval ; "this.value"
+                                    ) {
+                                        Ptr fcolumn = cast_to(#ptr,from_string(colcap));
+                                        fcolumn.label(myval);
+                                        save_subunit(fcolumn);
+                                    }
+                                }
+                            }
+
+                            for(int c=0;c<lenc;c++) {
+                                column {
+                                    "background-color" : "rgb(240, 240, 240)";
+                                    "padding" : "10px 12px";
+                                    "font-size" : "14px";
+                                    "color" : "rgb(26, 26, 26)";
+                                    "font-size" : "13px";
+                                    "font-weight" : "600";
+                                    "color" : "rgb(80,80,80)";
+                                    "font-family" : "system-ui, sans-serif";
+                                    "border-right" : "1px solid rgb(200,200,200)";
+                                    makeheader(sub[0][c]);
+                                }
+                                int lenco = sub[0][c].length;
+                                if(lenco>lenr) {
+                                    lenr = lenco;
+                                }
+                            }
+                        }
+                        
+                        //Render each column
+                        for(int r=0;r<lenr;r++) {
+                            row {
+                                "border-bottom" : "1px solid rgb(220,220,220)";
+                                    stateless template div makecell(Ptr col) {
+                                        static string tostr = "";
+                                        static Ptr p = *col;
+                                        if(is_live(p)) {
+                                            tostr = value_as_string(p);
+                                        }
+                                        input {
+                                            "border" : "none";
+                                            "background-color" : "transparent";
+                                            "width" : "100%";
+                                            "padding" : "8px 4px";
+                                            "font-size" : "13px";
+                                            "font-family" : "system-ui, sans-serif";
+                                            "value" : tostr;                                                                    
+                                            "onchange" : capture(
+                                                string cellstr ; js_lit(to_string(p)),
+                                                string myval ; "this.value"
+                                            ) {
+                                                set_cell(from_string(cellstr),myval);
+                                            }
+
+                                            "oncontextmenu" : capture(
+                                                string capcol ; js_do("
+                                                    event.preventDefault();
+                                                    const menu = document.getElementById("+js_lit(scm_holder_id)+");
+                                                    capcol = "+js_lit(capture_ptr(col))+";
+                                                    console.log(menu.dataset.cell);
+                                                    if(menu.dataset.cell==capcol) {
+                                                        menu.style.display = 'none';
+                                                        menu.dataset.cell = '';
+                                                        return '';
+                                                    } else {
+                                                        menu.style.display = 'block';
+                                                        menu.style.left = event.clientX + 'px';
+                                                        menu.style.top = event.clientY + 'px';
+                                                        menu.dataset.cell = capcol;
+                                                        return capcol;
+                                                    }
+                                                ")
+                                            ) {
+                                                if(capcol.length>0) {
+                                                    //sheet_context_menu.set_prop("background-color",(sheet_context_menu.get_prop("background-color").right.value.getStr=="red"?"blue":"red"));
+                                                    sheet_context_cell = capcol;
+                                                    sheet_context_menu.reload;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    for(int c=0;c<lenc;c++) {
+                                        column {
+                                            "position" : "relative";
+                                            "border-right" : "1px solid rgb(200,200,200)";
+                                            Ptr p = sub[0][c];
+                                            setsidx(p,r);
+                                            makecell(p);
+                                        }
+                                    }
+                            }
+                        }
+                }
+        }
+    }
+}
+
+
 ##
     register inbox;
     "inbox" {
@@ -1886,7 +2164,7 @@ stateless template div build_render_sheet(int spool) {
     global int inbox_sheetpool; inbox_sheetpool = 0;
     global string inbox_sheetname; inbox_sheetname = "";
     global string inbox_on_tab; inbox_on_tab = "Inbox";
-    global string inbox_mode; inbox_mode = "Approve";
+    global string inbox_mode; inbox_mode = "Return";
 
     global string mode_to_color(string mode) {
         if(mode=="Approve") {return "rgb(74, 181, 110)";}
@@ -1898,15 +2176,14 @@ stateless template div build_render_sheet(int spool) {
     static global int inbox_ledger_pool; inbox_ledger_pool = 0;
 
     global void begin_inbox_ledger() {
-        if(inbox_ledger_pool>0) {delete_sheet(inbox_ledger_pool);}
-        inbox_ledger_pool = generate_ledger;
+        thistle_ledger.clear;
         inbox_ledger_string = "var ledger = []; (()=>{ ledger = [];";
     }
 
     static global int last_added; static global string last_added_string;
     global string append_to_inbox_ledger(int spool) {
         if(spool==last_added) {return last_added_string;} //Because for some reason the logic is running twice each time, investigate later
-        int ledger_index = webcorn_ledger_append(inbox_ledger_pool,spool); //I'll add this on the C++ side since it's a hot-path
+        int ledger_index = append_to_thistle_ledger(spool);
         string item_id = "inbox_ledger_item_"+to_string(ledger_index);
         inbox_ledger_string += "ledger.push(document.getElementById("+js_lit(item_id)+"));";
         last_added_string = item_id; last_added = spool;
@@ -1915,16 +2192,26 @@ stateless template div build_render_sheet(int spool) {
 
     global void finish_inbox_ledger() {
         inbox_ledger_string += "})()";
-    }
+    }    
 ##
 
 inbox {
 
     button {text "REFRESH LEDGER"; "onclick" : capture{save_sheet(generate_ledger,"web/thistle/ledger");}}
-    button {text "APPEND LEDGER"; "onclick" : capture{cry("APPROVE:"+session.userpath+"sheets/TestSheet"); cry("APPROVE:"+session.userpath+"sheets/TestSheetTwo");}}
+    button {text "APPEND LEDGER"; "onclick" : capture{cry("APPROVE:"+to_string(utypes.indexof(thistle_ledger))); dump_pool(thistle_ledger,false);}}
 
     Ptr string files;
     string inbox_path; inbox_path = session.userpath+"inbox";
+
+    //init_user_inbox(session.userpath+"inbox.gsu");
+    //print("Done initilizing");
+        
+    ColColCol box = load_subunit(session.userpath+"inbox.gsu");
+    acquire(box) {
+        print("loaded the box: ",box);
+        //dump_subunit(box,true);
+    }
+
     div inbox_root {
         sidebar_reload_target = call_owner(inbox_root);
         style "
@@ -1948,410 +2235,485 @@ inbox {
         script read_file("web/webcorn.js");
 
         background_theme;
-        div {
-            "display" : "flex";
-            "min-height" : "100vh";
-                side_bar("inbox");
-                if(session.userpath.length==0) { 
-                    div {
-                        "justify-content" : "center";
-                        "align-items" : "center";
-                        text "Log in to see inbox" {
-                            "font-size" : "24px";
-                            text_theme;
-                        }
-                    }
-                } else {
-                    static string inbox_viewing = "";
-                    static Node inbox_view_reload_target = deadptr;
 
-                    string selected_color = "rgba(130, 43, 111, 0.12)";
-                    
-                    string script_str = "
-                        last_id = "+js_lit(inbox_viewing)+";
-                        function toggle_inbox_view(id, el) {
-                            document.querySelectorAll('.inbox_card').forEach(el => {
-                                el.style.backgroundColor = 'rgb(247, 244, 244)';
-                            });
-                            if(id===last_id) {
-                                getel('inbox_view_display').style.display='none';
-                                getel('inbox_view_display').style.width='0%';
-                                getel('inbox_card_display').style.width='100%';
-                                last_id = '';
-                            } else {
-                                getel('inbox_view_display').style.display='flex';
-                                getel('inbox_view_display').style.width='70%';
-                                getel('inbox_card_display').style.width='35%';
-                                el.style.backgroundColor = "+js_lit(selected_color)+";
-                                last_id = id;
-                            }
-                        }
+        button {
+            text "SEND TEST";
+            "onclick" : capture(){
+                string uname = session.username;
+                string userstr = unit_timestamp+"_"+uname;
+                cry("SEND:"+to_string(sheetpool)+":"+unit_timestamp+"_"+sheetname+":Ash,");
+                ColColCol sent = cast_to(#colcolcol,box[0][1][unit_label]);
+                    Header rbn = sent.header.ribbon(userstr);
+                    rbn.putString("sent by",session.username);
+                    string ust = unit_standard_time;
+                    rbn.putString("time",ust);
+                    rbn.putString("sent to","Ash,");
+                    rbn.putString("message","Comments go here");
+                    rbn.putString("status","unknown");
+                sent.unlock; //Sent was returned as locked
+            }
+        }
 
-                        function mode_to_color(mode) {
-                            if(mode=='Approve') {return "+js_lit(mode_to_color("Approve"))+";}
-                            else if(mode=='Reject') {return "+js_lit(mode_to_color("Reject"))+";}
-                            else if(mode=='Return') {return "+js_lit(mode_to_color("Return"))+";}
-                            else {return 'White';}
-                        }
+        button {
+            text "DUMP BOX";
+            "onclick" : capture(){
+                acquire(box) {
+                    print("loaded the box: ",box);
+                    ColColCol sent = cast_to(#colcolcol,box[0][1][0]);
+                    print("Dumping sent");
+                    dump_pool(sent[0],true);
+                    dump_subunit(box,false);
 
-                        inbox_mode = "+js_lit(inbox_mode)+";
-                        function switch_mode(el) {
-                            mode = inbox_mode;
-                            if(inbox_mode==='Approve') {mode = 'Return';}
-                            else if(inbox_mode==='Return') {mode = 'Reject';}
-                            else if(inbox_mode==='Reject') {mode = 'Approve';}
+                }
+            }
+        }
 
-                            el.style.backgroundColor=mode_to_color(mode);
-                            document.querySelectorAll('.inbox_mode_button').forEach(el => {
-                                el.style.backgroundColor = mode_to_color(mode);
-                            });
-                            document.querySelectorAll('.inbox_mode_label').forEach(el => {
-                                el.innerText = mode;
-                            });
-                            inbox_mode = mode;
-                            inbox_pending = '';
-                        }
+        button {
+            text "HEADER TEST";
+            "onclick" : capture(){
+                string slabel = session.userpath+"one.gsu";
+                ColColCol ccc = usubunits.add(slabel);
+                string slabelT = session.userpath+"two.gsu";
+                ColColCol cccT = usubunits.add(slabelT);
 
-                        inbox_pending = '';
-                    ";
-                    script script_str;
+                ColCol cpool = ccc.add("Test");
+                Ptr int ip = cpool.add(int,"one");
+                ip.push(6); ip.push(12);
 
+                Header rbn = ccc.header.ribbonT("testing") {
+                    "sent by",session.username ;
+                    "send to","Ash and Pebble" ;
+                    "message","Hello World" ;
+                }
+                cccT.header;
 
-                    div inbox_display {
-                        "width" : "100%";
+                dump_subunit(ccc,true);
+                dump_subunit(cccT,false);
+            }
+        }
+
+            div {
+                "display" : "flex";
+                "min-height" : "100vh";
+                    side_bar("inbox");
+
+                    static Ptr to_render; to_render = deadptr;
+
+                    div inbox_main_display {
                         "display" : "flex";
-                        "gap" : "8px";
-                        "padding" : "8px";
-
-                        stateless template div file_temp(string filepath, string id, bool is_sent) {
-                            string time_sent = "Unknown, Unknown 32, 25:65pm";
-                            string sent_by = "Fir";
-                            string sent_to = "Fir,";
-                            string msg_status = "Unknown";
-                            string data_employee = "Fir";
-                            string data_amount = "0.00";
-                            string data_vendor = "Unknown";
-                            string data_kind = "Unknown";
-
-                            int spool = load_sheet_direct(filepath+"/"+id);
-                            if(has_sheet(spool,#headerpool)) {
-                                int header_at = find_sheet(spool,#headerpool);
-                                Ptr ribbon = deadptr;
-                                int i=plen(header_at)-1;
-                                while(i>=0) {
-                                    ribbon = makePtr3(header_at,i,0);
-                                    if(ribbon.label=="Ribbon") {
-                                        i=0;
-                                    }
-                                    i=i-1;
+                        "flex-direction" : "row";
+                            div part_display {
+                                if(is_live(to_render)) {
+                                    build_render_subunit(to_render);
                                 }
-                                if(is_live(ribbon)) {
-                                    for(int i=0;i<ribbon.length;i++) {
-                                        Ptr field = (ribbon|S=i);
-                                        //text field.celllabel+": "+value_as_string(*field) {text_theme}
-                                        if(field.celllabel=="sent by") {
-                                            sent_by = value_as_string(*field);
-                                        } else if(field.celllabel=="sent to") {
-                                            sent_to = value_as_string(*field);
-                                        } else if(field.celllabel=="time") {
-                                            time_sent = value_as_string(*field);
-                                        } else if(field.celllabel=="status") {
-                                            msg_status = value_as_string(*field);
+                            }
+                            acquire(box) {
+                                div {
+                                    "gap" : "5px";
+                                    text "Incoming";
+                                    for(int i=0;i<box[0][0].length;i++) {
+                                        div {
+                                            hoverable_theme;
+                                            text capture_ptr(box[0][0][i]) {text_theme;}
+                                            "onclick" : capture(
+                                                string capptr ; js_lit(capture_ptr(box[0][0][i]));
+                                            ){
+                                                to_render = from_string(capptr);
+                                                part_display.reload;
+                                            }
                                         }
-                                    }   
+                                    }
+                                }
+                                div {
+                                    "gap" : "5px";
+                                    text "Sent";
+                                    for(int i=0;i<box[0][1].length;i++) {
+                                        div {
+                                            hoverable_theme;
+                                            text capture_ptr(box[0][1][i]) {text_theme;}
+                                            "onclick" : capture(
+                                                string capptr ; js_lit(capture_ptr(box[0][1][i]));
+                                            ){
+                                                to_render = from_string(capptr);
+                                                part_display.reload;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                    }
+
+        if(false) {
+                    if(session.userpath.length==0) { 
+                        div {
+                            "justify-content" : "center";
+                            "align-items" : "center";
+                            text "Log in to see inbox" {
+                                "font-size" : "24px";
+                                text_theme;
+                            }
+                        }
+                    } else {
+                        static string inbox_viewing = "";
+                        static Node inbox_view_reload_target = deadptr;
+
+                        string selected_color = "rgba(130, 43, 111, 0.12)";
+                        
+                        string script_str = "
+                            last_id = "+js_lit(inbox_viewing)+";
+                            function toggle_inbox_view(id, el) {
+                                document.querySelectorAll('.inbox_card').forEach(el => {
+                                    el.style.backgroundColor = 'rgb(247, 244, 244)';
+                                });
+                                if(id===last_id) {
+                                    getel('inbox_view_display').style.display='none';
+                                    getel('inbox_view_display').style.width='0%';
+                                    getel('inbox_card_display').style.width='100%';
+                                    last_id = '';
                                 } else {
-                                    print("No ribbon found in headerpool at ",header_at);
+                                    getel('inbox_view_display').style.display='flex';
+                                    getel('inbox_view_display').style.width='70%';
+                                    getel('inbox_card_display').style.width='35%';
+                                    el.style.backgroundColor = "+js_lit(selected_color)+";
+                                    last_id = id;
                                 }
                             }
-                            if(has_sheet(spool,#datasheet)) {
-                                int data_at = find_sheet(spool,#datasheet);
-                                Ptr dcol = deadptr;
-                                int i=plen(data_at)-1;
-                                while(i>=0) {
-                                    dcol = makePtr3(data_at,i,0);
-                                    Ptr dcol_p = *dcol;
-                                    if(is_live(dcol_p)) {
-                                        if(dcol.label=="Total Amount") {
-                                            data_amount = to_string(*dcol_p);
-                                        } else if(dcol.label=="Vendor") {
-                                            data_vendor = *dcol_p;
-                                        } else if(dcol.label=="Expense Description") {
-                                            data_kind = *dcol_p;
-                                        } else if(dcol.label=="Employee Name") {
-                                            data_employee = *dcol_p;
-                                        }
+
+                            function mode_to_color(mode) {
+                                if(mode=='Approve') {return "+js_lit(mode_to_color("Approve"))+";}
+                                else if(mode=='Reject') {return "+js_lit(mode_to_color("Reject"))+";}
+                                else if(mode=='Return') {return "+js_lit(mode_to_color("Return"))+";}
+                                else {return 'White';}
+                            }
+
+                            inbox_mode = "+js_lit(inbox_mode)+";
+                            function switch_mode(el) {
+                                mode = inbox_mode;
+                                if(inbox_mode==='Approve') {mode = 'Return';}
+                                else if(inbox_mode==='Return') {mode = 'Reject';}
+                                else if(inbox_mode==='Reject') {if("+js_lit(session.role)+"==='admin') {mode = 'Approve';} else {mode = 'Return';}}
+
+                                el.style.backgroundColor=mode_to_color(mode);
+                                document.querySelectorAll('.inbox_mode_button').forEach(el => {
+                                    el.style.backgroundColor = mode_to_color(mode);
+                                });
+                                document.querySelectorAll('.inbox_mode_label').forEach(el => {
+                                    el.innerText = mode;
+                                });
+                                inbox_mode = mode;
+                                inbox_pending = '';
+                            }
+
+                            inbox_pending = '';
+                        ";
+                        script script_str;
+
+
+                        div inbox_display {
+                            "width" : "100%";
+                            "display" : "flex";
+                            "gap" : "8px";
+                            "padding" : "8px";
+
+                            static string selected_filepath; selected_filepath = "";
+                            static string selected_id; selected_id = "";
+                            static string selected_return_to; selected_return_to = "";
+                            div inbox_popup {
+                                message_draft_panel(selected_filepath,selected_id,0,selected_return_to);
+                            }
+
+                            stateless template div file_temp(string filepath, string id, int ledger_row, bool is_sent) {
+                                string sent_by = thistle_ledger["sent by"][ledger_row];
+                                string sent_to = thistle_ledger["sent to"][ledger_row];
+                                string time_sent = thistle_ledger["time"][ledger_row];
+                                string msg_status = thistle_ledger["status"][ledger_row];
+                                float data_amount = thistle_ledger["Total Amount"][ledger_row];
+                                string data_vendor = thistle_ledger["Vendor"][ledger_row];
+                                string data_kind = thistle_ledger["Expense Description"][ledger_row];
+                                string data_employee = thistle_ledger["Employee Name"][ledger_row];
+    
+                                string display_amount = "$"+to_string(data_amount);
+                                if(display_amount.find(".")>0) {
+                                    if((display_amount.find(".")+3)<display_amount.length) {
+                                        display_amount = display_amount.substr(0,display_amount.find(".")+3);
                                     }
-                                    i=i-1;
                                 }
-                            }
-                            
-                            string display_amount = "$"+data_amount;
-                            if(display_amount.find(".")>0) {
-                                if((display_amount.find(".")+3)<display_amount.length) {
-                                    display_amount = display_amount.substr(0,display_amount.find(".")+3);
+                                string display_name = id;
+                                if(id.find("_")>0) {
+                                    display_name = id.slice(id.find("_")+1,id.length);
                                 }
-                            }
-                            string display_name = id;
-                            if(id.find("_")>0) {
-                                display_name = id.slice(id.find("_")+1,id.length);
-                            }
-                            string display_date = time_sent;
-                            display_date = display_date.slice(",",1,2);
-                            
-                            div {
-                                "display" : "flex";
-                                "flex-direction" : "column";
-                                "gap" : "4px";
-                                "padding" : "6px";
-                                "border-radius" : "4px";
-                                "box-shadow" : "0 4px 24px rgba(0,0,0,0.08)";
-                                "class" : "inbox_card";
-                                "id" : append_to_inbox_ledger(spool);
-                                "order" : "0";
-                                "transition" : "background-color 0.2s ease";
-                                if(inbox_viewing==id) {
-                                    "background-color" : selected_color;
-                                }
-                                "onmouseenter" : "if(this.style.backgroundColor==='rgb(247, 244, 244)')this.style.backgroundColor='rgba(0,0,0,0.04)'";
-                                "onmouseleave" : "if(this.style.backgroundColor==='rgba(0, 0, 0, 0.04)')this.style.backgroundColor='rgb(247, 244, 244)'";
-                                card_theme;
-
-                                if(msg_status=="Template") {
-                                    text display_name {text_theme;}
-                                    "onclick" : capture(
-                                        string fidt ; js_lit(id),
-                                        string fpatht ; js_lit(filepath),
-                                        js_do("event.stopPropagation();"),
-                                    ) {
-                                        string new_name = fidt.slice(fidt.find("_")+1,fidt.length);
-                                        int spool = copy_sheet(fpatht+"/"+fidt);
-                                        rename_sheet(spool,new_name);
-                                        save_sheet(spool,session.userpath+"sheets/"+new_name);
-                                        remove_file(fpatht+"/"+fidt);
-                                        print("Moved ",new_name," to sheets");
-                                        emit_js("window.location.reload();");
+                                string display_date = time_sent;
+                                display_date = display_date.slice(",",1,2);
+                                
+                                div {
+                                    "display" : "flex";
+                                    "flex-direction" : "column";
+                                    "gap" : "4px";
+                                    "padding" : "6px";
+                                    "border-radius" : "4px";
+                                    "box-shadow" : "0 4px 24px rgba(0,0,0,0.08)";
+                                    "class" : "inbox_card";
+                                    "id" : "inbox_ledger_item_"+to_string(ledger_row);
+                                    "order" : "0";
+                                    "transition" : "background-color 0.2s ease";
+                                    if(inbox_viewing==id) {
+                                        "background-color" : selected_color;
                                     }
-                                } else {
-                                    div {
-                                        "display" : "flex";
-                                        "flex-direction" : "row";
-                                        "align-items" : "center";
-                                        "gap" : "8px";
-                                        "width" : "100%";
+                                    "onmouseenter" : "if(this.style.backgroundColor==='rgb(247, 244, 244)')this.style.backgroundColor='rgba(0,0,0,0.04)'";
+                                    "onmouseleave" : "if(this.style.backgroundColor==='rgba(0, 0, 0, 0.04)')this.style.backgroundColor='rgb(247, 244, 244)'";
+                                    card_theme;
 
-                                        name_chip(data_employee,true);
-                                        text data_employee {
-                                            "font-size" : "13px";
-                                            "font-weight" : "600";
-                                            text_theme;
+                                    if(msg_status=="Template") {
+                                        text display_name {text_theme;}
+                                        "onclick" : capture(
+                                            string fidt ; js_lit(id),
+                                            string fpatht ; js_lit(filepath),
+                                            js_do("event.stopPropagation();"),
+                                        ) {
+                                            string new_name = fidt.slice(fidt.find("_")+1,fidt.length);
+                                            int spool = copy_sheet(fpatht+"/"+fidt);
+                                            rename_sheet(spool,new_name);
+                                            save_sheet(spool,session.userpath+"sheets/"+new_name);
+                                            remove_file(fpatht+"/"+fidt);
+                                            print("Moved ",new_name," to sheets");
+                                            emit_js("window.location.reload();");
                                         }
-                                        text "->" {
-                                            "color" : "rgba(119,119,119,0.9)";
-                                            "font-size" : "12px";
-                                            "font-family" : "system-ui, sans-serif";
-                                            "flex-shrink" : "0";
-                                        }
-                                        name_chip(data_vendor,false);
-                                        text data_vendor {
-                                            "font-size" : "13px";
-                                            "font-weight" : "600";
-                                            text_theme;
-                                            "flex" : "1";
-                                            "flex-shrink" : "0";
-                                            "min-width" : "0";
-                                            "overflow" : "hidden";
-                                            "text-overflow" : "ellipsis";
-                                            "white-space" : "nowrap";
-                                        }
+                                    } else {
+                                        div {
+                                            "display" : "flex";
+                                            "flex-direction" : "row";
+                                            "align-items" : "center";
+                                            "gap" : "8px";
+                                            "width" : "100%";
 
-                                        button {
-                                            "border-radius" : "20px";
-                                            "class" : "inbox_mode_button";
-                                            "border" : "none";
-                                            "padding" : "6px 14px";
-                                            "flex-shrink" : "0";
-                                            "cursor" : "pointer";                                   
-                                            text inbox_mode {
-                                                "class" : "inbox_mode_label";
-                                                "font-size" : "12px"; 
-                                                "color" : "white"; 
+                                            name_chip(data_employee,true);
+                                            text data_employee {
+                                                "font-size" : "13px";
                                                 "font-weight" : "600";
                                                 text_theme;
                                             }
-                                            "background-color" : mode_to_color(inbox_mode);
-                                            "onclick" : capture(
-                                                string mypool_str ; js_lit(to_string(spool)),
-                                                string mypath ; js_lit(filepath+"/"+id),
-                                                string myname ; js_lit(id),
-                                                string reciver ; js_lit(sent_by),
-                                                string onmode ; js_do("
-                                                    event.stopPropagation(); 
-                                                    id = "+js_lit(id)+"; 
-                                                    if(inbox_pending===id) {
-                                                        this.style.backgroundColor = mode_to_color(inbox_mode);
-                                                        inbox_pending = '';
-                                                        return inbox_mode;
-                                                    } else {
-                                                        inbox_pending = id;
-                                                        document.querySelectorAll('.inbox_mode_button').forEach(el => {
-                                                            el.style.backgroundColor = mode_to_color(inbox_mode);
-                                                        });
-                                                        this.style.backgroundColor = 'gray';
-                                                        return 'Please Confirm';
-                                                    }
-                                                ")
-                                            ){
-                                                int mypool = from_string(mypool_str);                       
-                                                if(onmode=="Approve") {
-                                                    print("Clicked to approve");
-                                                        cry("APPROVE:"+mypath);
-                                                        delete_sheet(mypool);
-                                                        inbox_sheetpool = 0; inbox_sheetname = "";
-                                                        remove_file(mypath);
-                                                        inbox_display.reload;
-                                                } else if(onmode=="Return") {
-                                                    print("Clicked to return");
-                                                        return_message(myname,reciver,"Comments go here","returned");
-                                                        inbox_sheetpool = 0; inbox_sheetname = "";
-                                                        inbox_display.reload;
-                                                } else if(onmode=="Reject") {
-                                                    print("Clicked to reject");
-                                                } else if(onmode=="Please Confirm") {
-                                                    print("Please confirm");
-                                                }
+                                            text "->" {
+                                                "color" : "rgba(119,119,119,0.9)";
+                                                "font-size" : "12px";
+                                                "font-family" : "system-ui, sans-serif";
+                                                "flex-shrink" : "0";
                                             }
-                                        }
-                                    }
+                                            name_chip(data_vendor,false);
+                                            text data_vendor {
+                                                "font-size" : "13px";
+                                                "font-weight" : "600";
+                                                text_theme;
+                                                "flex" : "1";
+                                                "flex-shrink" : "0";
+                                                "min-width" : "0";
+                                                "overflow" : "hidden";
+                                                "text-overflow" : "ellipsis";
+                                                "white-space" : "nowrap";
+                                            }
 
-                                    div {
-                                        "display" : "flex";
-                                        "flex-direction" : "row";
-                                        "align-items" : "center";
-                                        div {
-                                            "flex" : "4";
-                                            "display" : "flex";
-                                            "flex-direction" : "column";
-                                            div {
-                                                "display" : "flex";
-                                                "flex-direction" : "row";
-                                                "align-items" : "center";
-                                                "gap" : "8px";
-                                                "width" : "100%";
-                                                div {
-                                                    "width" : "36px";
-                                                    "height" : "36px";
-                                                    "flex-shrink" : "0";
-                                                    "border-radius" : "6px";
-                                                    if(msg_status=="unknown") {
-                                                        "background-color" : "grey";
-                                                    } else if(msg_status=="returned") {
-                                                        "background-color" : mode_to_color("Return");
-                                                    } else if(msg_status=="approved") {
-                                                        "background-color" : mode_to_color("Approve");
-                                                    } else if(msg_status=="rejected") {
-                                                        "background-color" : mode_to_color("Reject");
+                                            //:inbox-mode-action-btn
+                                            button {
+                                                "border-radius" : "20px";
+                                                "class" : "inbox_mode_button";
+                                                "border" : "none";
+                                                "padding" : "6px 14px";
+                                                "flex-shrink" : "0";
+                                                "cursor" : "pointer";                                   
+                                                text inbox_mode {
+                                                    "class" : "inbox_mode_label";
+                                                    "font-size" : "12px"; 
+                                                    "color" : "white"; 
+                                                    "font-weight" : "600";
+                                                    text_theme;
+                                                }
+                                                "background-color" : mode_to_color(inbox_mode);
+                                                "onclick" : capture(
+                                                    string mypath ; js_lit(filepath),
+                                                    string myname ; js_lit(id),
+                                                    string reciver ; js_lit(sent_by),
+                                                    string onmode ; js_do("
+                                                        event.stopPropagation(); 
+                                                        id = "+js_lit(id)+"; 
+                                                        if(inbox_mode=='Return') {
+                                                            return inbox_mode;
+                                                        } else {
+                                                            if(inbox_pending===id) {
+                                                                this.style.backgroundColor = mode_to_color(inbox_mode);
+                                                                inbox_pending = '';
+                                                                return inbox_mode;
+                                                            } else {
+                                                                inbox_pending = id;
+                                                                document.querySelectorAll('.inbox_mode_button').forEach(el => {
+                                                                    el.style.backgroundColor = mode_to_color(inbox_mode);
+                                                                });
+                                                                this.style.backgroundColor = 'gray';
+                                                                return 'Please Confirm';
+                                                            }
+                                                        }
+                                                    ")
+                                                ){                   
+                                                    if(onmode=="Approve") {
+                                                        print("Clicked to approve");
+                                                            //cry("APPROVE:"+mypath+"/"+myname); Should be pool
+                                                            //delete_sheet(mypool);
+                                                            inbox_sheetpool = 0; inbox_sheetname = "";
+                                                            remove_file(mypath+"/"+myname);
+                                                            inbox_display.reload;
+                                                    } else if(onmode=="Return") {
+                                                        print("Clicked to return");
+                                                            selected_filepath = mypath;
+                                                            selected_id = myname;
+                                                            selected_return_to = reciver+",";
+                                                            message_draft_panel_open = true;
+                                                            inbox_popup.reload;
+                                                    } else if(onmode=="Reject") {
+                                                        print("Clicked to reject");
+                                                    } else if(onmode=="Please Confirm") {
+                                                        print("Please confirm");
                                                     }
                                                 }
-                                                div {
-                                                    "flex" : "1";
-                                                    "min-width" : "0";
-                                                    "display" : "flex";
-                                                    "flex-direction" : "column";
-                                                    "gap" : "2px";
-                                                    text display_date {"color" : "rgba(87, 87, 87, 0.9)"; "font-size" : "11px"; text_theme;}
-                                                    text data_kind {"color" : "rgba(61, 61, 61, 0.9)"; "font-size" : "12px"; text_theme;}
-                                                }
                                             }
-                                        }   
-                                        div {
-                                            "flex" : "3";
-                                            "flex-shrink" : "0";
-                                            "white-space" : "nowrap";
-                                            text display_amount {"font-size" : "16px"; "font-weight" : "600"; text_theme;}
                                         }
-                                    } 
-                                    "onclick" : capture(
-                                        string fid ; js_lit(id),
-                                        string fpath ; js_lit(filepath),
-                                        js_do("
-                                            toggle_inbox_view("+js_lit(id)+",this);
-                                            event.stopPropagation();
-                                        ")
-                                    ) {
-                                        if(inbox_viewing!=fid) {
-                                            inbox_sheetpool = load_sheet(fpath+"/"+fid);
-                                            inbox_sheetname = fid;
-                                            inbox_viewing = fid;
-                                            if(is_live(inbox_view_reload_target)) {
-                                                emit_reload(ctx,inbox_view_reload_target);
+
+                                        div {
+                                            "display" : "flex";
+                                            "flex-direction" : "row";
+                                            "align-items" : "center";
+                                            div {
+                                                "flex" : "4";
+                                                "display" : "flex";
+                                                "flex-direction" : "column";
+                                                div {
+                                                    "display" : "flex";
+                                                    "flex-direction" : "row";
+                                                    "align-items" : "center";
+                                                    "gap" : "8px";
+                                                    "width" : "100%";
+                                                    div {
+                                                        "width" : "36px";
+                                                        "height" : "36px";
+                                                        "flex-shrink" : "0";
+                                                        "border-radius" : "6px";
+                                                        if(msg_status=="unknown") {
+                                                            "background-color" : "grey";
+                                                        } else if(msg_status=="returned"||msg_status=="Returned") {
+                                                            "background-color" : mode_to_color("Return");
+                                                        } else if(msg_status=="approved") {
+                                                            "background-color" : mode_to_color("Approve");
+                                                        } else if(msg_status=="rejected") {
+                                                            "background-color" : mode_to_color("Reject");
+                                                        }
+                                                    }
+                                                    div {
+                                                        "flex" : "1";
+                                                        "min-width" : "0";
+                                                        "display" : "flex";
+                                                        "flex-direction" : "column";
+                                                        "gap" : "2px";
+                                                        text display_date {"color" : "rgba(87, 87, 87, 0.9)"; "font-size" : "11px"; text_theme;}
+                                                        text data_kind {"color" : "rgba(61, 61, 61, 0.9)"; "font-size" : "12px"; text_theme;}
+                                                    }
+                                                }
+                                            }   
+                                            div {
+                                                "flex" : "3";
+                                                "flex-shrink" : "0";
+                                                "white-space" : "nowrap";
+                                                text display_amount {"font-size" : "16px"; "font-weight" : "600"; text_theme;}
                                             }
-                                        } else {
-                                            inbox_viewing = "";
+                                        } 
+                                        "onclick" : capture(
+                                            string fid ; js_lit(id),
+                                            string fpath ; js_lit(filepath),
+                                            js_do("
+                                                toggle_inbox_view("+js_lit(id)+",this);
+                                                event.stopPropagation();
+                                            ")
+                                        ) {
+                                            if(inbox_viewing!=fid) {
+                                                inbox_sheetpool = load_sheet(fpath+"/"+fid);
+                                                inbox_sheetname = fid;
+                                                inbox_viewing = fid;
+                                                if(is_live(inbox_view_reload_target)) {
+                                                    emit_reload(ctx,inbox_view_reload_target);
+                                                }
+                                            } else {
+                                                inbox_viewing = "";
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
 
-                        if(inbox_on_tab=="Inbox") {
-                            files = list_files_in_directory(session.userpath+"inbox");
-                        } else if(inbox_on_tab=="Sent") {
-                            files = list_files_in_directory(session.userpath+"sent");
-                        }
-                        
-                        div {
-                            "id" : "inbox_card_display";
-                            "width" : (inbox_viewing.length>0? "35%" : "100%");
-                            "transition" : "width 0.2s ease";
-                            "display" : "flex";
-                            "flex-direction" : "column";
-                            "gap" : "2%";
-                            "overflow" : "hidden";
-                            div {
-                                "flex" : "1";
-                                "display" : "flex";
-                                "flex-direction" : "row";
-                                "justify-contents" : "start";
-                                "gap" : "2%";
-                                stateless template div inbox_tab(string label) {
-                                    div {
-                                        "flex" : "1";
-                                        "display" : "flex";
-                                        "justify-contents" : "center";
-                                        "align-items" : "center";
-                                        "border-radius" : "8px";
-                                        "background-color" : (inbox_on_tab==label?"rgb(188, 188, 188)":"white");
-                                        "onclick" : capture(
-                                            string flabel ; js_lit(label)
-                                        ){
-                                            inbox_on_tab=flabel;
-                                            inbox_display.reload;
-                                        }
-                                        "padding" : "4px";
-                                        text label {
-                                            "flex" : "1";
-                                            "margin" : "8px";
-                                            text_theme;
-                                        }
-                                    }
-                                }
-                                inbox_tab("Inbox");
-                                inbox_tab("Sent");
+                            if(inbox_on_tab=="Inbox") {
+                                files = list_files_in_directory(session.userpath+"inbox");
+                            } else if(inbox_on_tab=="Sent") {
+                                files = list_files_in_directory(session.userpath+"sent");
                             }
                             
                             div {
+                                "id" : "inbox_card_display";
+                                "width" : (inbox_viewing.length>0? "35%" : "100%");
+                                "transition" : "width 0.2s ease";
                                 "display" : "flex";
-                                "flex" : "20";
                                 "flex-direction" : "column";
-                                "gap" : "4px";
-
-                                begin_inbox_ledger;
-
+                                "gap" : "2%";
+                                "overflow" : "hidden";
                                 div {
-                                    "gap" : "6px";
+                                    "flex" : "1";
                                     "display" : "flex";
                                     "flex-direction" : "row";
-                                    if(inbox_on_tab=="Inbox") {
+                                    "justify-contents" : "start";
+                                    "gap" : "2%";
+                                    stateless template div inbox_tab(string label) {
+                                        div {
+                                            "flex" : "1";
+                                            "display" : "flex";
+                                            "justify-contents" : "center";
+                                            "align-items" : "center";
+                                            "border-radius" : "8px";
+                                            "background-color" : (inbox_on_tab==label?"rgb(188, 188, 188)":"white");
+                                            "onclick" : capture(
+                                                string flabel ; js_lit(label)
+                                            ){
+                                                inbox_on_tab=flabel;
+                                                inbox_display.reload;
+                                            }
+                                            "padding" : "4px";
+                                            text label {
+                                                "flex" : "1";
+                                                "margin" : "8px";
+                                                text_theme;
+                                            }
+                                        }
+                                    }
+                                    inbox_tab("Inbox");
+                                    //inbox_tab("Sent");
+                                }
+                                
+                                div {
+                                    "display" : "flex";
+                                    "flex" : "20";
+                                    "flex-direction" : "column";
+                                    "gap" : "4px";
+
+                                    begin_inbox_ledger;
+
+                                    for(int i=0;i<files.length;i++) {
+                                        if(inbox_on_tab=="Inbox") {
+                                            int spool = load_sheet_direct(session.userpath+"inbox/"+files.get(i));
+                                            append_to_inbox_ledger(spool);
+                                            if(has_sheet(spool,#headerpool)) {
+                                                int header_at = find_sheet(spool,#headerpool);
+                                                header_append_to_thistle_ledger(header_at);
+                                            }
+                                        }
+                                    }
+
+                                    div {
+                                        "gap" : "6px";
+                                        "display" : "flex";
+                                        "flex-direction" : "row";
                                         div {
                                             "width" : "30px";
                                             "height" : "30px";
@@ -2380,16 +2742,16 @@ inbox {
                                             }
                                         ";
 
-                                        for(int i=0;i<plen(inbox_ledger_pool);i++) {
-                                            Ptr col_p = makePtr3(inbox_ledger_pool,i,0);
+                                        for(int i=0;i<thistle_ledger.length;i++) {
+                                            Ptr col_p = thistle_ledger.get(i);
                                             string collabel = col_p.label;
                                             button {
                                                 string displaylabel = collabel;
-                                                print(collabel);
-                                                if(collabel=="Employee Name") {"display" : "flex"; displaylabel = "From";}
+                                                if(collabel=="sent by") {"display" : "flex"; displaylabel = "From";}
                                                 else if(collabel=="Report Date") {"display" : "flex"; displaylabel = "Time";}
                                                 else if(collabel=="Total Amount") {"display" : "flex"; displaylabel = "Amount";}
                                                 else if(collabel=="Expense Description") {"display" : "flex"; displaylabel = "Kind";}
+                                                else if(collabel=="status") {"display" : "flex"; displaylabel = "Status";}
                                                 else {"display" : "none";}
 
                                                 "border-radius" : "16px";
@@ -2405,6 +2767,7 @@ inbox {
                                                 }
                                                 "onclick" : capture(
                                                     string coltarget ; js_lit(collabel),
+                                                    string fcol_p ; js_lit(to_string(col_p)),
                                                     string sortkind ; js_do("
                                                         if(sortcol==="+js_lit(collabel)+"){
                                                             if(sortkind==='asc') sortkind = 'desc';
@@ -2418,7 +2781,8 @@ inbox {
                                                         return sortkind;
                                                     ")
                                                 ){
-                                                    string result = makeQuery(col_p).sort(sortkind).asIndexString();
+                                                    Ptr colp = from_string(fcol_p);
+                                                    string result = makeQuery(colp).sort(sortkind).asIndexString();
                                                     //webcorn_ledger_sort(inbox_ledger_pool,coltarget,sortkind);
                                                     emit_js("
                                                         const before = {};
@@ -2448,79 +2812,154 @@ inbox {
                                             }
                                         }
                                     }
-                                }
 
-                                for(int i=0;i<files.length;i++) {
-                                    if(inbox_on_tab=="Inbox") {
-                                        file_temp(session.userpath+"inbox",files.get(i),false);
-                                    } else if(inbox_on_tab=="Sent") {
-                                        file_temp(session.userpath+"sent",files.get(i),false);
+                                    for(int i=0;i<files.length;i++) {
+                                        if(inbox_on_tab=="Inbox") {
+                                            file_temp(session.userpath+"inbox",files.get(i),i,false);
+                                        } else if(inbox_on_tab=="Sent") {
+                                            file_temp(session.userpath+"sent",files.get(i),i,false);
+                                        }
                                     }
-                                }
 
-                                finish_inbox_ledger;
-                                script inbox_ledger_string;
+                                    finish_inbox_ledger;
+                                    script inbox_ledger_string;
+                                }
                             }
-                        }
 
-                        div {
-                            "id" : "inbox_view_display";
-                            "display" : (inbox_viewing.length>0?"flex":"none");
-                            "flex" : "2";
-                            "flex-direction" : "column";
-                            "gap" : "4px";
-                            "padding" : "8px";
-                            "border-radius" : "12px";
-                            "box-shadow" : "0 4px 24px rgba(0,0,0,0.08)";
-                            card_theme;
-                            div inner_inbox_view {
-                                inbox_view_reload_target = call_owner(inner_inbox_view);
-                                if(inbox_sheetpool!=0) {
-                                    string return_to = "";
-                                    if(has_sheet(inbox_sheetpool,#headerpool)) {
-                                        int header_at = find_sheet(inbox_sheetpool,#headerpool);
-                                        Ptr ribbon = deadptr;
-                                        int i=plen(header_at)-1;
-                                        while(i>=0) {
-                                            ribbon = makePtr3(header_at,i,0);
-                                            if(ribbon.label=="Ribbon") {
-                                                i=0;
-                                            }
-                                            i=i-1;
-                                        }
-                                        if(is_live(ribbon)) {
-                                            for(int i=0;i<ribbon.length;i++) {
-                                                Ptr field = (ribbon|S=i);
-                                                text field.celllabel+": "+value_as_string(*field) {text_theme}
-                                                if(field.celllabel=="sent by") {
-                                                    return_to = value_as_string(*field);
+                            div {
+                                "id" : "inbox_view_display";
+                                "display" : (inbox_viewing.length>0?"flex":"none");
+                                "flex" : "2";
+                                "flex-direction" : "column";
+                                "gap" : "4px";
+                                "padding" : "8px";
+                                "border-radius" : "12px";
+                                "box-shadow" : "0 4px 24px rgba(0,0,0,0.08)";
+                                card_theme;
+                                div inner_inbox_view {
+                                    inbox_view_reload_target = call_owner(inner_inbox_view);
+                                    if(inbox_sheetpool!=0) {
+                                        string return_to = "";
+                                        if(has_sheet(inbox_sheetpool,#headerpool)) {
+                                            int header_at = find_sheet(inbox_sheetpool,#headerpool);
+                                            Ptr ribbon = deadptr;
+                                            for(int i=0;i<utypes.get(header_at).length;i++) {
+                                                ribbon = makePtr3(header_at,i,0);
+                                                if(ribbon.label=="Ribbon") {
+                                                    string sentbytxt = *cast_to_Ptr(ribbon["sent by"]);
+                                                    return_to = sentbytxt;
+                                                    string messagetxt = *cast_to_Ptr(ribbon["message"]);
+                                                    string timetxt = *cast_to_Ptr(ribbon["time"]);
+                                                    bool is_mine = (sentbytxt == session.username);
+                                                    div {
+                                                        "display" : "flex";
+                                                        "flex-direction" : "row";
+                                                        "justify-content" : (is_mine ? "flex-end" : "flex-start");
+                                                        "align-items" : "flex-end";
+                                                        "gap" : "8px";
+                                                        "width" : "100%";
+                                                        "padding" : "4px 12px";
+
+                                                        if(!is_mine) { name_chip(sentbytxt, true); }
+
+                                                        div {
+                                                            "max-width" : "70%";
+                                                            "display" : "flex";
+                                                            "flex-direction" : "column";
+                                                            "gap" : "4px";
+                                                            "align-items" : (is_mine ? "flex-end" : "flex-start");
+
+                                                            div {
+                                                                "background-color" : (is_mine ? "rgb(172, 57, 147)" : "rgb(165, 165, 165)");
+                                                                "border-radius" : (is_mine ? "16px 16px 4px 16px" : "16px 16px 16px 4px");
+                                                                "padding" : "10px 14px";
+                                                                text messagetxt {
+                                                                    "font-size" : "13px";
+                                                                    "color" : (is_mine ? "white" : "rgb(60,60,60)");
+                                                                    "font-family" : "system-ui, sans-serif";
+                                                                }
+                                                            }
+                                                            text timetxt {
+                                                                "font-size" : "11px";
+                                                                "color" : "rgb(160,160,160)";
+                                                                "font-family" : "system-ui, sans-serif";
+                                                            }
+                                                        }
+                                                        if(is_mine) { name_chip(sentbytxt, true); }
+                                                    }
                                                 }
-                                            }   
-                                        } else {
-                                            print("No ribbon found in headerpool at ",header_at);
-                                        }
-                                    }
+                                            }
+                                            div {
+                                                "display" : "flex";
+                                                "flex-direction" : "row";
+                                                "align-items" : "center";
+                                                "gap" : "8px";
+                                                "padding" : "8px 12px";
+                                                "border-top" : "1px solid rgb(220,220,220)";
+                                                "margin-top" : "auto";
 
-                                    render_form(inbox_sheetpool,false);
+                                                div {
+                                                    "width" : "32px";
+                                                    "height" : "32px";
+                                                    "border-radius" : "50%";
+                                                    "background-color" : mode_to_color(inbox_mode);
+                                                    "flex-shrink" : "0";
+                                                    "cursor" : "pointer";
+                                                    "class" : "inbox_mode_button";
+                                                    "onclick" : capture(
+                                                        string onmode ; js_do("switch_mode(this); return inbox_mode;")
+                                                    ){
+                                                        inbox_mode = onmode;
+                                                    }
+                                                }
 
-                                    button {
-                                        text "Dump" {text_theme;}
-                                        "onclick" : capture{ 
-                                            dump_sheet(inbox_sheetpool);
-                                        }
-                                    }
+                                                string return_behaviour = capture(
+                                                    string myname ; js_lit(inbox_sheetname),
+                                                    string myreply ; "getel('inbox_return_input').value",
+                                                    string reciver ; js_lit(return_to),
+                                                ){
+                                                    return_message(myname, reciver, myreply, inbox_mode+"ed");
+                                                    emit_js("window.location.reload()");
+                                                };
 
-                                    button {
-                                        text "Save" {text_theme;}
-                                        "onclick" : capture{ 
-                                            save_sheet(inbox_sheetpool,session.userpath+"inbox/"+inbox_sheetname);
+                                                input {
+                                                    "id" : "inbox_return_input";
+                                                    "flex" : "1";
+                                                    "background-color" : "rgb(240, 240, 240)";
+                                                    "placeholder" : "Reply...";
+                                                    "border" : "none";
+                                                    "border-radius" : "20px";
+                                                    "padding" : "8px 14px";
+                                                    "font-size" : "13px";
+                                                    "font-family" : "system-ui, sans-serif";
+                                                    "onchange" : return_behaviour;
+                                                }
+
+                                                div {
+                                                    "width" : "32px";
+                                                    "height" : "32px";
+                                                    "border-radius" : "50%";
+                                                    "background-color" : "rgb(172, 57, 147)";
+                                                    "flex-shrink" : "0";
+                                                    "cursor" : "pointer";
+                                                    "display" : "flex";
+                                                    "align-items" : "center";
+                                                    "justify-content" : "center";
+                                                    text "↑" {
+                                                        "color" : "white";
+                                                        "font-size" : "16px";
+                                                        "font-family" : "system-ui, sans-serif";
+                                                    }
+                                                    "onclick" : return_behaviour;
+                                                }
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
                     }
-                }
+            }
         }
     }
 }
@@ -2991,293 +3430,341 @@ audit {
 
 
 admin {
-    div {
-        style "
-            td:hover {
-                background-color:rgb(234, 234, 234);
-            }
-            input:focus {
-                outline: none;
-            }
-            textarea:focus {
-                outline: none;
-            }
+    if(session.role!="admin") {
+        print(session.username," attempted unauthorized access to the admin route in unit ",unit_uid," on ",unit_standard_time); 
+        script js_do("window.location.href = '/'");
+    } else {
+        div {
+            style "
+                td:hover {
+                    background-color:rgb(234, 234, 234);
+                }
+                input:focus {
+                    outline: none;
+                }
+                textarea:focus {
+                    outline: none;
+                }
 
-            * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }
-            @keyframes fadeIn {
-                from { opacity: 0; }
-                to { opacity: 1; }
-            }
-        ";
-        script read_file("web/webcorn.js");
+                * {
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                }
+                @keyframes fadeIn {
+                    from { opacity: 0; }
+                    to { opacity: 1; }
+                }
+            ";
+            script read_file("web/webcorn.js");
 
-        "display" : "flex";
-        "min-height" : "100vh";
-            side_bar("admin");
-            background_theme;
+            "display" : "flex";
+            "min-height" : "100vh";
+                side_bar("admin");
+                background_theme;
 
-            div user_display {
-                "display" : "flex";
-                "flex-direction" : "row";
-                "width" : "100%";
-                "height" : "100%";
-                "gap" : "1%";
+                div user_display {
+                    "display" : "flex";
+                    "flex-direction" : "row";
+                    "width" : "100%";
+                    "height" : "100%";
+                    "gap" : "1%";
 
-                static string admin_custom_user;
-                
-                stateless template div user_card(string username) {
+                    static string admin_custom_user;
+                    
+                    stateless template div user_card(string username) {
+                        div {
+                            "flex" : "1";
+                            "padding" : "8px";
+                            "border-radius" : "10px";
+                            card_theme;
+                            "display" : "flex";
+                            "flex-direction" : "row";
+                            "gap" : "1%";
+                            div {
+                                "flex" : "2";
+                                text username {
+                                    "font-size" : "16px";
+                                    text_theme;
+                                }
+                                "onclick" : capture(string userstr ; js_lit(username)) {
+                                    if(admin_selected_user==userstr) {
+                                        admin_selected_user = "";
+                                    } else {
+                                        admin_selected_user = userstr;
+                                    }
+                                    user_display.reload;
+                                }
+                            }
+                            div {
+                                "flex" : "1";
+                                "display" : "flex";
+                                "justify-content" : "center";
+                                "align-items" : "center";
+                                text "C" {
+                                    "font-size" : "16px";
+                                    text_theme;
+                                }
+                                "onclick" : capture(string userstr ; js_lit(username)) {
+                                    admin_custom_user = userstr;
+                                    user_display.reload;
+                                }
+                            }
+                            div {
+                                "flex" : "1";
+                                "display" : "flex";
+                                "justify-content" : "center";
+                                "align-items" : "center";
+                                text "X" {
+                                    "font-size" : "16px";
+                                    text_theme;
+                                }
+                                static string popup_confirm_delete_target;
+                                if(popup_confirm_delete_target==username) {
+                                    div {
+                                        "onclick" : capture {
+                                            popup_confirm_delete_target = "";
+                                            user_display.reload;
+                                        }
+                                        popup_background_theme;
+                                        div {
+                                            popup_panel_theme;
+                                            text "Are you sure you want to delete "+username+"?" {
+                                                "font-size" : "15px";
+                                                text_theme;
+                                            }
+                                            div {
+                                                "display" : "flex";
+                                                "gap" : "12px";
+                                                button {
+                                                    text "Yes";
+                                                    "onclick" : capture(
+                                                        js_do("event.stopPropagation();"),
+                                                        string ptarget ; js_lit(popup_confirm_delete_target)
+                                                    ){
+                                                        remove_directory("web/thistle/users/"+ptarget);
+                                                        popup_confirm_delete_target = "";
+                                                        user_display.reload;
+                                                    }
+                                                }
+                                                button {
+                                                    text "No";
+                                                    "onclick" : capture(
+                                                        js_do("event.stopPropagation();")
+                                                    ){
+                                                        popup_confirm_delete_target = "";
+                                                        user_display.reload;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                "onclick" : capture(string userstr ; js_lit(username)) {
+                                    popup_confirm_delete_target = userstr;
+                                    user_display.reload;
+                                }
+                            }
+                        }
+                    }
+
+                    if(admin_custom_user.length!=0) {
+                        div {
+                            "onclick" : capture(js_do("event.stopPropagation();")) {
+                                admin_custom_user = "";
+                                user_display.reload;
+                            }
+                            popup_background_theme;
+                            static string given_username;
+                            static string given_password;
+                            static string given_role;
+                            static string given_org;
+
+                            if(admin_custom_user.slice(0,1)=="[") {
+                                given_username = "";
+                                given_password = "";
+                            } else {
+                                string userinfo = read_file("web/thistle/users/"+admin_custom_user+"/userinfo");
+
+                                given_role = userinfo.slice(0,userinfo.find("\n"));
+                                given_org = userinfo.slice("\n",1,2);
+                                given_password = userinfo.substr(userinfo.find("\n",0,2)+1);
+
+                                given_username = admin_custom_user;
+                            }
+
+                            div create_user_display {
+                                popup_panel_theme;
+                                text "Username" {
+                                    "font-size" : "15px";
+                                    text_theme;
+                                }
+                                input {
+                                    if(given_username=="") {
+                                        "border" : "none";
+                                        "border-bottom" : "2px solid rgb(255, 0, 0)";
+                                    } else {
+                                        "value" : given_username;
+                                    }
+                                    form_input_theme;
+                                    "onchange" : capture(string myval ; "this.value"){
+                                        given_username = myval;
+                                        create_user_display.reload;
+                                    }
+                                }   
+
+                                text "Password" {
+                                    "font-size" : "15px";
+                                    text_theme;
+                                }
+                                input {
+                                    if(given_password=="") {
+                                        "border" : "none";
+                                        "border-bottom" : "2px solid rgb(255, 0, 0)";
+                                    } else {
+                                        "value" : given_password;
+                                    }
+                                    "type" : "password";
+                                    form_input_theme;
+                                    "onchange" : capture(string myval ; "this.value"){
+                                        given_password = secure_hash(myval);
+                                        create_user_display.reload;
+                                    }
+                                }   
+
+                                text "Role" {
+                                    "font-size" : "15px";
+                                    text_theme;
+                                }
+                                input {
+                                    if(given_role=="") {
+                                        "border" : "none";
+                                        "border-bottom" : "2px solid rgb(255, 0, 0)";
+                                    } else {
+                                        "value" : given_role;
+                                    }
+                                    form_input_theme;
+                                    "onchange" : capture(string myval ; "this.value"){
+                                        given_role = myval;
+                                        create_user_display.reload;
+                                    }
+                                }   
+
+                                text "Org" {
+                                    "font-size" : "15px";
+                                    text_theme;
+                                }
+                                input {
+                                    if(given_org=="") {
+                                        "border" : "none";
+                                        "border-bottom" : "2px solid rgb(255, 0, 0)";
+                                    } else {
+                                        "value" : given_org;
+                                    }
+                                    form_input_theme;
+                                    "onchange" : capture(string myval ; "this.value"){
+                                        given_org = myval;
+                                        create_user_display.reload;
+                                    }
+                                }   
+
+                                button {
+                                    text "Confirm";
+                                    if(admin_custom_user=="[NEW]") {
+                                        "onclick" : capture(
+                                            js_do("event.stopPropagation();")
+                                        ){
+                                            string new_path = "web/thistle/users/"+given_username;
+                                            if(given_username.length>0) {
+                                                create_directory(new_path);
+                                                create_directory(new_path+"/sheets");
+                                                create_directory(new_path+"/inbox");
+                                                if(given_password.length>0) {
+                                                    write_file(new_path+"/userinfo",given_role+"\n"+given_org+"\n"+given_password);
+                                                }
+                                                admin_custom_user = "";
+                                            }
+                                            user_display.reload;
+                                        }
+                                    } else {
+                                        "onclick" : capture(
+                                            js_do("event.stopPropagation();")
+                                        ){
+                                            print("Renaming ",admin_custom_user," to ",given_username);
+                                            string new_path = "web/thistle/users/"+given_username;
+                                            rename_file("web/thistle/users/"+admin_custom_user, new_path);
+                                            print("Changing password for ",admin_custom_user);
+                                            write_file(new_path+"/userinfo",given_role+"\n"+given_org+"\n"+given_password);
+                                            admin_custom_user = "";
+                                            user_display.reload;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
                     div {
                         "flex" : "1";
-                        "padding" : "8px";
-                        "border-radius" : "10px";
-                        card_theme;
                         "display" : "flex";
-                        "flex-direction" : "row";
+                        "flex-direction" : "column";
                         "gap" : "1%";
+                        Ptr string directories = list_directories_in_directory("web/thistle/users");
+                        for(int i=0;i<directories.length;i++) {
+                            user_card(directories.get(i));
+                        }
+                        div {
+                            "flex" : "1";
+                            "padding" : "8px";
+                            "border-radius" : "10px";
+                            card_theme;
+                            "display" : "flex";
+                            "flex-direction" : "row";
+                            "justify-contents" : "center";
+                            "align-items" : "center";
+                            text "+" {
+                                "font-size" : "16px";
+                                text_theme;
+                            }
+                            "onclick" : capture {
+                                admin_custom_user = "[NEW]";
+                                user_display.reload;
+                            }
+                        }
+                    }
+
+                    if(admin_selected_user.length!=0) {
                         div {
                             "flex" : "2";
-                            text username {
-                                "font-size" : "16px";
+                            "border-radius" : "8px";
+                            card_theme;
+
+                            text admin_selected_user {
+                                "font-size" : "18px";
+                                "font-weight" : "800";
                                 text_theme;
                             }
-                            "onclick" : capture(string userstr ; js_lit(username)) {
-                                if(admin_selected_user==userstr) {
-                                    admin_selected_user = "";
-                                } else {
-                                    admin_selected_user = userstr;
-                                }
-                                user_display.reload;
-                            }
-                        }
-                        div {
-                            "flex" : "1";
-                            "display" : "flex";
-                            "justify-content" : "center";
-                            "align-items" : "center";
-                            text "C" {
-                                "font-size" : "16px";
-                                text_theme;
-                            }
-                            "onclick" : capture(string userstr ; js_lit(username)) {
-                                admin_custom_user = userstr;
-                                user_display.reload;
-                            }
-                        }
-                        div {
-                            "flex" : "1";
-                            "display" : "flex";
-                            "justify-content" : "center";
-                            "align-items" : "center";
-                            text "X" {
-                                "font-size" : "16px";
-                                text_theme;
-                            }
-                            static string popup_confirm_delete_target;
-                            if(popup_confirm_delete_target==username) {
-                                div {
-                                    "onclick" : capture {
-                                        popup_confirm_delete_target = "";
-                                        user_display.reload;
-                                    }
-                                    popup_background_theme;
-                                    div {
-                                        popup_panel_theme;
-                                        text "Are you sure you want to delete "+username+"?" {
-                                            "font-size" : "15px";
-                                            text_theme;
-                                        }
-                                        div {
-                                            "display" : "flex";
-                                            "gap" : "12px";
-                                            button {
-                                                text "Yes";
-                                                "onclick" : capture(
-                                                    js_do("event.stopPropagation();"),
-                                                    string ptarget ; js_lit(popup_confirm_delete_target)
-                                                ){
-                                                    remove_directory("web/thistle/users/"+ptarget);
-                                                    popup_confirm_delete_target = "";
-                                                    user_display.reload;
-                                                }
-                                            }
-                                            button {
-                                                text "No";
-                                                "onclick" : capture(
-                                                    js_do("event.stopPropagation();")
-                                                ){
-                                                    popup_confirm_delete_target = "";
-                                                    user_display.reload;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            "onclick" : capture(string userstr ; js_lit(username)) {
-                                popup_confirm_delete_target = userstr;
-                                user_display.reload;
-                            }
-                        }
-                    }
-                }
 
-                if(admin_custom_user.length!=0) {
-                    div {
-                        "onclick" : capture(js_do("event.stopPropagation();")) {
-                            admin_custom_user = "";
-                            user_display.reload;
-                        }
-                        popup_background_theme;
-                        static string given_username;
-                        static string given_password;
+                            Ptr string usersheets = list_files_in_directory("web/thistle/users/"+admin_selected_user+"/sheets");
+                            Ptr string userinbox = list_files_in_directory("web/thistle/users/"+admin_selected_user+"/inbox");
+                            int lenr = usersheets.length;
+                            if(userinbox.length>usersheets.length) {lenr = userinbox.length;}
 
-                        if(admin_custom_user.slice(0,1)=="[") {
-                            given_username = "";
-                            given_password = "";
-                        } else {
-                            string userinfo = read_file("web/thistle/users/"+admin_custom_user+"/userinfo");
-                            given_username = admin_custom_user;
-                            given_password = userinfo;
-                        }
-
-                        div create_user_display {
-                            popup_panel_theme;
-                            text "Username" {
-                                "font-size" : "15px";
-                                text_theme;
-                            }
-                            input {
-                                if(given_username=="") {
-                                    "border" : "none";
-                                    "border-bottom" : "2px solid rgb(255, 0, 0)";
-                                } else {
-                                    "value" : given_username;
-                                }
-                                form_input_theme;
-                                "onchange" : capture(string myval ; "this.value"){
-                                    given_username = myval;
-                                    create_user_display.reload;
-                                }
-                            }   
-
-                            text "Password" {
-                                "font-size" : "15px";
-                                text_theme;
-                            }
-                            input {
-                                if(given_password=="") {
-                                    "border" : "none";
-                                    "border-bottom" : "2px solid rgb(255, 0, 0)";
-                                } else {
-                                    "value" : given_password;
-                                }
-                                form_input_theme;
-                                "onchange" : capture(string myval ; "this.value"){
-                                    given_password = myval;
-                                    create_user_display.reload;
-                                }
-                            }   
-
-                            button {
-                                text "Confirm";
-                                if(admin_custom_user=="[NEW]") {
-                                    "onclick" : capture(
-                                        js_do("event.stopPropagation();")
-                                    ){
-                                        string new_path = "web/thistle/users/"+given_username;
-                                        if(given_username.length>0) {
-                                            create_directory(new_path);
-                                            create_directory(new_path+"/sheets");
-                                            create_directory(new_path+"/inbox");
-                                            if(given_password.length>0) {
-                                                write_file(new_path+"/userinfo",given_password);
-                                            }
-                                            admin_custom_user = "";
-                                        }
-                                        user_display.reload;
-                                    }
-                                } else {
-                                     "onclick" : capture(
-                                        js_do("event.stopPropagation();")
-                                    ){
-                                        print("Renaming ",admin_custom_user," to ",given_username);
-                                        string new_path = "web/thistle/users/"+admin_custom_user;
-                                        rename_file(new_path, "web/thistle/users/"+given_username);
-                                        print("Changing password for ",admin_custom_user," to ",given_password);
-                                        write_file(new_path+"/userinfo",given_password);
-                                        admin_custom_user = "";
-                                        user_display.reload;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                div {
-                    "flex" : "1";
-                    "display" : "flex";
-                    "flex-direction" : "column";
-                    "gap" : "1%";
-                    Ptr string directories = list_directories_in_directory("web/thistle/users");
-                    for(int i=0;i<directories.length;i++) {
-                        user_card(directories.get(i));
-                    }
-                    div {
-                        "flex" : "1";
-                        "padding" : "8px";
-                        "border-radius" : "10px";
-                        card_theme;
-                        "display" : "flex";
-                        "flex-direction" : "row";
-                        "justify-contents" : "center";
-                        "align-items" : "center";
-                        text "+" {
-                            "font-size" : "16px";
-                            text_theme;
-                        }
-                        "onclick" : capture {
-                            admin_custom_user = "[NEW]";
-                            user_display.reload;
-                        }
-                    }
-                }
-
-                if(admin_selected_user.length!=0) {
-                    div {
-                        "flex" : "2";
-                        "border-radius" : "8px";
-                        card_theme;
-
-                        text admin_selected_user {
-                            "font-size" : "18px";
-                            "font-weight" : "800";
-                            text_theme;
-                        }
-
-                        Ptr string usersheets = list_files_in_directory("web/thistle/users/"+admin_selected_user+"/sheets");
-                        Ptr string userinbox = list_files_in_directory("web/thistle/users/"+admin_selected_user+"/inbox");
-                        int lenr = usersheets.length;
-                        if(userinbox.length>usersheets.length) {lenr = userinbox.length;}
-
-                        table {
-                            row {
-                                column {text "Sheets" {text_theme;}}
-                                column {text "Inbox" {text_theme;}}
-                            }
-                            for(int r=0;r<lenr;r++) {
+                            table {
                                 row {
-                                    if(r<usersheets.length) {column {text usersheets.get(r) {text_theme;}}}
-                                    if(r<userinbox.length) {column {text userinbox.get(r) {text_theme;}}}
+                                    column {text "Sheets" {text_theme;}}
+                                    column {text "Inbox" {text_theme;}}
+                                }
+                                for(int r=0;r<lenr;r++) {
+                                    row {
+                                        if(r<usersheets.length) {column {text usersheets.get(r) {text_theme;}}}
+                                        if(r<userinbox.length) {column {text userinbox.get(r) {text_theme;}}}
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
+        }
     }
 }

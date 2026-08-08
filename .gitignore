@@ -2,6 +2,7 @@
 cmake-build-*/
 /web/files
 /web/thistle/users
+/web/thistle/subunits
 /web/goldensystems/files
 /ext/mbedtls
 *.DS_Store
