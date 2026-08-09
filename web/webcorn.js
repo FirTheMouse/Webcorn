@@ -9,14 +9,14 @@ function resetWebrunner() {
     });
 }
 
-const parser = new DOMParser();
-const doc = parser.parseFromString(html, 'text/html');
-Array.from(doc.body.children).forEach(newEl => {
-    if(newEl.id) {
-        const targets = Array.from(document.querySelectorAll('#'+newEl.id));
-        targets.forEach(el => el.outerHTML = newEl.outerHTML);
-    }
-});
+// const parser = new DOMParser();
+// const doc = parser.parseFromString(html, 'text/html');
+// Array.from(doc.body.children).forEach(newEl => {
+//     if(newEl.id) {
+//         const targets = Array.from(document.querySelectorAll('#'+newEl.id));
+//         targets.forEach(el => el.outerHTML = newEl.outerHTML);
+//     }
+// });
 
 function run(ptr, ...captures) {
     const body = [ptr, ...captures].join('@'); //@ is the delmiter we use for runs
@@ -53,6 +53,60 @@ function run(ptr, ...captures) {
     //     }
     // });
 }
+
+function make_snap(el) {
+    el.joint = null;
+    el.unlockJoint = false;
+    el.snap_children = [];
+    el.snap_parent = null;
+
+    el.updateTransform = function() {
+        let doUpdate = true;
+        if(!this.unlockJoint && this.joint) {
+            doUpdate = this.joint();
+        }
+        for(const c of this.snap_children) {
+            c.updateTransform();
+        }
+        if(!doUpdate) return;
+    };
+
+    el.addSnapChild = function(child) {
+        make_snap(child);
+        child.snap_parent = this;
+        this.snap_children.push(child);
+    };
+
+    return el;
+}
+
+const snap_roots = [];
+
+function make_snap_root(el) {
+    make_snap(el);
+    el.joint = function() {return true;}
+    snap_roots.push(el);
+    return el;
+}
+
+function update_all_transforms() {
+    for(const root of snap_roots) {
+        root.updateTransform();
+    }
+}
+
+window.addEventListener('resize', update_all_transforms);
+window.addEventListener('scroll', update_all_transforms, true);
+window.addEventListener('load', update_all_transforms);
+
+// let mouse_x = 0;
+// let mouse_y = 0;
+// document.addEventListener('mousemove', (e) => {
+//     mouse_x = e.clientX;
+//     mouse_y = e.clientY;
+//     update_all_transforms();
+// });
+
 
 
 function fragthree(target, instruction, content) {
@@ -113,3 +167,5 @@ function postForm(fields) {
     document.body.appendChild(form);
     form.submit();
 }
+
+

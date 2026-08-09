@@ -285,7 +285,8 @@ namespace Acorn {
             #else
                 unsigned char buf[32];
                 int fd = open("/dev/urandom", O_RDONLY);
-                (void)::read(fd, buf, 32);
+                ssize_t n = ::read(fd, buf, 32);
+                if(n != 32) { ::close(fd); return ""; }
                 ::close(fd);
                 std::string token = "";
                 const char* hex = "0123456789abcdef";
@@ -621,6 +622,7 @@ namespace Acorn {
                 }
             } catch(std::exception& e) {
                 print(red("webcorn:webcorn_read exception thrown: "),e.what());   
+                request = "BADREQUEST";
             }
             return request;
         }
@@ -644,7 +646,7 @@ namespace Acorn {
                 print(uid," has no current tls for write");
             }
             #endif
-            (void)WRITE_SOCKET(fd, (const char*)s.data(), s.size());
+            ssize_t wres = WRITE_SOCKET(fd, (const char*)s.data(), s.size());
         }
         void webcorn_close(int fd) {
             #if USE_TLS
@@ -800,16 +802,22 @@ namespace Acorn {
             });
         });
 
+        std::string get_compiler_flag(const std::string& flag) {
+            for(std::string& a : uargs) {
+                if(a.find(flag) == 0) {
+                    return a.substr(flag.length()+1); //Everything after the prefix
+                }
+            }
+            return "";
+        }
+
         //This is a thistle specific thing for now, until I can generilize it.
         uint32_t ledgerpool = 0;
 
         void manage_sessions(const std::string& unitcode) {
-            std::string sessionpath = "web/thistle/";
-            for(std::string& a : uargs) {
-                if(a.find("--project") == 0) {
-                    sessionpath = a.substr(10); //Everything after the prefix
-                    break;
-                }
+            std::string sessionpath = get_compiler_flag("--project");
+            if(sessionpath.empty()) {
+                sessionpath = "web/thistle/";;
             }
             print("Session path: ",sessionpath);
 
@@ -1137,6 +1145,9 @@ namespace Acorn {
             });
         });
 
+
+
+
         uint32_t dispatch_unit_id = add_function("dispatch_unit",[this](Context& ctx){
             standard_sub_process(ctx);
             std::string session = string(*(Ptr*)ctx.node().children()[0].value().get()).to_std();
@@ -1145,8 +1156,12 @@ namespace Acorn {
             std::string unitcode = string(*(Ptr*)ctx.node().children()[3].value().get()).to_std();
 
             uint32_t sessionhash = 0;
+            bool any_can_serve = false;
             if(!session.empty()) {
-                if(distributed_tokens.hasKey(session)) {
+                if(session=="ANYSERVE") {
+                    any_can_serve = true;
+                }
+                else if(distributed_tokens.hasKey(session)) {
                     sessionhash = hashBytes(session.data(),session.length());
                 }
             }
@@ -1154,7 +1169,7 @@ namespace Acorn {
             g_ptr<Server> server = nullptr;
             {
                 std::lock_guard<std::mutex> lock(servers_mutex);
-                if(sessionhash) {
+                if(sessionhash!=0) {
                     for(int i=0;i<servers.length();i++) {
                         if(servers[i]->gethash()==sessionhash) {
                             server = servers[i];
@@ -1176,8 +1191,8 @@ namespace Acorn {
                         return;
                     }
                 } else {
-                    for(int i=0;i<servers.length();i++) {
-                        if(servers[i]->gethash()==0 && servers[i]->getfd()==0) {
+                    for(int i=1;i<servers.length();i++) { //Server 1 is the session manager, so not avaliable for file serving
+                        if((servers[i]->gethash()==0||any_can_serve) && servers[i]->getfd()==0) {
                             server = servers[i];
                             print("Found avaliable server unit ",server->unit);
                             break;
@@ -1384,7 +1399,7 @@ namespace Acorn {
             }
             
             frame += message;
-            WRITE_SOCKET(fd, frame.data(), frame.size());
+            size_t wres = WRITE_SOCKET(fd, frame.data(), frame.size());
         }
 
         

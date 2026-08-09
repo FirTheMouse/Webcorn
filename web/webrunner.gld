@@ -612,12 +612,39 @@ while(0<1) {
         print("Unit ",unit_uid," recived request ",cfd);
         string req = unit_label;
 
+        
+
         string current_session_token = get_cookie(req,"session");
 
         //print("Req:\n",req);
 
         string first_line = req.substr(0, req.find("\r\n"));
         string method = first_line.substr(0, first_line.find(" "));
+
+        if(method=="SERVE") {
+            string to_serve = first_line.slice(first_line.find(" ")+1, first_line.length);
+
+            string mime = "application/octet-stream";
+            if(to_serve.find(".png") > 0)  {mime = "image/png";}
+            if(to_serve.find(".jpg") > 0)  {mime = "image/jpeg";}
+            if(to_serve.find(".webp") > 0) {mime = "image/webp";}
+            if(to_serve.find(".js") > 0)   {mime = "application/javascript";}
+            if(to_serve.find(".css") > 0)  {mime = "text/css";}
+
+            print("Serving file ",to_serve);
+            string info = read_file(to_serve);
+            string response = "HTTP/1.1 200 OK\r\n"
+                            + "Content-Type: " + mime + "\r\n"
+                            + "Content-Length: " + to_string(info.length) + "\r\n"
+                            + "\r\n";
+            response += info;
+            write(cfd, response);
+            close(cfd);
+            print("Unit ", unit_uid, " completed file request ", cfd, " in ", tstop("request_timer"));
+            unit_setindex(0);
+            continue;
+        }
+
         string slashpath = first_line.slice(" ", 1, 2);
         string unslashpath = slashpath.substr(1,slashpath.length-1); //Strip the slash
         print("Method: ",method);
@@ -633,7 +660,6 @@ while(0<1) {
                 if(unslashpath.slice(i-1,i)=="/") {strip_to_directory = unslashpath.slice(0,i-1); i=0;}
             }
             if(strip_to_directory.length>0&&((strip_to_directory==session.userpath)||file_whitelist.has(strip_to_directory))) {
-                print("Serving file ",unslashpath);
                 string mime = "application/octet-stream";
                 if(unslashpath.find(".png") > 0) {mime = "image/png";}
                 if(unslashpath.find(".jpg") > 0) {mime = "image/jpeg";}
@@ -664,6 +690,12 @@ while(0<1) {
                     string new_guest_id = "guest_"+to_string(unit_uid)+"-"+to_string(guest_counter++);
                     cry("SESSION:"+new_guest_id);
                     string session_token = unit_label;
+
+                    response.append("HTTP/1.1 200 OK\r\n");
+                    response.append("Content-Type: text/html\r\n");
+                    string cooked = "Set-Cookie: session="+session_token+"; Path=/\r\n";
+                    response.append(cooked);
+                    
                     string do_str = "document.cookie = 'session="+session_token+"; path=/';";
                     ctx.source = "";
                     emit_block {
@@ -819,13 +851,11 @@ while(0<1) {
         if(response.length==0) {
             response.append("HTTP/1.1 200 OK\r\n");
             response.append("Content-Type: text/html\r\n");
-            response.append("Content-Length: ");
-            response.append(to_string(response_body.length));
-            response.append("\r\n\r\n");
-            response.append(response_body);
-        } else {
-            print("PREFILLED RESPONSE:\n",response);
         }
+        response.append("Content-Length: ");
+        response.append(to_string(response_body.length));
+        response.append("\r\n\r\n");
+        response.append(response_body);
         print("Responding to ",cfd," with: ",response.length," chars");
         write(cfd,response); 
         close(cfd);

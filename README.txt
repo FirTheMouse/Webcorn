@@ -1,7 +1,8 @@
 Flags cheat sheet
 
 For the intial build (cmake -B build):
-    cmake -B build -DUSE_TLS=[ON/OFF] : Use to turn TLS on or off when compiling
+    cmake -B build -DUSE_TLS=ON : Use to turn TLS on or off when compiling
+    cmake -B build -DUSE_ASAN=ON : ASAN is also an option
         If you want TLS you need to do this first:
             first time only:
                 pip3 install jsonschema jinja2 --break-system-packages
@@ -28,7 +29,7 @@ cmake --build build && ./webcorn
 
 Thistle debug run (no tls):
 ./webcorn --port=443 --private --twigcode=web/thistle/thistle.twg --debug
-cmake --build build && ./webcorn --port=443 --private --twigcode=web/thistle/thistle.twg --debug
+cmake --build build && ./webcorn --port=443 --project=web/thistle/ --private --twigcode=web/thistle/thistle.twg --debug
 
 Thistle run production (enable tls first by rebuilding):
 ./webcorn --port=443 --tls=cert --private --twigcode=web/thistle/thistle.twg
@@ -41,6 +42,8 @@ cmake --build build && ./webcorn --port=443 --twigcode=web/goldensystems/website
 
 Election Madness
 cmake --build build && ./webcorn --port=443 --project=web/electionmadness/ --twigcode=web/electionmadness/website.twg --files=web/electionmadness/files --script=web/electionmadness/init.gld
+cmake --build build && ./webcorn --port=443 --tls=cert --project=web/electionmadness/ --twigcode=web/electionmadness/website.twg --files=web/electionmadness/files --script=web/electionmadness/init.gld
+
 
 If you don't
 

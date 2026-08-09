@@ -21,6 +21,15 @@ if(arg_unitcode.length!=0) {
 
 string unitcode = read_file(unitcode_path);
 
+Ptr bool file_whitelist;
+string arg_whitelist = unit_get_arg("--files=");
+if(arg_whitelist.length!=0) {
+    Ptr string files = split_str(arg_whitelist,",");
+    for(int i=0;i<files.length;i++) {
+        file_whitelist.put(files.get(i),true);
+    }
+}
+
 start_session_manager(unitcode);
 print("Started the session manager");
 
@@ -50,14 +59,34 @@ while(0<1) {
     }
 
     if(cfd>0) {
+        tstart("dispatch_desc");
         string req = read(cfd);
-        catch {
-            print("Failed to read a request");
+        if((req=="BADREQUEST")||unit_error) {
+            print("Failed to read a request in ",tstop("dispatch_desc"));
+            close(cfd);
             continue;
         }
         string session = get_cookie(req,"session");
         print("Request at ",unit_time_precise," Session: ",session);
-        print("Dispatching server to handle request ",cfd);
+
+        string first_line = req.substr(0, req.find("\r\n"));
+        string method = first_line.substr(0, first_line.find(" "));
+        string slashpath = first_line.slice(" ", 1, 2);
+        string unslashpath = slashpath.substr(1,slashpath.length-1);
+        if(unslashpath.find(".")>0) {
+            string strip_to_directory = "";
+            for(int i=unslashpath.length-1;i>0;i=i-1)  {
+                if(unslashpath.slice(i-1,i)=="/") {strip_to_directory = unslashpath.slice(0,i-1); i=0;}
+            }
+            if(strip_to_directory.length>0 && file_whitelist.has(strip_to_directory)) {
+                print("Dispatching to any server to handle file ",unslashpath," decided in ",tstop("dispatch_desc"));
+                dispatch_unit("ANYSERVE", cfd, "SERVE "+unslashpath+"\r\n", unitcode);
+                continue;
+            }
+        }
+        if(session=="ANYSERVE") {print("Malicious request attempted to spoof the dispatcher:\n",req); tstop("dispatch_desc"); continue;}
+
+        print("Dispatching server to handle request ",cfd," decided in ",tstop("dispatch_desc"));
         dispatch_unit(session,cfd,req,unitcode);
     }
 }

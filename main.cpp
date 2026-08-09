@@ -293,7 +293,7 @@ int main(int argc, char* argv[]) {
                 });
             }
             webcorn->run(webcorn->process(readFile("web/webcorn.gld")));
-            webcorn->run(webcorn->process(readFile("GDSL/mixos-acorn/test.gld")));
+            //webcorn->run(webcorn->process(readFile("GDSL/mixos-acorn/test.gld")));
         } catch(std::exception& e) {
             print("FATAL EXCEPTION: ", e.what());
         } catch(...) {

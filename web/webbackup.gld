@@ -3346,3 +3346,61 @@ dump_subunit(sub,true);
             Ptr& races = scrollable[s];
             render_races(races);
         }
+
+
+[:]FIRST SNAP PROTOTYPE
+  div big_badge {
+        "position" : "absolute";
+        "z-index" : "100";
+        "background-color" : "blue";
+        "width" : "60px";
+        "height" : "20px";
+    }
+    div little_badge {
+        "position" : "absolute";
+        "z-index" : "100";
+        "background-color" : "red";
+        "width" : "40px";
+        "height" : "40px";
+    }
+    string badgescript = "
+        const little = getel("+js_lit(capture_node(little_badge))+");
+        const big = getel("+js_lit(capture_node(big_badge))+");
+        make_snap_root(big);
+        big.addSnapChild(little);
+
+        big.joint = function() {
+            this.style.left = mouse_x + 'px';
+            this.style.top  = mouse_y + 'px';
+            return true;
+        };
+        little.joint = function() {
+            const prect = this.snap_parent.getBoundingClientRect();
+            this.style.left = (prect.left + prect.width/2 - 20) + 'px';
+            this.style.top  = (prect.top  + prect.height/2 - 20) + 'px';
+            return true;
+        };
+
+    ";
+    script badgescript;
+
+
+[:]TEST WALL
+
+        Ptr string files = list_files_in_directory("web/electionmadness/files");
+        for(int i=0;i<8;i++) {
+            div {
+                "display" : "flex";
+                "flex-direction" : "column";
+                for(int n=0;n<6;n++) {
+                    div {
+                        string chosen = files[randi(0,files.length-1)];
+                        img {
+                            "width" : "100px";
+                            "height" : "150px";
+                            "src" : "web/electionmadness/files/"+chosen;
+                        }
+                    }
+                }
+            }
+        }
