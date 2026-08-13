@@ -68,7 +68,6 @@ while(0<1) {
         }
         string session = get_cookie(req,"session");
         print("Request at ",unit_time_precise," Session: ",session);
-
         string first_line = req.substr(0, req.find("\r\n"));
         string method = first_line.substr(0, first_line.find(" "));
         string slashpath = first_line.slice(" ", 1, 2);

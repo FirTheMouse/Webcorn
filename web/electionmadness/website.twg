@@ -41,6 +41,11 @@ inlined hoverable_theme {
     "onmouseenter" : "if(this.style.backgroundColor==='transparent')this.style.backgroundColor='rgba(0,0,0,0.04)'";
     "onmouseleave" : "if(this.style.backgroundColor==='rgba(0, 0, 0, 0.04)')this.style.backgroundColor='transparent'";
 }
+inlined skeleton_pulse {
+    "background" : "linear-gradient(90deg, rgb(60,60,60) 25%, rgb(80,80,80) 50%, rgb(60,60,60) 75%)";
+    "background-size" : "200% 100%";
+    "animation" : "skeleton_pulse 1.5s infinite";
+}
 
 ##
     Ptr Ptr votes;
@@ -67,6 +72,21 @@ inlined hoverable_theme {
             return tally_by_state[stateid];
         } else {
             return 0;
+        }
+    }
+    global bool voted_in(string raceid) {
+        return votes.has(raceid);
+    }
+    global Ptr get_vote(string raceid) {
+        if(votes.has(raceid)) {
+            return votes[raceid];
+        } else {
+            return deadptr;
+        }
+    }
+    global void set_vote(string raceid, Ptr newvote) {
+        if(votes.has(raceid)) {
+            votes[raceid] = newvote;
         }
     }
 
@@ -99,26 +119,27 @@ inlined hoverable_theme {
     global void cast_vote(Ptr candidate) {
         Header& candidate_data = candidate;
         string rl = candidate_data.label;
-        print("Casting a vote for ",rl,": ",candidate.label);
         if(votes.has(rl)) {
-            print(session.username," has already voted!");
+            votes[rl] = candidate;
         } else {
             votes.put(rl,candidate);
             ColCol& race = candidate;
             string race_label = race.label;
             int abv_split = race_label.find("-");
             string race_state = race_label.slice(0,abv_split);
-            print("Race was in ",race_state);
             if(tally_by_state.has(race_state)) {
                 int t = tally_by_state[race_state]-1;
                 tally_by_state[race_state] = t;
-                print("Tally: ",t);
                 emit_js("
                     t = vote_tally["+js_lit(race_state)+"]-1;
                     vote_tally["+js_lit(race_state)+"] = t;
                     if(t<=0) {
                         getel("+js_lit(race_state)+").style.fill = 'white';
                         getel("+js_lit(open_badgeid)+").remove();
+                    }
+                    const el = getel("+js_lit(race_state+"_badge_text")+");
+                    if(el) {
+                       el.innerText = t;
                     }
                 ");
                 close_open_badge(t>0);
@@ -141,103 +162,112 @@ inlined hoverable_theme {
     }
 ##
 
-stateless template div render_race(Header& race, string visible) { 
-    "display" : visible;   
-    "class" : "race_display";
-    "data-raceid" : race.label;           
-    Ptr rbns = race.ribbons;
-    "display" : "flex";
-    "flex-direction" : "row";
-    "gap" : "12px";
-    "padding" : "12px";
-    for(int i=0;i<rbns.length;i++) {
-        setsidx(rbns,i);
-        string candidate = rbns.celllabel;
-        Ptr& rbn = rbns[i];
-        Ptr& party = rbn["party"];
-        string party_str = value_as_string(party);
-        Ptr& image_t = rbn["image"];
-        string image_str = value_as_string(image_t);
-        string party_color = (party_str=="Republican"?"rgb(210,60,60)":"rgb(60,100,200)");
-        Ptr& outervotes = rbn["votes"];
+stateless template div render_race(Header& race, bool is_visible) { 
+    div {
+        "class" : "race_display";
+        "id" : race.label;           
+        Ptr rbns = race.ribbons;
+        "display" : (is_visible?"flex":"none");
+        "flex-direction" : "row";
+        "gap" : "12px";
+        "padding" : "12px";
 
-        div {
-            "flex" : "1";
-            "display" : "flex";
-            "flex-direction" : "column";
-            "align-items" : "center";
-            "gap" : "8px";
-            "padding" : "16px 12px";
-            "border-radius" : "10px";
-            "border-top" : "4px solid "+party_color;
-            component_theme;
-            "box-shadow" : "0 2px 8px rgba(0,0,0,0.08)";
+        string other_candidates_ptr = "[";
+        for(int i=0;i<rbns.length;i++) {
+            setsidx(rbns,i);
+            if(i!=0) {other_candidates_ptr+=",";}
+            other_candidates_ptr+=js_lit(rbns.celllabel);
+        }
+        other_candidates_ptr+="]";
+        
 
-            if(true) {
-                img {
-                    "width" : "100px";
-                    "height" : "150px";
-                    "border-radius" : "4px";
-                    "display" : "flex";
-                    "align-items" : "center";
-                    "justify-content" : "center";
-                    "src" : image_str;
-                }
-            } else {
-                div {
-                    "width" : "56px";
-                    "height" : "56px";
-                    "border-radius" : "50%";
-                    "background-color" : party_color;
-                    "display" : "flex";
-                    "align-items" : "center";
-                    "justify-content" : "center";
-                    text candidate.substr(0,1) {
-                        "color" : "white";
-                        "font-size" : "22px";
-                        "font-weight" : "800";
-                        "font-family" : "system-ui, sans-serif";
-                    }
-                }
-            }
+        for(int i=0;i<rbns.length;i++) {
+            setsidx(rbns,i);
+            string candidate = rbns.celllabel;
+            Ptr& rbn = rbns[i];
+            Ptr& party = rbn["party"];
+            string party_str = value_as_string(party);
+            Ptr& image_t = rbn["image"];
+            string image_str = value_as_string(image_t);
+            string party_color = (party_str=="Republican"?"rgb(210,60,60)":"rgb(60,100,200)");
+            string other_party_color = (party_str!="Republican"?"rgb(210,60,60)":"rgb(60,100,200)");
+            Ptr& outervotes = rbn["votes"];
 
-            text candidate {
-                "font-size" : "13px";
-                "font-weight" : "800";
-                "text-align" : "center";
-                "white-space" : "nowrap";
-                "overflow" : "hidden";
-                "text-overflow" : "ellipsis";
-                "width" : "100%";
-                text_theme;
-            }
             div {
-                "padding" : "2px 10px";
-                "border-radius" : "12px";
-                "background-color" : party_color;
-                text party_str {
-                    "color" : "white";
-                    "font-size" : "11px";
-                    "font-weight" : "600";
-                    "font-family" : "system-ui, sans-serif";
-                }
-            }
+                "flex" : "1";
+                "display" : "flex";
+                "flex-direction" : "column";
+                "align-items" : "center";
+                "gap" : "8px";
+                "padding" : "16px 12px";
+                "border-radius" : "10px";
+                "border-top" : "4px solid "+party_color;
+                component_theme;
+                "box-shadow" : "0 2px 8px rgba(0,0,0,0.08)";
 
-            button {
-                "border" : "none";
-                "border-radius" : "20px";
-                "padding" : "8px 20px";
-                "cursor" : "pointer";
-                if(outervotes.has(session.username)) {
-                   "background-color" : "gray";
-                    text "VOTE" {
-                        "id" : candidate+"_text";
-                        "color" : "white";
-                        "font-size" : "12px";
-                        "font-weight" : "700";
-                        "font-family" : "system-ui, sans-serif";
+                if(true) {
+                    img {
+                        "width" : "100px";
+                        "height" : "150px";
+                        "border-radius" : "4px";
+                        "display" : "flex";
+                        "align-items" : "center";
+                        "justify-content" : "center";
+                        "src" : image_str;
                     }
                 } else {
+                    div {
+                        "width" : "56px";
+                        "height" : "56px";
+                        "border-radius" : "50%";
+                        "background-color" : party_color;
+                        "display" : "flex";
+                        "align-items" : "center";
+                        "justify-content" : "center";
+                        text candidate.substr(0,1) {
+                            "color" : "white";
+                            "font-size" : "22px";
+                            "font-weight" : "800";
+                            "font-family" : "system-ui, sans-serif";
+                        }
+                    }
+                }
+
+                text candidate+" ("+value_as_string(rbn["points"])+")" {
+                    "font-size" : "13px";
+                    "font-weight" : "800";
+                    "text-align" : "center";
+                    "white-space" : "nowrap";
+                    "overflow" : "hidden";
+                    "text-overflow" : "ellipsis";
+                    "width" : "100%";
+                    text_theme;
+                }
+                div {
+                    "padding" : "2px 10px";
+                    "border-radius" : "12px";
+                    "background-color" : party_color;
+                    text party_str {
+                        "color" : "white";
+                        "font-size" : "11px";
+                        "font-weight" : "600";
+                        "font-family" : "system-ui, sans-serif";
+                    }
+                }
+
+                button {
+                    "border" : "none";
+                    "border-radius" : "20px";
+                    "padding" : "8px 20px";
+                    "cursor" : "pointer";
+
+                    Ptr myvote = get_vote(race.label);
+                    if(is_live(myvote)) {
+                        if(getidx(myvote)==getidx(outervotes)) {
+                            "background-color" : "gray";
+                        } 
+                    }
+                    "data-candidate" : candidate;
                     "background-color" : party_color;
                     "transition" : "opacity 0.15s ease";
                     "onmouseenter" : "this.style.opacity='0.85'";
@@ -250,10 +280,21 @@ stateless template div render_race(Header& race, string visible) {
                         "font-family" : "system-ui, sans-serif";
                     }
                     "onclick" : capture(
-                        js_do("event.stopPropagation();") ,
-                        string frbn ; js_lit(capture_ptr(rbn))
+                        js_do("
+                            event.stopPropagation();
+                            const other_candidates = "+other_candidates_ptr+";
+                            const my_candidate = this.dataset.candidate;
+                            for(let j=0;j<other_candidates.length;j++) {
+                                document.querySelectorAll('[data-candidate='+JSON.stringify(other_candidates[j])+']').forEach(btn => {
+                                    btn.style.backgroundColor = (other_candidates[j] === my_candidate) ? 'gray' : "+js_lit(other_party_color)+";
+                                });
+                            }
+                        "),
+                        string frbn ; js_lit(capture_ptr(outervotes)),
+                        string flabel ; js_lit(race.label)
                     ) {
                         cast_vote(retrive_ptr(frbn));
+                        print("Vote has been cast");
                     }
                 }
             }
@@ -262,56 +303,89 @@ stateless template div render_race(Header& race, string visible) {
 }
 
 stateless template div render_races(Ptr& races) {
-    "border-radius" : "12px";
-    "overflow" : "hidden";
-    "box-shadow" : "0 4px 16px rgba(0,0,0,0.12)";
-    card_theme;
-
     div {
-        "display" : "flex";
-        "flex-direction" : "row";
-        "border-bottom" : "1px solid rgba(0,0,0,0.08)";
-        for(int s=0;s<races.length;s++) {
-            setsidx(races,s);
-            string race_kind = races.celllabel; 
-            Header& race = races[s];
-            button {
-                "class" : "race_tab";
-                "border" : "none";
-                "border-bottom" : (s==0?"2px solid rgb(172,57,147)":"2px solid transparent");
-                "class" : (s==0?"race_tab active_tab":"race_tab");
-                "border-radius" : "0";
-                "padding" : "10px 16px";
-                "cursor" : "pointer";
-                "background-color" : "transparent";
-                "transition" : "border-color 0.15s ease";
-                "onmouseenter" : "this.style.borderBottomColor='rgb(172,57,147)'";
-                "onmouseleave" : "if(!this.classList.contains('active_tab'))this.style.borderBottomColor='transparent'";
-                text race_kind+":"+race.label {
-                    "font-size" : "13px";
-                    "font-weight" : "700";
-                    text_theme;
+        "border-radius" : "12px";
+        "overflow" : "hidden";
+        "box-shadow" : "0 4px 16px rgba(0,0,0,0.12)";
+        card_theme;
+
+        int first_viable_race = 0; first_viable_race = first_viable_race-1; //Because just -1 is broken for some reason
+        div {
+            "display" : "flex";
+            "flex-direction" : "row";
+            "border-bottom" : "1px solid rgba(0,0,0,0.08)";
+
+            string race_ids = "[";
+            for(int s=0;s<races.length;s++) {
+                setsidx(races,s);
+                Header& race = races[s];
+                if(!voted_in(race.label)&&first_viable_race<0) {
+                    first_viable_race = s;
+                    string activate_tab_script = "var active_tab = "+js_lit(race.label);
+                    script activate_tab_script;
                 }
-                "onclick" : "
-                    event.stopPropagation();
-                    document.querySelectorAll('.race_tab').forEach(el => {
-                        el.style.borderBottomColor = 'transparent';
-                        el.classList.remove('active_tab');
-                    });
-                    document.querySelectorAll('.race_display').forEach(el => {
-                        const id = el.dataset.raceid;
-                        el.style.display = (id && id==="+js_lit(race.label)+") ? 'flex' : 'none';
-                    });
-                    this.style.borderBottomColor = 'rgb(172,57,147)';
-                    this.classList.add('active_tab');
-                ";
+                race_ids += js_lit(race.label);
+                int rlen = races.length-1;
+                if(s<rlen) {race_ids += ",";}
+            }
+            race_ids += "]";
+
+            for(int s=0;s<races.length;s++) {
+                setsidx(races,s);
+                string race_kind = races.celllabel; 
+                Header& race = races[s];
+                button {
+                    "class" : "race_tab";
+                    "border" : "none";
+                    "border-bottom" : (s==first_viable_race?"2px solid rgb(172,57,147)":"2px solid transparent");
+                    "border-radius" : "0";
+                    "padding" : "10px 16px";
+                    "cursor" : "pointer";
+                    "data-isactive" : "true";
+
+                    text race_kind {
+                        "font-size" : "13px";
+                        "font-weight" : "700";
+                        text_theme;
+                    }
+
+                    string onlcick_behaviour = "
+                        event.stopPropagation();
+                        const ids = "+race_ids+";
+                        const target_id = "+js_lit(race.label)+";
+                        let target = null;
+                        for(const id of ids) {
+                            const el = document.getElementById(id);
+                            if(!el) continue;
+                            if(id === target_id) { target = el; }
+                            else { el.style.display = 'none'; }
+                        }
+                        if(target) target.style.display = 'flex';
+                        
+                        document.querySelectorAll('.race_tab').forEach(el => {
+                            el.style.borderBottomColor = 'transparent';
+                        });
+                        active_tab = "+js_lit(race.label)+";
+                        console.log('active tab: ',active_tab);
+                    ";
+                    if(voted_in(race.label)) {
+                        "background-color" : "gray";
+                        "onclick" : onlcick_behaviour;
+                    } else {
+                        "background-color" : "transparent";
+                        "transition" : "border-color 0.15s ease";
+                        "onmouseenter" : "this.style.borderBottomColor='rgb(172,57,147)'";
+                        "onmouseleave" : "if(active_tab!=="+js_lit(race.label)+")this.style.borderBottomColor='transparent'";
+                        "onclick" : onlcick_behaviour+"this.style.borderBottomColor = 'rgb(172,57,147)';";
+                    }
+                }
             }
         }
-    }
 
-    for(int s=0;s<races.length;s++) {
-        Header& race = races[s];
-        render_race(race,(s==0?"flex":"none"));
+        for(int s=0;s<races.length;s++) {
+            Header& race = races[s];
+            render_race(race,s==first_viable_race);
+        }
     }
 }
 
@@ -319,11 +393,7 @@ stateless template div render_races(Ptr& races) {
     register root_path;
     "root_path" {
         in htmlemiting {
-            ctx.source.append("<!DOCTYPE html><html><head>");
-            //ctx.source.append("<link rel='icon' type='image/png' href='web/goldensystems/files/favicon.png'>");
-            ctx.source.append("<body>");
-            emit_contents;
-            ctx.source.append("</head></body></html>");
+            subemit("body",false,"","");
         }
     }
 ##
@@ -335,19 +405,21 @@ root_path {
             padding: 0;
             box-sizing: border-box;
         }
+        @keyframes skeleton_pulse { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
     ";
+
     script read_file("web/webcorn.js");
 
     script compute_tally_by_state();
 
+    Ptr& bystate = database[0]["bystate"];
     div {
         "display" : "flex";
         "width" : "100%";
         "min-height" : "100vh";
         "background-color" : "rgb(40, 40, 40)";
 
-        static string myid = "";
-        inlined clickable_state {
+        stateless template div clickable_state(string myid) {
             if(get_tally(myid)>0) {
                 "fill" : "rgb(190, 109, 236)";
             } else {
@@ -362,11 +434,10 @@ root_path {
             ColCol& map_data = database["Map"];
             for(int i=0;i<map_data.length;i++) {
                 string mapel = map_data[i];
-                myid = mapel.label;
                 g {
-                    clickable_state;
+                    clickable_state(mapel.label);
                     path {
-                        "id" : myid;
+                        "id" : mapel.label;
                         "d" : mapel;
                         "stroke-width" : "0.97063118000000004";
                     }
@@ -374,8 +445,8 @@ root_path {
             }
         }
 
-        Ptr& bystate = database[0]["bystate"];
         template div make_badge(string stateid, Ptr races) {
+            print("Badge recived stateid: ",stateid);
             div badge_holder {
                 static string state_context_ptr;
                 static string mystate;
@@ -413,6 +484,7 @@ root_path {
                         "justify-content" : "center";
                         string tally = to_string(get_tally(mystate));
                         text tally {
+                            "id" : badgeid+"_text";
                             "color" : "black";
                             "font-size" : "11px";
                             "font-weight" : "700";
@@ -420,6 +492,7 @@ root_path {
                         }
                         "transform" : "scale(4)"; "opacity" : "0";
                         "onclick" : capture{
+                            print("CLICKED");
                             close_open_badge(true);
                             open_badge = ~&badge_holder;
                             open_badgeid = mystate+"_badge";
@@ -439,6 +512,7 @@ root_path {
                         getel("+js_lit(badgeid)+").style.top  = (prect.top  + prect.height/2 - badge.offsetHeight/2) + 'px';
                         return true;
                     };
+                    update_all_transforms();
                     setTimeout(() => {
                         getel("+js_lit(badgeid)+").style.opacity = '1';
                         getel("+js_lit(badgeid)+").style.transform = 'scale(1)';
@@ -447,23 +521,87 @@ root_path {
                 script badgescript;
             }
         }
-        for(int i=0;i<bystate.length;i++) {
-            setsidx(bystate,i);
-            string stateid = bystate.celllabel;
-            if(get_tally(stateid)>0) {
-                make_badge(stateid,bystate[i]);
+
+        static bool render_badges = true;
+        div badges {
+            if(render_badges) {
+                bystate = database[0]["bystate"];
+                for(int i=0;i<bystate.length;i++) {
+                    setsidx(bystate,i);
+                    string stateid = bystate.celllabel;
+                    if(get_tally(stateid)>0) {
+                        make_badge(stateid,bystate[i]);
+                    }
+                }
             }
         }
+        string badge_recall_action = capture(){
+            render_badges = true;
+            badges.reload;
+        }
+        //script badge_recall_action;
     }
-        div {
-            "width" : "500px";
-            "height" : "800px";
-            "background-color" : "red";
+
+    div {
+        "background-color" : "rgb(40, 40, 40)";
+        "padding" : "20px";
+        static bool render_skeletons = false;
+        Ptr& all_races = database[0]["races"];
+        div scrollable_races {
+            for(int i=0;i<all_races.length;i++) {
+                Header& race = all_races[i];
+                text race.label {
+                    "color" : "white";
+                    "font-size" : "18px";
+                    "font-weight" : "800";
+                    "text-align" : "center";
+                    "width" : "100%";
+                    "padding" : "16px 0px 8px 0px";
+                    text_theme;
+                }
+                if(render_skeletons) {
+                    div {
+                        skeleton_pulse;
+                        "height" : "300px";
+                        "width" : "100%";
+                    }
+                } else {
+                    render_race(race,true);
+                }
+            }
         }
-    button {
-        text "push me";
-        "onclick" : capture {
-            lock_in_votes();
+        string scrollabel_recall_action = capture(){
+            render_skeletons = false;
+            scrollable_races.reload;
         }
+        //script scrollabel_recall_action;
+
+        button {
+            text "push me";
+            "onclick" : capture {
+                lock_in_votes();
+            }
+        }
+
+        string capstr = capture{
+            if(usubunits.length==1) {
+                print("Snapshotting");
+                snapshot_subunit(0,"savetest.gsu");
+            }
+            print(unit_info);
+            ColColCol diffable = load_subunit("savetest.gsu");
+            correct_loaded_ptrs(diffable);
+            print("Diffable: ",capture_ptr(diffable));
+            print(utypes[4].length," / ",diffable[4].length);
+            diff_types(diffable);
+        };
+        script "
+            document.addEventListener('keydown', (e) => {
+                if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+                if(e.key === 'm') {
+                    "+capstr+";
+                }
+            });
+        ";
     }
 }

@@ -1472,6 +1472,35 @@ namespace Acorn {
         //     }
         // },sizeof(Ptr),string_id);
 
+        std::string indent_html_text(const std::string& text) {
+            list<std::string> s = split_str(text,'<');
+            std::string indent = "";
+            for(int i=0;i<s.length();i++) {
+                if(s[i].empty()) continue;
+                bool deindent = s[i].at(0)=='/';
+                s[i].insert(0,"<");
+                if(deindent) {
+                    indent = indent.substr(0,indent.length()-2);
+                    s[i].insert(0,indent);
+                } else {
+                    s[i].insert(0,indent);
+                    indent += "  ";
+                    size_t pos = 0;
+                    while((pos = s[i].find('\n', pos)) != std::string::npos && pos!=s[i].length()-1) {
+                        s[i].replace(pos, 1, "\n" + indent);
+                        pos += indent.length() + 1;
+                    }
+                }
+            }
+            std::string to_return = "";
+            for(auto si : s) to_return += si + "\n";
+            return to_return;
+        };
+        uint32_t indent_html_id = add_function("indent_html",[this](Context& ctx){
+            standard_sub_process(ctx);
+            string output = resolve_string_ticket(ctx.node());
+            output = indent_html_text(ctx.node().getString(0).to_std());
+        },sizeof(Ptr),string_id);
 
         
         std::string to_js_expr(std::string s) {
@@ -1481,7 +1510,8 @@ namespace Acorn {
         uint32_t to_js_expr_id = add_function("js_do",[this](Context& ctx){
             standard_sub_process(ctx);
             string output = resolve_string_ticket(ctx.node());
-            string s = (string&)*(Ptr*)ctx.node().children()[0].value().get();
+            string s = ctx.node().getString(0);
+            CHECK_ERROR("Bad string in js_do!");
             output = to_js_expr(s.to_std());
         },sizeof(Ptr),string_id);
 
@@ -1491,7 +1521,8 @@ namespace Acorn {
         uint32_t to_js_lit_id = add_function("js_lit",[this](Context& ctx){
             standard_sub_process(ctx);
             string output = resolve_string_ticket(ctx.node());
-            string s = (string&)*(Ptr*)ctx.node().children()[0].value().get();
+            string s = ctx.node().getString(0);
+            CHECK_ERROR("Bad string in js_lit!");
             output = to_js_lit(s.to_std());
         },sizeof(Ptr),string_id);
 
@@ -1533,6 +1564,23 @@ namespace Acorn {
         bool is_prop_structural(const std::string& name) {
             return is_structural[name] || name.substr(0,5) == "data-";
         }
+        uint32_t is_prop_structural_id = add_function("is_prop_structural",[this](Context& ctx){
+            standard_sub_process(ctx);
+            string prop = ctx.node().getString(0);
+            CHECK_ERROR("Bad property in is_prop_structural!");
+            bool b = is_prop_structural(prop.to_std());
+            ctx.node().value().set((void*)&b);
+        },1,bool_id);
+        uint32_t is_prop_structural_in_svg_id = add_function("is_prop_structural_in_svg",[this](Context& ctx){
+            bool b = false;
+            if(in_svg) {
+                standard_sub_process(ctx);
+                string prop = ctx.node().getString(0);
+                CHECK_ERROR("Bad property in is_prop_structural_in_svg!");
+                b = is_svg_structural[prop.to_std()];
+            }
+            ctx.node().value().set((void*)&b);
+        },1,bool_id);
 
         std::string escape_js_string(const std::string& s) {
             std::string out;
@@ -2625,6 +2673,8 @@ namespace Acorn {
 
         }); 
 
+        list<std::string*> propbin;
+
         void init() override {
             register_type("div",component_id,0);
             register_type("inlined",inlined_id,0);
@@ -2768,39 +2818,100 @@ namespace Acorn {
             };
 
 
-            html_handlers[func_call_id] = [this](Context& ctx){
-                uint32_t prelen = ctx.source().length();
-                fire_quals(ctx,ctx.node().value());
-                if(ctx.node().mute()) {ctx.node().mute(false); return;}
-                bool needs_closing = ctx.source().length()!=prelen;
-                x_handlers.run(func_call_id)(ctx);
-                if(needs_closing) {
-                    std::string src = ctx.source().to_std();
-                    size_t tag_start = prelen+1;
-                    size_t tag_end = src.find(' ', tag_start);
-                    if(tag_end == std::string::npos) tag_end = src.find('>', tag_start);
-                    std::string tag = src.substr(tag_start, tag_end - tag_start);
-                    ctx.source().push("</"+tag+">");
+
+            // Ptr string propbin;
+
+            add_function("subemit",[this](Context& ctx){
+                standard_sub_process(ctx);
+                std::string tag = ctx.node().getString(0).to_std();
+                bool self_closing = ctx.node().getBool(1);
+                std::string content = ctx.node().getString(3).to_std();
+
+                std::string structural = ctx.node().getString(2).to_std();
+                std::string stylistic = "";
+                std::string parts;
+
+                propbin.push(&structural); propbin.push(&stylistic); propbin.push(&parts);
+
+                ctx.sub().source() = "";
+                Node node = ctx.sub().node();
+                if(node.scopes().length()>0) {
+                    Node scope = node.scopes().get(0);
+                    for(int i=0;i<scope.children().length();i++) {
+                        Node child = scope.children().get(i);
+                        start_stage(html_handlers);
+                        process_node(ctx,child);
+                        start_stage(x_handlers);
+                    }
+                }
+                std::string newsrc = ctx.sub().source().to_std();
+                parts+=newsrc;
+                propbin.pop(); propbin.pop(); propbin.pop();
+
+                if(stylistic.length()>0) {
+                    stylistic = " style=\""+stylistic+"\"";
+                }
+                if(structural.length()>0) {
+                    structural = " "+structural;
+                }
+
+                std::string part = "";
+                if(self_closing) {
+                    part = "<"+tag+structural+stylistic+"/>";
+                } else {
+                    part = "<"+tag+structural+stylistic+">"+content+parts+"</"+tag+">";
+                }
+                if(propbin.length()>0) {
+                    (*propbin[propbin.length()-1])+=part;
+                } else {
+                    ctx.sub().source() = part;
+                }
+            });
+            html_handlers[property_id] = [this](Context& ctx){
+                standard_sub_process(ctx);
+                std::string prop = ctx.node().getString(0).to_std();
+                std::string val = ctx.node().getString(1).to_std();
+
+                if(is_prop_structural(prop)||(in_svg&&is_svg_structural[prop])) {
+                    (*propbin[propbin.length()-3])+=(prop+"=\""+val+"\" ");
+                } else {
+                    (*propbin[propbin.length()-2])+=(prop+": "+val+"; ");
                 }
             };
+
             html_handlers[func_decl_id] = [this](Context& ctx){
                 fire_quals(ctx,ctx.node().value());
             };
-            html_handlers[prefix_component_id] = [this](Context& ctx){
-                if(ctx.node().type()==func_call_id) {
-                    ctx.qual(deadptr); //Revoke it. Dealing with inner quals and their routing is a minefield!
-                    std::string props = emit_inline_html(ctx,ctx.value().type_scope());
-                    if(!props.empty()) {
-                        ctx.source().push("<div "+props+">");
-                    }
-                } else if(ctx.node().type()==func_decl_id&&!ctx.node().has_qual(template_qual)) {
-                    if(ctx.node().children().length()==0) { //Implcit case, for when a div is paramatrized and named but not qualifed as a template, don't emit it!
-                        ctx.qual(deadptr); 
-                        html_handlers.run(component_id)(ctx);
-                    }
-                }
-            };
-            x_handlers[prefix_component_id] = html_handlers[prefix_component_id];
+            // html_handlers[func_call_id] = [this](Context& ctx){
+            //     uint32_t prelen = ctx.source().length();
+            //     fire_quals(ctx,ctx.node().value());
+            //     if(ctx.node().mute()) {ctx.node().mute(false); return;}
+            //     bool needs_closing = ctx.source().length()!=prelen;
+            //     x_handlers.run(func_call_id)(ctx);
+            //     if(needs_closing&&prelen>0) {
+            //         std::string src = ctx.source().to_std();
+            //         size_t tag_start = prelen+1;
+            //         size_t tag_end = src.find(' ', tag_start);
+            //         if(tag_end == std::string::npos) tag_end = src.find('>', tag_start);
+            //         std::string tag = src.substr(tag_start, tag_end - tag_start);
+            //         ctx.source().push("</"+tag+">");
+            //     }
+            // };
+            // html_handlers[prefix_component_id] = [this](Context& ctx){
+            //     if(ctx.node().type()==func_call_id) {
+            //         ctx.qual(deadptr); //Revoke it. Dealing with inner quals and their routing is a minefield!
+            //         std::string props = emit_inline_html(ctx,ctx.value().type_scope());
+            //         if(!props.empty()) {
+            //             ctx.source().push("<div "+props+">");
+            //         }
+            //     } else if(ctx.node().type()==func_decl_id&&!ctx.node().has_qual(template_qual)) {
+            //         if(ctx.node().children().length()==0) { //Implcit case, for when a div is paramatrized and named but not qualifed as a template, don't emit it!
+            //             ctx.qual(deadptr); 
+            //             html_handlers.run(component_id)(ctx);
+            //         }
+            //     }
+            // };
+            // x_handlers[prefix_component_id] = html_handlers[prefix_component_id];
 
             html_handlers[to_prefix_id(template_qual)] = [this](Context& ctx){
                 if(ctx.node().type()==func_call_id&&!ctx.node().has_qual(stateless_qual)) {
@@ -2940,6 +3051,7 @@ namespace Acorn {
                 }
             };
 
+         
 
             // add_function("stamp_source_to_terminal",[this](Context& ctx){
             //     g_ptr<Webcorn_Core> twig = make_unit<Webcorn_Core>();

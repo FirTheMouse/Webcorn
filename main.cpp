@@ -3,10 +3,10 @@
 #if TESTING_UNIT_ONLY
     #include "GDSL/mixos-acorn/Acorn-Core.hpp"
 #else
-    #include "web/Webcorn-Core.hpp"
+   #include "web/Webcorn-Core.hpp"
 #endif
-// #include "GDSL/mixos-acorn/Acorn-Script.hpp"
-// #include "GDSL/mixos-acorn/Acorn-Workshop.hpp"
+//#include "GDSL/mixos-acorn/Acorn-Script.hpp"
+//#include "GDSL/mixos-acorn/Acorn-Workshop.hpp"
 
 #include <signal.h>
 #include <execinfo.h>
@@ -216,12 +216,12 @@ int main(int argc, char* argv[]) {
 
 
     #if !TESTING_UNIT_ONLY
-        signal(SIGSEGV, crash_handler);
-        signal(SIGABRT, crash_handler);
-        #ifndef _WIN32
-            signal(SIGBUS, crash_handler);
-            signal(SIGPIPE, SIG_IGN);
-        #endif
+        // signal(SIGSEGV, crash_handler);
+        // signal(SIGABRT, crash_handler);
+        // #ifndef _WIN32
+        //     signal(SIGBUS, crash_handler);
+        //     signal(SIGPIPE, SIG_IGN);
+        // #endif
     #endif
 
     //writeFile("GDSL/export/acorn.hpp",vendor_file("web/Webcorn-Core.hpp"));
@@ -230,14 +230,33 @@ int main(int argc, char* argv[]) {
         // g_ptr<Acorn::Unit> u =  Acorn::make_unit<Acorn::Unit>();
         // u->test_pool_groups();
 
-        // g_ptr<Acorn::Unit> u =  Acorn::make_unit<Acorn::Unit>();
-        // u->unit_label = "u";
+        g_ptr<Acorn::Unit> u =  Acorn::make_unit<Acorn::Unit>();
+        u->unit_label = "u";
 
-        // g_ptr<Acorn::Unit> p =  Acorn::make_unit<Acorn::Unit>();
-        // p->unit_label = "p";
+        g_ptr<Acorn::Unit> p =  Acorn::make_unit<Acorn::Unit>();
+        p->unit_label = "p";
 
-        // g_ptr<Acorn::Unit> c =  Acorn::make_unit<Acorn::Unit>();
-        // c->unit_label = "c";
+        g_ptr<Acorn::Unit> c =  Acorn::make_unit<Acorn::Unit>();
+        c->unit_label = "c";
+
+        // g_ptr<Thread> tt = make<Thread>();
+        // tt->run([](){
+        //     g_ptr<Acorn::Unit> e =  Acorn::make_unit<Acorn::Unit>();
+        //     print("Made unit ",e->uid);
+        // },0.000001f);
+        // g_ptr<Thread> gg = make<Thread>();
+        // gg->run([](){
+        //     g_ptr<Acorn::Unit> e =  Acorn::make_unit<Acorn::Unit>();
+        //     print("Also made unit ",e->uid);
+        // },0.000001f);
+
+        // Log::Line timer; timer.start();
+        // while(true) {
+        //     if(timer.time_s()>2) {
+        //         print("Test concluded");
+        //         break;
+        //     }
+        // }
 
         // u->send_message("c,p","Hello from u!");
         // c->send_message("p","Hey p");
@@ -284,13 +303,13 @@ int main(int argc, char* argv[]) {
                 if(arg=="--debug") in_debug = true;
             }
             if(!in_debug) {
-                std::set_terminate([](){
-                    fprintf(stderr, "std::terminate called!\n");
-                    void* array[20];
-                    size_t size = backtrace(array, 20);
-                    backtrace_symbols_fd(array, size, STDERR_FILENO);
-                    abort();
-                });
+                // std::set_terminate([](){
+                //     fprintf(stderr, "std::terminate called!\n");
+                //     void* array[20];
+                //     size_t size = backtrace(array, 20);
+                //     backtrace_symbols_fd(array, size, STDERR_FILENO);
+                //     abort();
+                // });
             }
             webcorn->run(webcorn->process(readFile("web/webcorn.gld")));
             //webcorn->run(webcorn->process(readFile("GDSL/mixos-acorn/test.gld")));

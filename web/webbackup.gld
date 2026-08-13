@@ -3404,3 +3404,176 @@ dump_subunit(sub,true);
                 }
             }
         }
+
+[:]PARTSBIN TESTING
+
+##
+    register root_path;
+    "root_path" {
+        in htmlemiting {
+            emit_contents;
+        }
+    }
+##
+
+
+include web/partsbin.twg;
+
+root_path {
+    script read_file("web/webcorn.js");
+    div {
+        "display" : "flex";
+        "flex-direction" : "row";
+        button {
+            text "RESET";
+            "onclick" : "resetWebrunner();";
+        }
+            button {
+            text "DUMP";
+            "onclick" : capture{dump_unit(true);};
+        }
+    }
+
+    static bool is_open;
+    string popupid;
+    div display_pane {
+        popupid = node_str_id(call_owner(display_pane));
+        "display" : (is_open?"flex":"none");
+        popup_panel(
+            capture(
+                js_do("event.stopPropagation();"+js_close(popupid))
+            ) {
+                is_open = false;
+            },[&]{
+                div {
+                    button {
+                        text "PUSH";
+                        "onclick" : capture{print("Pushed");}
+                    }
+                    button {
+                        text "CLOSE";
+                        "onclick" : capture(
+                            js_do("event.stopPropagation();"+js_close(popupid))   
+                        ){
+                            is_open = false;
+                        }
+                    }
+                }   
+        });
+    }
+    button {
+        text "OPEN";
+        "onclick" : capture(
+            js_do("event.stopPropagation();"+js_open(popupid))   
+        ){
+            is_open = true;
+        }
+    }
+}
+
+
+[:]NEW EMISSION TESTING
+
+
+##
+    register root_path;
+    "root_path" {
+        in htmlemiting {
+            subemit("div",false,"","");
+        }
+    }
+##
+
+
+root_path {
+    script read_file("web/webcorn.js");
+    div thing_holder {
+        "background-color" : "gray";
+        "width" : "80px";
+        string thing_list = "[";
+        for(int i=0;i<100;i++) {
+            div {
+                string thingid = "thing_"+to_string(i);
+                "id" : thingid;
+                if(i!=0) {thing_list+=",";}
+                thing_list+=js_lit(thingid);
+
+                div {
+                    "background-color" : "white";
+                }
+
+                "background-color" : (i==0?"blue":"red");
+                "width" : "40px";
+                "height" : "40px";
+                "class" : "thing";
+                "onclick" : "
+                    event.stopPropagation();
+                    document.querySelectorAll('.thing').forEach(el => {
+                        el.style.backgroundColor = 'red';
+                    });
+                    this.style.backgroundColor = 'blue';
+                ";
+            }
+        }
+        thing_list+="]";
+        "onclick" : capture(js_do("
+            const thinglist = "+thing_list+";
+            for(let j=0;j<thinglist.length;j++) {
+                document.getElementById(thinglist[j]).style.backgroundColor = 'red';
+            }
+        ")){print("Hello world!");}
+    }
+}
+
+
+
+[:]NEW EMITTERS
+
+
+    
+    Ptr string propbin;
+
+    global void subemit(string tag, bool self_closing, string extra_structure) {
+        string structural = extra_structure;
+        string stylistic = "style=\"";
+        string parts;
+        propbin.push(structural); propbin.push(stylistic); propbin.push(parts);
+        emit_contents;
+        propbin.pop(); propbin.pop(); propbin.pop();
+        int proplen = propbin.length;
+        if(proplen>0) {
+            if(self_closing) {
+                propbin[proplen-1]+=("\n<"+tag+" "+structural+stylistic+"\"/>");
+            } else {
+                propbin[proplen-1]+=("\n<"+tag+" "+structural+stylistic+"\">"+parts+"\n</"+tag+">");
+            }
+        } else {
+            ctx.source = parts;
+        }
+    }
+
+    "COLON" {
+        in htmlemiting {
+            subprocess(ctx);
+            string prop = ctx.node.left.value.getStr;
+            string val = ctx.node.right.value.getStr;
+
+            int proplen = propbin.length;
+            if(is_prop_structural(prop)) {
+                propbin[proplen-3]+=(prop+"=\""+val+"\" ");
+            } else {
+                propbin[proplen-2]+=(prop+": "+val+"; ");
+            }
+        } 
+    }
+
+    "component" {
+        in htmlemiting {
+            if(ctx.node.name=="div") {
+                subemit("div",false,"");
+            } else {
+                subemit("div",false,"id=\""+capture_node(ctx.node)+"\"");
+            }
+        }
+    }
+   

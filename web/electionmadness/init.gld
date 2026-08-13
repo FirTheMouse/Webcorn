@@ -52,7 +52,7 @@ void add_us_map_data(ColCol emmap) {
 }
 
 
-bool reset = false;
+bool reset = true;
 
 if(reset) {
     print("Election Madness Reseting");
@@ -125,6 +125,53 @@ if(reset) {
             "votes",[char];
         }
 
+
+    Header tA = sub.add("WI-Senate");
+    tA.ribbonT("James Talarico") {
+        "image","web/electionmadness/files/james_talarico.webp" ;
+        "link","https://ballotpedia.org/United_States_Senate_election_in_Texas,_2026" ;
+        "party","Democrat" ;
+        "points","6" ;
+        "votes",[char];
+    }
+    tA.ribbonT("Ken Paxton") {
+        "image","web/electionmadness/files/ken_paxton.webp" ;
+        "link","https://ballotpedia.org/United_States_Senate_election_in_Texas,_2026" ;
+        "party","Republican" ;
+        "points","4" ;
+        "votes",[char];
+    }
+    Header tB = sub.add("NY-Senate");
+    tB.ribbonT("James Talarico") {
+        "image","web/electionmadness/files/james_talarico.webp" ;
+        "link","https://ballotpedia.org/United_States_Senate_election_in_Texas,_2026" ;
+        "party","Democrat" ;
+        "points","6" ;
+        "votes",[char];
+    }
+    tB.ribbonT("Ken Paxton") {
+        "image","web/electionmadness/files/ken_paxton.webp" ;
+        "link","https://ballotpedia.org/United_States_Senate_election_in_Texas,_2026" ;
+        "party","Republican" ;
+        "points","4" ;
+        "votes",[char];
+    }
+    Header tC = sub.add("WI-Governer");
+    tC.ribbonT("James Talarico") {
+        "image","web/electionmadness/files/james_talarico.webp" ;
+        "link","https://ballotpedia.org/United_States_Senate_election_in_Texas,_2026" ;
+        "party","Democrat" ;
+        "points","6" ;
+        "votes",[char];
+    }
+    tC.ribbonT("Ken Paxton") {
+        "image","web/electionmadness/files/james_talarico.webp" ;
+        "link","https://ballotpedia.org/United_States_Senate_election_in_Texas,_2026" ;
+        "party","Republican" ;
+        "points","4" ;
+        "votes",[char];
+    }
+
     Ptr Header races = ledger.add(Ptr,"races");
     for(int r=2;r<sub.length;r++) {
         races.push(sub[r]);
@@ -149,6 +196,4 @@ if(reset) {
     sub.save;
 } else {
     ColColCol database = load_subunit("web/electionmadness/data.gsu");
-    print("Loaded the database, dumping: ");
-    dump_subunit(database,true);
 }

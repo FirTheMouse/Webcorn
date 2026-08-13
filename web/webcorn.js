@@ -31,7 +31,15 @@ function run(ptr, ...captures) {
                 const space = instr.indexOf(' ', 5);
                 const target = instr.slice(5, space);
                 const content = instr.slice(space + 1);
-                document.querySelectorAll('#'+target).forEach(el => el.outerHTML = content);
+                document.querySelectorAll('#'+target).forEach(el => {
+                    el.outerHTML = content;
+                    document.querySelectorAll('#'+target+' script').forEach(old => {
+                        const script = document.createElement('script');
+                        script.textContent = old.textContent;
+                        document.body.appendChild(script);
+                        document.body.removeChild(script);
+                    });
+                });
             } else if(instr.startsWith('LOG ')) {
                 console.log('[TwigSnap]', instr.slice(4));
             } else if(instr === 'RELOAD') {

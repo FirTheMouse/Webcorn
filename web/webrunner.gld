@@ -23,6 +23,116 @@
     newstage posting;
     newstage fraging;
 
+
+
+    //Acorn_script can actually do TwigSnap all on it's own, this is the proof for that.
+    //I have the C++ version of subemit for performance.
+    //But philosphically speaking TwigSnap can be made just by acorn_script extending itself like this
+        // Ptr string propbin;
+
+        // global void subemit(string tag, bool self_closing, string extra_structure, string content) {
+        //     string mytag = tag;
+        //     string mycontent = content;
+        //     bool amselfclosing = self_closing;
+        //     string structural = extra_structure;
+        //     string stylistic = "";
+        //     string parts;
+
+        //     newline("Subemitting ",mytag," -> ",propbin.length," : ",propbin.length+3);
+            
+        //     propbin.push(structural); propbin.push(stylistic); propbin.push(parts);
+
+            // if(extra_structure.length>0) {
+            //     log(extra_structure," -> ",propbin.length);
+            // }
+            // if(mycontent.length>0) {
+            //     log(mycontent," -> ",propbin.length);
+            // }
+
+        //     ctx.source = "";
+        //     emit_contents;
+        //     string newsrc = ctx.source;
+        //     parts+=newsrc;
+        //     propbin.pop(); propbin.pop(); propbin.pop();
+        //     int proplen = propbin.length;
+
+        //     if(stylistic.length>0) {
+        //         stylistic = " style=\""+stylistic+"\"";
+        //     }
+        //     if(structural.length>0) {
+        //         structural = " "+structural;
+        //     }
+
+        //     string part = "";
+        //     if(amselfclosing) {
+        //         part = "<"+mytag+structural+stylistic+"/>";
+        //     } else {
+        //         part = "<"+mytag+structural+stylistic+">"+mycontent+parts+"</"+mytag+">";
+        //     }
+        //     if(proplen>0) {
+        //         propbin[proplen-1]+=part;
+                // log("Part:",indent_html(part));
+                // endline;
+        //     } else {
+        //         ctx.source = part;
+                // log("Final source:",indent_html(ctx.source));
+                // endline;
+                // udump;
+                // ures;
+        //     }
+        // }
+
+        // "COLON" {
+        //     in htmlemiting {
+        //         subprocess(ctx);
+        //         string prop = ctx.node.left.value.getStr;
+        //         string val = ctx.node.right.value.getStr;
+
+        //         int proplen = propbin.length;
+        //         if(is_prop_structural(prop)||is_prop_structural_in_svg(prop)) {
+                    //log(prop,"  : ",val," -> ",proplen);
+        //             propbin[proplen-3]+=(prop+"=\""+val+"\" ");
+        //         } else {
+                    //log(prop," : ",val," -> ",proplen);
+        //             propbin[proplen-2]+=(prop+": "+val+"; ");
+        //         }
+        //     } 
+        // }
+
+    "component" {
+        in htmlemiting {
+            if(ctx.node.name=="div") {
+                subemit("div",false,"","");
+            } else {
+                subemit("div",false,"id=\""+capture_node(ctx.node)+"\"","");
+            }
+        }
+    }
+    "prefix_component" {
+        in htmlemiting {
+            //log("Prefix component");
+            if(ctx.node.type==(#FUNC_CALL)) {
+                paranoid_qual_kill(ctx); //Revoke it. Dealing with inner quals and their routing is a minefield!
+            } else if(ctx.node.type==(#FUNC_DECL)&&!(ctx.node.has_qual(#template))) {
+                if(ctx.node.children.length==0) { //Implcit case, for when a div is paramatrized and named but not qualifed as a template, don't emit it!
+                    paranoid_qual_kill(ctx);
+                    htmlemit(ctx.node,#component);
+                }
+            }
+        }
+        in executing {
+            //log("Prefix component");
+            if(ctx.node.type==(#FUNC_CALL)) {
+                paranoid_qual_kill(ctx); //Revoke it. Dealing with inner quals and their routing is a minefield!
+            } else if(ctx.node.type==(#FUNC_DECL)&&!(ctx.node.has_qual(#template))) {
+                if(ctx.node.children.length==0) { //Implcit case, for when a div is paramatrized and named but not qualifed as a template, don't emit it!
+                    paranoid_qual_kill(ctx);
+                    htmlemit(ctx.node,#component);
+                }
+            }
+        }
+    }
+
     register text;
     "text" {
         in naming {
@@ -30,32 +140,21 @@
         }
         in htmlemiting {
             execut(ctx.node.children.get(0));
-            ctx.source.append("<p");
-            emit_inline_html;
-            ctx.source.append(">");
-            ctx.source.append(ctx.node.children.get(0).value.getStr);
-            ctx.source.append("</p>");
-            emit_contents;
+            subemit("p",false,"",ctx.node.children.get(0).value.getStr);
         }
     }
 
     register input;
     "input" {
         in htmlemiting {
-            ctx.source.append("<input");
-            emit_inline_html;
-            ctx.source.append("/>");
+            subemit("input",true,"","");
         }
     }
 
     register button;
     "button" {
         in htmlemiting {
-            ctx.source.append("<button");
-            emit_inline_html;
-            ctx.source.append(">");
-            emit_contents;
-            ctx.source.append("</button>");
+           subemit("button",false,"","");
         }
     }
 
@@ -64,16 +163,9 @@
         in naming {
             ctx.node.children.push(ctx.result.take(ctx.index+1));
         }
-        in resolving {
-            resolv(ctx.node.children.get(0));
-        }
         in htmlemiting {
-            ctx.source.append("<script");
-            emit_inline_html;
-            ctx.source.append(">");
             execut(ctx.node.children.get(0));
-            ctx.source.append(ctx.node.children.get(0).value.getStr);
-            ctx.source.append("</script>");
+            subemit("script",false,"",ctx.node.children.get(0).value.getStr);
         }
     }
 
@@ -83,11 +175,8 @@
             ctx.node.children.push(ctx.result.take(ctx.index+1));
         }
         in htmlemiting {
-            ctx.source.append("<style");
-            emit_inline_html;
-            ctx.source.append(">");
-            ctx.source.append(ctx.node.children.get(0).name);
-            ctx.source.append("</style>");
+            execut(ctx.node.children.get(0));
+            subemit("style",false,"",ctx.node.children.get(0).value.getStr);
         }
     }
 
@@ -95,30 +184,13 @@
         string to_return = n.name+"_"+to_string(n.asID);
         return to_return;
     }
-
-    "component" {
-        in htmlemiting {
-            ctx.source.append("<div");
-            if(ctx.node.name=="div") {
-
-            } else {
-                ctx.source.append(" id=\"");
-                ctx.source.append(node_str_id(ctx.node));
-                ctx.source.append("\"");
-            }
-            emit_inline_html;
-            ctx.source.append(">");
-            emit_contents;
-            ctx.source.append("</div>");
-        }
-    }
    
     register emit_block;
     "emit_block" {
         in executing {
-            ctx.source.append("<html><body>");
-            emit_contents;
-            ctx.source.append("</body></html>");
+            ctx.source.append("<html>");
+            subemit("body",false,"","");
+            ctx.source.append("</html>");
         }
     }
 
@@ -126,9 +198,6 @@
     "html" {
         in naming {
             ctx.node.children.push(ctx.result.take(ctx.index+1));
-        }
-        in resolving {
-            resolv(ctx.node.children.get(0));
         }
         in htmlemiting {
             execut(ctx.node.children.get(0));
@@ -139,23 +208,15 @@
     register img; 
     "img" {
         in htmlemiting {
-            ctx.source.append("<img ");
-            emit_inline_html;
-            ctx.source.append(">");
+            subemit("img",true,"","");
         }
     }
 
     register svg; 
     "svg" {
         in htmlemiting {
-            ctx.source.append("<svg ");
-            ctx.source.append("xmlns=\"http://www.w3.org/2000/svg\" ");
-            ctx.source.append("xmlns:xlink=\"http://www.w3.org/1999/xlink\" ");
             set_in_svg(true);
-            emit_inline_html;
-            ctx.source.append(">");
-            emit_contents;
-            ctx.source.append("</svg>");
+            subemit("svg",false,"xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" ","");
             set_in_svg(false);
         }
     }
@@ -163,75 +224,49 @@
     register path;
     "path" {
         in htmlemiting {
-            ctx.source.append("<path ");
-            emit_inline_html;
-            ctx.source.append("/>");
+            subemit("path",true,"","");
         }
     }
 
     register g;
     "g" {
         in htmlemiting {
-            ctx.source.append("<g ");
-            emit_inline_html;
-            ctx.source.append(">");
-            emit_contents;
-            ctx.source.append("</g>");
+            subemit("g",false,"","");
         }
     }
 
     register video;
     "video" {
         in htmlemiting {
-            ctx.source.append("<video ");
-            emit_inline_html;
-            ctx.source.append(">");
-            emit_contents;
-            ctx.source.append("</video>");
+            subemit("video",false,"","");
         }
     }
 
     register table;
     "table" {
         in htmlemiting {
-            ctx.source.append("<table");
-            emit_inline_html;
-            ctx.source.append(">");
-            emit_contents;
-            ctx.source.append("</table>");
+           subemit("table",false,"","");
         }
     }
 
     register row;
     "row" {
         in htmlemiting {
-            ctx.source.append("<tr");
-            emit_inline_html;
-            ctx.source.append(">");
-            emit_contents;
-            ctx.source.append("</tr>");
+            subemit("tr",false,"","");
         }
     }
 
     register column;
     "column" {
         in htmlemiting {
-            ctx.source.append("<td");
-            emit_inline_html;
-            ctx.source.append(">");
-            emit_contents;
-            ctx.source.append("</td>");
+            subemit("td",false,"","");
         }
     }
 
     register select;
     "select" {
         in htmlemiting {
-            ctx.source.append("<select");
-            emit_inline_html;
-            ctx.source.append(">");
-            emit_contents;
-            ctx.source.append("</select>");
+            subemit("select",false,"","");
         }
     }
 
@@ -242,12 +277,7 @@
         }
         in htmlemiting {
             execut(ctx.node.children.get(0));
-            ctx.source.append("<option");
-            emit_inline_html;
-            ctx.source.append(">");
-            ctx.source.append(ctx.node.children.get(0).value.getStr);
-            ctx.source.append("</option>");
-            emit_contents;
+            subemit("option",false,"",ctx.node.children.get(0).value.getStr);
         }
     }
 
@@ -264,6 +294,7 @@
         ctx.source = "";
         htmlemit n;
         c.source = (oldsrc+ctx.source);
+        //print("NEW SOURCE: ",c.source);
         return ctx.source;
     }
     "component" {
@@ -568,6 +599,7 @@
     }
 ##
 
+
 global Session session;
 global ColColCol database;
 int guest_counter = 0;
@@ -631,7 +663,7 @@ while(0<1) {
             if(to_serve.find(".js") > 0)   {mime = "application/javascript";}
             if(to_serve.find(".css") > 0)  {mime = "text/css";}
 
-            print("Serving file ",to_serve);
+            //print("Serving file ",to_serve);
             string info = read_file(to_serve);
             string response = "HTTP/1.1 200 OK\r\n"
                             + "Content-Type: " + mime + "\r\n"
@@ -640,7 +672,8 @@ while(0<1) {
             response += info;
             write(cfd, response);
             close(cfd);
-            print("Unit ", unit_uid, " completed file request ", cfd, " in ", tstop("request_timer"));
+            tstop("request_timer")
+            //print("Unit ", unit_uid, " completed file request ", cfd, " in ", tstop("request_timer"));
             unit_setindex(0);
             continue;
         }
@@ -654,192 +687,160 @@ while(0<1) {
         string response = "";
         bool should_emit_page = true;
 
-        if(unslashpath.find(".")>0) {
-            string strip_to_directory = "";
-            for(int i=unslashpath.length-1;i>0;i=i-1)  {
-                if(unslashpath.slice(i-1,i)=="/") {strip_to_directory = unslashpath.slice(0,i-1); i=0;}
-            }
-            if(strip_to_directory.length>0&&((strip_to_directory==session.userpath)||file_whitelist.has(strip_to_directory))) {
-                string mime = "application/octet-stream";
-                if(unslashpath.find(".png") > 0) {mime = "image/png";}
-                if(unslashpath.find(".jpg") > 0) {mime = "image/jpeg";}
-                if(unslashpath.find(".js") > 0)  {mime = "application/javascript";}
-                if(unslashpath.find(".css") > 0) {mime = "text/css";}
-                string info = read_file(unslashpath);
-                string response = "HTTP/1.1 200 OK\r\n"
-                                +"Content-Type: " + mime + "\r\n"
-                                +"Content-Length: " + to_string(info.length) + "\r\n"
-                                +"\r\n";
-                response+=info;
-                write(cfd, response);
-                close(cfd);
-                print("Unit ",unit_uid," completed file request ",cfd," in ",tstop("request_timer"));
-                unit_setindex(0);
-                continue;
-            } else {
-                string response = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
-                write(cfd, response);
-                close(cfd);
-                print("Unit ",unit_uid," attempted to access an unauthorized file: ",unslashpath," took ",tstop("request_timer"));
-                unit_setindex(0);
-                continue;
-            }
-        } else {
-            if((session.username.length==0)) {
-                if(allow_guests) {
-                    string new_guest_id = "guest_"+to_string(unit_uid)+"-"+to_string(guest_counter++);
-                    cry("SESSION:"+new_guest_id);
-                    string session_token = unit_label;
+        if((session.username.length==0)) {
+            if(allow_guests) {
+                string new_guest_id = "guest_"+to_string(unit_uid)+"-"+to_string(guest_counter++);
+                cry("SESSION:"+new_guest_id);
+                string session_token = unit_label;
 
-                    response.append("HTTP/1.1 200 OK\r\n");
-                    response.append("Content-Type: text/html\r\n");
-                    string cooked = "Set-Cookie: session="+session_token+"; Path=/\r\n";
-                    response.append(cooked);
-                    
+                response.append("HTTP/1.1 200 OK\r\n");
+                response.append("Content-Type: text/html\r\n");
+                string cooked = "Set-Cookie: session="+session_token+"; Path=/\r\n";
+                response.append(cooked);
+                
+                string do_str = "document.cookie = 'session="+session_token+"; path=/';";
+                ctx.source = "";
+                emit_block {
+                    script js_do(do_str);
+                }
+                response_body.append(ctx.source);
+            } else {
+                if(auto_log&&current_session_token!="loggedout") { //Auto log in as Fir for debug
+                    print("Auto logging");
+                    if(unit_uid==2) {
+                        cry("SESSION:Fir");
+                    } else {
+                        cry("SESSION:Ash");
+                    }
+                    string session_token = unit_label;
+                        string userinfo = read_file(session.userpath+"/userinfo");
+                        session.role = userinfo.slice(0,userinfo.find("\n"));
+                        session.org = userinfo.slice("\n",1,2);
                     string do_str = "document.cookie = 'session="+session_token+"; path=/';";
                     ctx.source = "";
                     emit_block {
                         script js_do(do_str);
                     }
                     response_body.append(ctx.source);
+                    //save_sheet(generate_redberry_sheet,"web/thistle/users/Fir/sheets/Blank");
                 } else {
-                    if(auto_log&&current_session_token!="loggedout") { //Auto log in as Fir for debug
-                        print("Auto logging");
-                        if(unit_uid==2) {
-                            cry("SESSION:Fir");
-                        } else {
-                            cry("SESSION:Ash");
+                    if(slashpath=="/login") {
+                        if(method=="RUN") {
+                            if(valid_login_capture.length==0) {
+                                print("No valid login capture was registered, unable to run");
+                                should_emit_page = false;
+                            }
                         }
-                        string session_token = unit_label;
-                            string userinfo = read_file(session.userpath+"/userinfo");
-                            session.role = userinfo.slice(0,userinfo.find("\n"));
-                            session.org = userinfo.slice("\n",1,2);
-                        string do_str = "document.cookie = 'session="+session_token+"; path=/';";
+                    } else {
+                        redirected_from = slashpath;
                         ctx.source = "";
                         emit_block {
-                            script js_do(do_str);
+                            script js_do("window.location.href = '/login';");
                         }
                         response_body.append(ctx.source);
-                        //save_sheet(generate_redberry_sheet,"web/thistle/users/Fir/sheets/Blank");
-                    } else {
-                        if(slashpath=="/login") {
-                            if(method=="RUN") {
-                                if(valid_login_capture.length==0) {
-                                    print("No valid login capture was registered, unable to run");
-                                    should_emit_page = false;
-                                }
-                            }
-                        } else {
-                            redirected_from = slashpath;
-                            ctx.source = "";
-                            emit_block {
-                                script js_do("window.location.href = '/login';");
-                            }
-                            response_body.append(ctx.source);
-                            should_emit_page = false;
-                        }
+                        should_emit_page = false;
                     }
                 }
             }
+        }
 
-            if(should_emit_page) {
-                if(unslashpath.length==0) {
-                    unslashpath = "root_path"; //For routing
-                } else if(unslashpath=="favicon.ico") {
-                    unslashpath = "root_path"; //For routing
+        if(should_emit_page) {
+            if(unslashpath.length==0) {
+                unslashpath = "root_path"; //For routing
+            } else if(unslashpath=="favicon.ico") {
+                unslashpath = "root_path"; //For routing
+            }
+
+            if(method=="RESET") {
+                print("Recompiled webrunner");
+                twig = compile(read_file(twigpath));
+                page = twig.children.get(0);
+                method="GET";
+            }   
+
+            for(int i=0;i<twig.children.length;i++) {
+                Node child = twig.children.get(i);
+                if(labels(child.type)==unslashpath) {
+                    page = child; //Because I haven't added break yet
                 }
+            }
 
-                if(method=="RESET") {
-                    print("Recompiled webrunner");
-                    twig = compile(read_file(twigpath));
-                    page = twig.children.get(0);
-                    method="GET";
-                }   
+            if(method=="GET") {
+                ctx.source = "";
+                htmlemit page;
+                response_body.append(ctx.source);
+            }
 
-                for(int i=0;i<twig.children.length;i++) {
-                    Node child = twig.children.get(i);
-                    if(labels(child.type)==unslashpath) {
-                        page = child; //Because I haven't added break yet
-                    }
+            if(method=="POST") {
+                int body_start = req.find("\r\n\r\n");
+                if(body_start>=0) {
+                    string src = req.slice(body_start+4,req.length);
+                    ctx.source = src;
+                    post page;
+                    response.append(ctx.source);
                 }
+            }
 
-                if(method=="GET") {
-                    ctx.source = "";
-                    htmlemit page;
+            if(method=="FRAG") {
+                int body_start = req.find("\r\n\r\n");
+                if(body_start>=0) {
+                    string src = req.slice(body_start+4,req.length);
+                    ctx.source = src;
+                    frag page;
                     response_body.append(ctx.source);
                 }
+            }
 
-                if(method=="POST") {
-                    int body_start = req.find("\r\n\r\n");
-                    if(body_start>=0) {
-                        string src = req.slice(body_start+4,req.length);
-                        ctx.source = src;
-                        post page;
-                        response.append(ctx.source);
-                    }
-                }
+            if(method=="RUN") {
+                int body_start = req.find("\r\n\r\n");
+                if(body_start>=0) {
+                    string src = req.slice(body_start+4,req.length);
+                    if(src.length==0) {
+                        print("Recived a blank run request");
+                    } else {
+                        print("Running:\n",src);
 
-                if(method=="FRAG") {
-                    int body_start = req.find("\r\n\r\n");
-                    if(body_start>=0) {
-                        string src = req.slice(body_start+4,req.length);
-                        ctx.source = src;
-                        frag page;
-                        response_body.append(ctx.source);
-                    }
-                }
-
-                if(method=="RUN") {
-                    int body_start = req.find("\r\n\r\n");
-                    if(body_start>=0) {
-                        string src = req.slice(body_start+4,req.length);
-                        if(src.length==0) {
-                            print("Recived a blank run request");
-                        } else {
-                            print("Running:\n",src);
-
-                            Ptr string args = split_str(src,"@");
-                            ctx.source = "go";
-                            if(args.length>0) {
-                                string ptrstring = args.get(0);        
-                                if(unslashpath=="login") {
-                                    string valid_ptr = valid_login_capture.slice("'",1,2);
-                                    if(ptrstring!=valid_ptr) {
-                                        string response = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
-                                        write(cfd, response);
-                                        close(cfd);
-                                        print("Unit ",unit_uid," attempted to run an unauthorized function from the login page: ",ptrstring," took ",tstop("request_timer"));
-                                        unit_setindex(0);
-                                        continue;
-                                    }
+                        Ptr string args = split_str(src,"@");
+                        ctx.source = "go";
+                        if(args.length>0) {
+                            string ptrstring = args.get(0);        
+                            if(unslashpath=="login") {
+                                string valid_ptr = valid_login_capture.slice("'",1,2);
+                                if(ptrstring!=valid_ptr) {
+                                    string response = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
+                                    write(cfd, response);
+                                    close(cfd);
+                                    print("Unit ",unit_uid," attempted to run an unauthorized function from the login page: ",ptrstring," took ",tstop("request_timer"));
+                                    unit_setindex(0);
+                                    continue;
                                 }
-                                
-                                Ptr pointer = string_to_Ptr(ptrstring);
-                                if(is_live(pointer)) {
-                                    Node root = cast_to_Node(pointer);
-                                    if(args.length>1) {
-                                        for(int a=1;(a+1)<args.length;a++) {
-                                            if(args.get(a)=="[VAR]") {
-                                                string escapedarg = escape_html(args.get(a+1));
-                                                root.children.get(a-1).value.set(escapedarg);
-                                            }
+                            }
+                            
+                            Ptr pointer = string_to_Ptr(ptrstring);
+                            if(is_live(pointer)) {
+                                Node root = cast_to_Node(pointer);
+                                if(args.length>1) {
+                                    for(int a=1;(a+1)<args.length;a++) {
+                                        if(args.get(a)=="[VAR]") {
+                                            string escapedarg = escape_html(args.get(a+1));
+                                            root.children.get(a-1).value.getStr = escapedarg;
                                         }
                                     }
+                                }
 
-                                    ctx.source = "go";
+                                ctx.source = "go";
+                                tstart("executing_run_root");
+                                print("Context: ",ctx.source);
+                                execut root;
+                                print("Time: ",tstop("executing_run_root"));
 
-                                    tstart("executing_run_root");
-                                    execut root;
-                                    print("Time: ",tstop("executing_run_root"));
-
-                                    src = ctx.source;
-                                    if(src=="RELOAD") {
-                                        ctx.source = "";
-                                        htmlemit page;
-                                        response_body = ctx.source;
-                                    } else if(src.length>0) {
-                                        response_body = src;
-                                    }
+                                src = ctx.source;
+                                if(src=="RELOAD") {
+                                    ctx.source = "";
+                                    htmlemit page;
+                                    response_body = ctx.source;
+                                } else if(src.length>0) {
+                                    response_body = src;
                                 }
                             }
                         }
@@ -847,7 +848,6 @@ while(0<1) {
                 }
             }
         }
-
         if(response.length==0) {
             response.append("HTTP/1.1 200 OK\r\n");
             response.append("Content-Type: text/html\r\n");

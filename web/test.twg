@@ -1,63 +1,34 @@
+
 ##
     register root_path;
     "root_path" {
         in htmlemiting {
-            emit_contents;
+            subemit("div",false,"","");
         }
     }
 ##
 
-
-include web/partsbin.twg;
-
 root_path {
     script read_file("web/webcorn.js");
-    div {
-        "display" : "flex";
-        "flex-direction" : "row";
-        button {
-            text "RESET";
-            "onclick" : "resetWebrunner();";
-        }
-            button {
-            text "DUMP";
-            "onclick" : capture{dump_unit(true);};
-        }
-    }
-
-    static bool is_open;
-    string popupid;
-    div display_pane {
-        popupid = node_str_id(call_owner(display_pane));
-        "display" : (is_open?"flex":"none");
-        popup_panel(
-            capture(
-                js_do("event.stopPropagation();"+js_close(popupid))
-            ) {
-                is_open = false;
-            },[&]{
-                div {
-                    button {
-                        text "PUSH";
-                        "onclick" : capture{print("Pushed");}
-                    }
-                    button {
-                        text "CLOSE";
-                        "onclick" : capture(
-                            js_do("event.stopPropagation();"+js_close(popupid))   
-                        ){
-                            is_open = false;
-                        }
-                    }
-                }   
-        });
-    }
-    button {
-        text "OPEN";
+    static string thing_color = "gray";
+    div thing_holder {
+        "background-color" : thing_color;
+        "width" : "80px";
+        text "Hello";
         "onclick" : capture(
-            js_do("event.stopPropagation();"+js_open(popupid))   
-        ){
-            is_open = true;
+
+        ) {
+            if(thing_color=="gray") {
+                thing_color = "red";
+            } else {
+                thing_color = "gray";
+            }
+            thing_holder.reload();
+            emit_js("
+                setTimeout(() => {
+                    getel('"+capture_node(thing_holder)+"').style.backgroundColor = 'blue';
+                }, 200);
+            ");
         }
     }
 }

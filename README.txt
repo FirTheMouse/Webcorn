@@ -35,7 +35,7 @@ Thistle run production (enable tls first by rebuilding):
 ./webcorn --port=443 --tls=cert --private --twigcode=web/thistle/thistle.twg
 
 Test running
-cmake --build build && ./webcorn --port=443 --twigcode=web/test.twg --debug
+cmake --build build && ./webcorn --port=443 --twigcode=web/test.twg
 
 Website
 cmake --build build && ./webcorn --port=443 --twigcode=web/goldensystems/website.twg --files=web/goldensystems/files
