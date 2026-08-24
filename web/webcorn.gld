@@ -1,2 +1,141 @@
-Ptr int nums; 
-nums.get(0);
+print("Starting webcorn");
+
+int units = 0;
+string arg_units = unit_get_arg("--units=");
+if(arg_units.length!=0) {
+    units = stoi(arg_units);
+}
+
+string arg_tls = unit_get_arg("--tls=");
+if(arg_tls.length!=0) {
+    if(unit_uid==1) {
+        if(arg_tls=="cert") {
+            init_tls("/etc/letsencrypt/live/goldensystems.ca/fullchain.pem", "/etc/letsencrypt/live/goldensystems.ca/privkey.pem");
+        } else if(arg_tls=="self") {
+            init_tls("web/files/cert.pem","web/files/key.pem");
+        }
+        print(unit_uid," initilized tls");
+    }
+}
+
+int log_verbosity = 0;
+string arg_verbosity = unit_get_arg("--verbosity=");
+if(arg_verbosity.length!=0) {log_verbosity = stoi(arg_verbosity);}
+
+string project_path = "";
+string arg_path = unit_get_arg("--project=");
+if(arg_path.length!=0) {project_path = arg_path;}
+
+if(log_verbosity>3) {
+    print("project path: ",project_path);
+}
+
+string arg_scriptcode = unit_get_arg("--script=");
+if(arg_scriptcode.length!=0) {
+    Node scriptroot = compile(read_file(arg_scriptcode));
+    execut scriptroot;
+} else if(project_path.length>0) {
+    string potential_scriptpath = project_path+"init.gld";
+    if(file_exists(potential_scriptpath)) {
+        Node scriptroot = compile(read_file(potential_scriptpath));
+        execut scriptroot;
+    }
+}
+
+
+string unitcode_path = "web/webrunner.gld";
+string arg_unitcode = unit_get_arg("--unitcode=");
+if(arg_unitcode.length!=0) {
+    unitcode_path = arg_unitcode;
+} 
+
+string unitcode = read_file(unitcode_path);
+
+Ptr bool file_whitelist;
+string arg_whitelist = unit_get_arg("--files=");
+if(arg_whitelist.length!=0) {
+    Ptr string files = split_str(arg_whitelist,",");
+    for(int i=0;i<files.length;i++) {
+        file_whitelist.put(files.get(i),true);
+    }
+}
+
+if(unit_uid==1) {
+    start_session_manager(unitcode);
+    print("Started the session manager");
+}
+
+//string botcode = read_file("web/botrunner.gld");
+//start_bot_manager(botcode);
+//print("Started the bot manager");
+//dispatch_bot(1,"example.com",botcode);
+
+int fd = socket;
+int port = 8080;
+
+string arg_port = unit_get_arg("--port=");
+if(arg_port.length!=0) {
+    port = stoi(arg_port);
+}
+print("Attempting to start a server on ",port);
+
+bind(fd,port);
+listen(fd);
+print("Opened a new server on ",port);
+
+if(units>0) {
+    print("Setting up ",units," units");
+    for(int i=0;i<units;i++) {
+        setup_unit(fd,unitcode);
+    }
+    print("Setup complete");
+    while(!unit_shutdown_flag) {
+        catch {
+            print("Caught some error, terminating all servers");
+            terminate_all_servers; 
+            print("Finished terminating servers");
+            break;
+        }
+    }
+} else {
+    while(0<1) {
+        int cfd = accept(fd);
+        catch {
+            terminate_all_servers; 
+            print("Finished terminating servers");
+            break;
+        }
+
+        if(cfd>0) {
+            if(log_verbosity>1){tstart("dispatch_desc");}
+            string req = read(cfd);
+            if((req=="BADREQUEST")||unit_error) {
+                print("Failed to read a request in ",tstop("dispatch_desc"));
+                close(cfd);
+                continue;
+            }
+            string session = get_cookie(req,"session");
+            if(log_verbosity>1) {print("Request at ",unit_time_precise," Session: ",session);}
+            string first_line = req.substr(0, req.find("\r\n"));
+            string method = first_line.substr(0, first_line.find(" "));
+            string slashpath = first_line.slice(" ", 1, 2);
+            string unslashpath = slashpath.substr(1,slashpath.length-1);
+            if(log_verbosity>1){print("Path: ",slashpath," Method: ",method);}
+            if(unslashpath.find(".")>0) {
+                string strip_to_directory = "";
+                for(int i=unslashpath.length-1;i>0;i=i-1)  {
+                    if(unslashpath.slice(i-1,i)=="/") {strip_to_directory = unslashpath.slice(0,i-1); i=0;}
+                }
+                if(strip_to_directory.length>0 && file_whitelist.has(strip_to_directory)) {
+                    if(log_verbosity>1){print("Dispatching to any server to handle file ",unslashpath," decided in ",tstop("dispatch_desc"));}
+                    dispatch_unit("ANYSERVE", cfd, "SERVE "+unslashpath+"\r\n", unitcode);
+                    continue;
+                }
+            }
+            if(session=="ANYSERVE") {print("Malicious request attempted to spoof the dispatcher:\n",req); tstop("dispatch_desc"); continue;}
+
+            if(log_verbosity>1){print("Dispatching server to handle request ",cfd," decided in ",tstop("dispatch_desc"));}
+            dispatch_unit(session,cfd,req,unitcode);
+        }
+    }
+}
