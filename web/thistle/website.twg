@@ -1,0 +1,344 @@
+
+##
+    global bool darkmode; darkmode = false;
+##
+
+inlined thistle_color {
+    "background-color" : "rgb(172, 57, 147)";
+}
+
+inlined background_theme {
+    if(darkmode) {
+        "background-color" : "rgb(28, 28, 28)";
+    } else {
+        "background-color" : "rgb(225, 225, 225)";
+    }
+}
+inlined card_theme {
+    if(darkmode) {
+        "background-color" : "rgb(43, 43, 43)";
+    } else {
+        "background-color" : "rgb(247, 244, 244)";
+    }
+}
+inlined banner_theme {
+    "background-color" : "rgb(211, 211, 211)";
+}
+inlined component_theme {
+    if(darkmode) {
+        "background-color" : "rgb(52, 52, 52)";
+    } else {
+        "background-color" : "rgb(255, 249, 249)";
+    }
+}
+inlined text_theme {
+    "font-size" : "13px";
+    "font-weight" : "600";
+    if(darkmode) {
+        "color" : "rgb(247, 244, 244)";
+    } else {
+        "color" : "rgb(80,80,80)";
+    }
+    "font-family" : "system-ui, sans-serif";
+}
+
+inlined input_theme {
+    component_theme;
+    "border" : "1px solid rgb(200,200,200)";
+    "border-radius" : "8px";
+    "padding" : "10px 14px";
+    "width" : "100%";
+    "font-size" : "15px";
+    "font-family" : "system-ui, sans-serif";
+}
+
+inlined air_input_theme {
+    "border" : "none";
+    "border-bottom" : "2px solid rgb(200,200,200)";
+    "border-radius" : "0px";
+    "background-color" : "transparent";
+    "padding" : "8px 0px";
+    input_theme;
+}
+
+inlined form_input_theme {
+    air_input_theme;
+}
+inlined form_sub_input_theme {
+    "border" : "2px solid rgb(200,200,200)";
+    air_input_theme;
+}
+inlined form_select_theme {
+    component_theme;
+    "border" : "1px solid rgb(200,200,200)";
+    "border-radius" : "8px";
+    "padding" : "8px 12px";
+    "width" : "100%";
+    "font-size" : "14px";
+    "font-family" : "system-ui, sans-serif";
+    "cursor" : "pointer";
+    "appearance" : "none";
+    "-webkit-appearance" : "none";
+}
+
+inlined basic_button {
+    "height" : "50%";
+    "width" : "50%";
+}
+
+
+inlined hoverable_theme {
+    "background-color" : transparent;
+    "transition" : "background-color 0.15s ease";
+    "onmouseenter" : "if(this.style.backgroundColor==='transparent')this.style.backgroundColor='rgba(0,0,0,0.04)'";
+    "onmouseleave" : "if(this.style.backgroundColor==='rgba(0, 0, 0, 0.04)')this.style.backgroundColor='transparent'";
+}
+inlined popup_background_theme {
+   "position" : "fixed";
+    "top" : "0";
+    "left" : "0";
+    "width" : "100%";
+    "height" : "100%";
+    "background-color" : "rgba(0,0,0,0.4)";
+    "z-index" : "1000";
+    "display" : "flex";
+    "justify-content" : "center";
+    "align-items" : "center";
+    "onclick" : "event.stopPropagation();";
+}
+
+inlined popup_panel_theme {
+    "background-color" : "white";
+    "border-radius" : "12px";
+    "padding" : "24px";
+    "display" : "flex";
+    "flex-direction" : "column";
+    "gap" : "16px";
+    "align-items" : "center";
+    "box-shadow" : "0 8px 32px rgba(0,0,0,0.2)";
+    "onclick" : "event.stopPropagation();";
+}
+
+
+
+
+##
+    global Ptr get_user_attr(string user, string attr) {
+        Header& users = database["Users"];
+        Ptr retrived = deadptr;
+        if(users.try_read_forever) {
+            if(users.has(user)) {
+                Ptr& rbn = users[user];
+                if(rbn.has(attr)) {
+                    retrived = rbn[attr];
+                } else {
+                    print("Attribute ",attr," not found for user ",user);
+                }
+            } else {
+                print("User ",user," not found");
+            }
+            users.unlock;
+        }
+        return retrived;
+    }
+##
+
+##
+    register root_path;
+    "root_path" {
+        in htmlemiting {
+            subemit("body",false,"","");
+        }
+    }
+##
+
+string setter_callback(Ptr rbn, string myval_str) {
+    string capstr = capture(
+        string myval ; myval_str,
+        string rbnptr ; js_lit(capture_ptr(rbn))
+    ) {
+        Ptr frbn = from_string(rbnptr);
+        ColColCol sub = frbn;
+        sub.reload;
+        if(sub.try_read_forever) {
+            sub.adopt(frbn);
+            *(frbn["data"]) = from_string(myval);
+            sub.save;
+            sub.unlock;
+        }
+    }
+    return capstr;
+}
+
+stateless template div render_question(Ptr rbn) {
+    if(rbn.has("form_type")) {
+        string form_type = *(rbn["form_type"]);
+        div {
+            "display" : "flex";
+            "flex-direction" : "column";
+            "gap" : "8px";
+            "width" : "100%";
+
+            text rbn.label {
+                "font-size" : "16px";
+                text_theme;
+            }
+
+            if(form_type=="dropdown") {
+                Ptr opts = rbn["options"];
+                string current = to_string(*(rbn["data"]));
+                select {
+                    form_select_theme;
+                    for(int i=0;i<opts.length;i++) {
+                        setsidx(opts,i);
+                        string optval = value_as_string(opts);
+                        option opts.celllabel {
+                            "value" : optval;
+                            if(optval==current) {
+                                "selected" : "true";
+                            }
+                        }
+                    }
+                    "onchange" : setter_callback(rbn,"this.value");
+                }
+            } else if(form_type=="multiple_choice") {
+                Ptr opts = rbn["options"];
+                string current = to_string(*(rbn["data"]));
+                for(int i=0;i<opts.length;i++) {
+                    setsidx(opts,i);
+                    string optval = value_as_string(opts);
+                    div {
+                        "display" : "flex";
+                        "align-items" : "center";
+                        "gap" : "8px";
+                        input {
+                            "type" : "radio";
+                            "name" : rbn.label;
+                            "value" : optval;
+                            if(optval==current) {
+                                "checked" : "true";
+                            }
+                            "onchange" : setter_callback(rbn,"this.value");
+                        }
+                        text opts.celllabel {text_theme;}
+                    }
+                }
+            } else if(form_type=="input") {
+                input {
+                    air_input_theme;
+                    "type" : "text";
+                    if(rbn.has("data")) {
+                        "value" : to_string(*(rbn["data"]));
+                    }
+                    "onchange" : setter_callback(rbn,"this.value");
+                }
+            } else if(form_type=="checkbox") {
+                input {
+                    "type" : "checkbox";
+                    if(rbn.has("data")) {
+                        if(to_string(*(rbn["data"]))=="true") {
+                            "checked" : "true";
+                        }
+                    }
+                    "onchange" : setter_callback(rbn,"this.checked?'true':'false'");
+                }
+            } else if(form_type=="date") {
+                input {
+                    air_input_theme;
+                    "type" : "date";
+                    if(rbn.has("data")) {
+                        "value" : to_string(*(rbn["data"]));
+                    }
+                    "onchange" : setter_callback(rbn,"this.value");
+                }
+            }
+        }
+    }
+}
+
+root_path {
+    style " * {margin: 0; padding: 0; box-sizing: border-box;}";
+    script read_file("web/webcorn.js");
+
+    Header& users = database["Users"];
+    Ptr& ash = users["Ash"];
+    Ptr& fir = users["Fir"];
+
+    if(database.has("THINGY")) {
+        print("Ash's turn");
+        Ptr& ashbox = ash["inbox"];
+        for(int i=0;i<ashbox.length;i++) {
+            string s = ashbox[i];
+            print(i,": ",s);
+            ColColCol sub = reload_subunit(s);
+
+            ColCol sheet = sub[0];
+            Ptr cell = sheet[2][1];
+
+            render_question(cell);
+
+            Ptr celldata = cell["data"];
+            print(*celldata);
+            cell = sheet[1][0];
+            celldata = cell["data"];
+            print(*celldata);
+
+                        render_question(cell);
+
+        }
+    } else {
+        print("Fir's turn");
+        database.add("THINGY");
+        Ptr& inbox = fir["inbox"];
+        string newpath = users.add(char);
+        inbox.push(newpath);
+        newpath = project_path+"subunits/testunit.gsu";
+        ColColCol sub = usubunits.add(newpath);
+        ColCol sheet = sub.add;
+        Header head = sub.add;
+
+        for(int c=0;c<5;c++) {
+            Ptr scol = sheet.add(Ptr);
+            for(int r=0;r<3;r++) {
+                scol.push(deadptr);
+            }
+        }
+
+        sheet[2].set(1,head.ribbon("2-1"));
+        sheet[1].set(0,head.ribbon("1-0"));
+
+        Header rbn = sheet[2][1];
+        rbn.putString("data","hello world");
+        rbn.putString("form_type","dropdown");
+
+        Ptr Ptr nrbn = rbn;
+        nrbn.label("Choose");
+        print(nrbn.label);
+        Ptr sopts = head.add(string);
+        nrbn.put("options",sopts);
+        for(int n=0;n<3;n++) {
+            string sopt = head.add(char);
+            sopt = "B"+to_string(n*3);
+            sopts.put(to_string(n),sopt)
+        }
+        
+        rbn = sheet[1][0];
+        rbn.putString("data","goodbye");
+        rbn.putString("form_type","input");
+        nrbn = rbn;
+        nrbn.label("Choose");
+        print(nrbn.label);
+        sopts = head.add(int);
+        nrbn.put("options",sopts);
+        for(int n=0;n<3;n++) {
+            sopts.put(to_string(n),n*3)
+        }
+        
+       
+        sub.unlock;
+        sub.bounce;
+
+        Ptr& ashbox = ash["inbox"];
+        ashbox.push(newpath);
+    }   
+}

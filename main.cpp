@@ -1,12 +1,19 @@
 #define TESTING_UNIT_ONLY 0
+#define TESTING_LANGUGE_ONLY 1
 
 #if TESTING_UNIT_ONLY
-    #include "GDSL/mixos-acorn/Acorn-Core.hpp"
+    #if TESTING_LANGUGE_ONLY
+        #include "GDSL/mixos-acorn/Acorn-Compiler.hpp"
+    #else
+        #include "GDSL/mixos-acorn/Acorn-Core.hpp"
+    #endif
 #else
-   #include "web/Webcorn-Core.hpp"
+    #if TESTING_LANGUGE_ONLY
+        #include "GDSL/mixos-acorn/Acorn-Workshop.hpp"
+    #else
+      #include "web/Webcorn-Core.hpp"
+    #endif
 #endif
-//#include "GDSL/mixos-acorn/Acorn-Script.hpp"
-//#include "GDSL/mixos-acorn/Acorn-Workshop.hpp"
 
 #include <signal.h>
 #include <execinfo.h>
@@ -206,6 +213,159 @@ namespace wub {
     }
 }
 
+// list<map<std::string,std::string>> propbin;
+
+// void test_memory(int depth = 0) {
+//     //print("Test  mem ",depth," RSS: ",current_rss()," VSZ: ",current_vsz());
+//     map<std::string,std::string> structural_props;
+//     map<std::string,std::string> stylistic_props;
+//     map<std::string,std::string> part_props;
+    
+//     //print("Befor puh ",depth," RSS: ",current_rss()," VSZ: ",current_vsz());
+//     propbin.push(std::move(structural_props)); 
+//     propbin.push(std::move(stylistic_props)); 
+//     propbin.push(std::move(part_props));
+//     //print("After puh ",depth," RSS: ",current_rss()," VSZ: ",current_vsz());
+    
+//     // propbin[propbin.length()-3].put("id","some-element-id");
+//     // propbin[propbin.length()-3].put("class","race_display");
+//     // propbin[propbin.length()-3].put("onclick","event.stopPropagation(); const candidates = this.parentElement...");
+//     // propbin[propbin.length()-2].put("display","flex");
+//     // propbin[propbin.length()-2].put("flex-direction","column");
+//     // propbin[propbin.length()-2].put("background-color","rgb(43,43,43)");
+//     // propbin[propbin.length()-1]["ANY"] += "some accumulated html content here";
+
+//     if(depth<4) {
+//         test_memory(depth+1);
+//     }
+
+//     //print("Befor pop ",depth," RSS: ",current_rss()," VSZ: ",current_vsz());
+//     part_props = propbin.pop();
+//     stylistic_props = propbin.pop(); 
+//     structural_props = propbin.pop(); 
+//     //print("After pop ",depth," RSS: ",current_rss()," VSZ: ",current_vsz());
+//     //print("Done  mem ",depth," RSS: ",current_rss()," VSZ: ",current_vsz());
+// }
+
+// using namespace Acorn;
+
+// // void test_memory() {
+// //     //ColCol probs;
+// //     std::vector<int> probs;
+// //     probs.reserve(1);
+// //         // QCellCol cells;
+// //         //QCol c;
+// //         // c.element_size = 1;
+// //         // c.tag = 20; // char_id
+// //         // std::string key = "hello";
+// //         // c.hash = hashBytes(key.data(), key.size());
+// //         // c.index = 0;
+// //         // c.push((void*)key.data()); // store the key as data
+// //     //probs.push_back(0);
+// //         // cells.scan_for_slot(std::move(c));
+// //         // c.storage = nullptr; // transfer ownership
+// //         // // cells now owns the CCol with its storage
+// //         // // destructor should free it
+// // }
+
+// ColCol propbin;
+
+// void test_memory(int depth = 0) {
+//     //print("Test  mem ",depth," RSS: ",current_rss()," VSZ: ",current_vsz());
+//     create_column(propbin,sizeof(Ptr),string_id);
+//     create_column(propbin,sizeof(Ptr),string_id);
+//     create_column(propbin,sizeof(Ptr),string_id);
+
+//     propbin[propbin.length()-3].put("id",&deadptr);
+//     propbin[propbin.length()-3].put("class",&deadptr);
+//     propbin[propbin.length()-3].put("onclick",&deadptr);
+//     propbin[propbin.length()-2].put("display",&deadptr);
+//     propbin[propbin.length()-2].put("flex-direction",&deadptr);
+//     propbin[propbin.length()-2].put("background-color",&deadptr);
+//     //propbin[propbin.length()-1]["ANY"] += "some accumulated html content here";
+
+//     if(depth<4) {
+//         test_memory(depth+1);
+//     }
+
+//     //print("Befor pop ",depth," RSS: ",current_rss()," VSZ: ",current_vsz());
+//     int plen = propbin.length();
+//     recycle_column(propbin,plen-1);
+//     recycle_column(propbin,plen-2);
+//     recycle_column(propbin,plen-3);
+//     //print("After pop ",depth," RSS: ",current_rss()," VSZ: ",current_vsz());
+//     //print("Done  mem ",depth," RSS: ",current_rss()," VSZ: ",current_vsz());
+// }
+
+
+// struct EmptyTest {
+//     QCellCol qcol;
+// };
+// std::vector<EmptyTest> propbin;
+// void test_memory(int depth = 0) {
+//     EmptyTest structural_props;
+//     EmptyTest stylistic_props;
+//     EmptyTest part_props;
+    
+//     propbin.push_back(structural_props); 
+//     propbin.push_back(stylistic_props); 
+//     propbin.push_back(part_props);
+
+//     if(depth<4) {
+//         test_memory(depth+1);
+//     }
+
+//     part_props = propbin.back(); propbin.pop_back();
+//     stylistic_props = propbin.back(); propbin.pop_back();
+//     structural_props = propbin.back(); propbin.pop_back();
+// }
+
+// std::vector<std::unordered_map<std::string,std::string>> std_propbin;
+
+// void test_memory_std(int depth = 0) {
+//     std::unordered_map<std::string,std::string> structural_props;
+//     std::unordered_map<std::string,std::string> stylistic_props;
+//     std::unordered_map<std::string,std::string> part_props;
+    
+//     std_propbin.push_back(std::move(structural_props)); 
+//     std_propbin.push_back(std::move(stylistic_props)); 
+//     std_propbin.push_back(std::move(part_props));
+
+//     std_propbin[std_propbin.size()-3]["id"] = "some-element-id";
+//     std_propbin[std_propbin.size()-3]["class"] = "race_display";
+//     std_propbin[std_propbin.size()-3]["onclick"] = "event.stopPropagation(); const candidates = this.parentElement...";
+//     std_propbin[std_propbin.size()-2]["display"] = "flex";
+//     std_propbin[std_propbin.size()-2]["flex-direction"] = "column";
+//     std_propbin[std_propbin.size()-2]["background-color"] = "rgb(43,43,43)";
+//     std_propbin[std_propbin.size()-1]["ANY"] += "some accumulated html content here";
+    
+//     if(depth<4) {
+//         test_memory_std(depth+1);
+//     }
+
+//     part_props = std::move(std_propbin.back()); std_propbin.pop_back();
+//     stylistic_props = std::move(std_propbin.back()); std_propbin.pop_back();
+//     structural_props = std::move(std_propbin.back()); std_propbin.pop_back();
+// }
+
+// list<EmptyTest> propbin;
+// void test_memory(int depth = 0) {
+//     EmptyTest structural_props;
+//     EmptyTest stylistic_props;
+//     EmptyTest part_props;
+    
+//     propbin.push(structural_props); 
+//     propbin.push(stylistic_props); 
+//     propbin.push(part_props);
+
+//     if(depth<4) {
+//         test_memory(depth+1);
+//     }
+
+//     part_props = propbin.last(); propbin.pop();
+//     stylistic_props = propbin.last(); propbin.pop();
+//     structural_props = propbin.last(); propbin.pop();
+// }
 
 int main(int argc, char* argv[]) {
     print("TEST START");
@@ -218,101 +378,141 @@ int main(int argc, char* argv[]) {
     #if !TESTING_UNIT_ONLY
         // signal(SIGSEGV, crash_handler);
         // signal(SIGABRT, crash_handler);
-        // #ifndef _WIN32
-        //     signal(SIGBUS, crash_handler);
-        //     signal(SIGPIPE, SIG_IGN);
-        // #endif
+        #ifndef _WIN32
+            signal(SIGBUS, crash_handler);
+            signal(SIGPIPE, SIG_IGN);
+        #endif
     #endif
 
     //writeFile("GDSL/export/acorn.hpp",vendor_file("web/Webcorn-Core.hpp"));
 
-    #if TESTING_UNIT_ONLY   
-        // g_ptr<Acorn::Unit> u =  Acorn::make_unit<Acorn::Unit>();
-        // u->test_pool_groups();
+    #if TESTING_UNIT_ONLY  
+        #if TESTING_LANGUGE_ONLY
+            g_ptr<Acorn::Compiler_Unit> u =  Acorn::make_unit<Acorn::Compiler_Unit>();
+            u->test_compiler();
+        #else
+            // size_t start_rss; size_t start_vsz;
+            // size_t last_rss; size_t last_vsz;
+            // int iters = 500000;
+            // for(int i=0;i<iters;i++) {
+            //     test_memory();
+            //     if(i==0) {
+            //         start_rss = current_rss();
+            //         start_vsz = current_vsz();
+            //         last_rss = current_rss();
+            //         last_vsz = current_vsz();
+            //     } else if(i%10000==0) {
+            //         print("Growth over 10000 iteration(s), RSS: ",fmem(current_rss()-last_rss)," VSZ: ",fmem(current_vsz()-last_vsz));
+            //         last_rss = current_rss();
+            //         last_vsz = current_vsz();
+            //     }
+            // }
+            // print("Growth over ",iters," iterations, RSS: ",fmem(current_rss()-start_rss)," VSZ: ",fmem(current_vsz()-start_vsz));
 
-        g_ptr<Acorn::Unit> u =  Acorn::make_unit<Acorn::Unit>();
-        u->unit_label = "u";
+    
+            g_ptr<Acorn::Unit> u =  Acorn::make_unit<Acorn::Unit>();
+            u->test_pool_groups();
 
-        g_ptr<Acorn::Unit> p =  Acorn::make_unit<Acorn::Unit>();
-        p->unit_label = "p";
+            // g_ptr<Acorn::Unit> u =  Acorn::make_unit<Acorn::Unit>();
+            // u->unit_label = "u";
 
-        g_ptr<Acorn::Unit> c =  Acorn::make_unit<Acorn::Unit>();
-        c->unit_label = "c";
+            // g_ptr<Acorn::Unit> p =  Acorn::make_unit<Acorn::Unit>();
+            // p->unit_label = "p";
 
-        // g_ptr<Thread> tt = make<Thread>();
-        // tt->run([](){
-        //     g_ptr<Acorn::Unit> e =  Acorn::make_unit<Acorn::Unit>();
-        //     print("Made unit ",e->uid);
-        // },0.000001f);
-        // g_ptr<Thread> gg = make<Thread>();
-        // gg->run([](){
-        //     g_ptr<Acorn::Unit> e =  Acorn::make_unit<Acorn::Unit>();
-        //     print("Also made unit ",e->uid);
-        // },0.000001f);
+            // g_ptr<Acorn::Unit> c =  Acorn::make_unit<Acorn::Unit>();
+            // c->unit_label = "c";
 
-        // Log::Line timer; timer.start();
-        // while(true) {
-        //     if(timer.time_s()>2) {
-        //         print("Test concluded");
-        //         break;
-        //     }
-        // }
+            // g_ptr<Thread> tt = make<Thread>();
+            // tt->run([](){
+            //     g_ptr<Acorn::Unit> e =  Acorn::make_unit<Acorn::Unit>();
+            //     print("Made unit ",e->uid);
+            // },0.000001f);
+            // g_ptr<Thread> gg = make<Thread>();
+            // gg->run([](){
+            //     g_ptr<Acorn::Unit> e =  Acorn::make_unit<Acorn::Unit>();
+            //     print("Also made unit ",e->uid);
+            // },0.000001f);
 
-        // u->send_message("c,p","Hello from u!");
-        // c->send_message("p","Hey p");
+            // Log::Line timer; timer.start();
+            // while(true) {
+            //     if(timer.time_s()>2) {
+            //         print("Test concluded");
+            //         break;
+            //     }
+            // }
 
-        // u->test_courier();
-        // p->test_courier();
-        // c->test_courier();
-        // print("Starting courier");
+            // u->send_message("c,p","Hello from u!");
+            // c->send_message("p","Hey p");
 
-        // g_ptr<Acorn::Unit> courier =  Acorn::make_unit<Acorn::Unit>();
-        // courier->become_courier();
+            // u->test_courier();
+            // p->test_courier();
+            // c->test_courier();
+            // print("Starting courier");
 
-        // Log::Line timer; timer.start();
-        // while(true) {
-        //     if(timer.time_s()>2) {
-        //         print("Test concluded, dumping units");
-        //         editTextFile("printout.txt",[](std::string& source){source+="\n\n========TEST FINISHED========\n\n";});
+            // g_ptr<Acorn::Unit> courier =  Acorn::make_unit<Acorn::Unit>();
+            // courier->become_courier();
 
-        //         print("Dumping u");
-        //         u->dump_unit(true,"printout.txt",14);
-        //         print("Dumping c");
-        //         c->dump_unit(false,"printout.txt",14);
-        //         print("Dumping p");
-        //         p->dump_unit(false,"printout.txt",14);
-        //         print("Dumping courier");
-        //         courier->dump_unit(false,"printout.txt",14);
-        //         courier->running = false;
-        //         timer.end();
-        //         break;
-        //     }
-        // }
+            // Log::Line timer; timer.start();
+            // while(true) {
+            //     if(timer.time_s()>2) {
+            //         print("Test concluded, dumping units");
+            //         editTextFile("printout.txt",[](std::string& source){source+="\n\n========TEST FINISHED========\n\n";});
+
+            //         print("Dumping u");
+            //         u->dump_unit(true,"printout.txt",14);
+            //         print("Dumping c");
+            //         c->dump_unit(false,"printout.txt",14);
+            //         print("Dumping p");
+            //         p->dump_unit(false,"printout.txt",14);
+            //         print("Dumping courier");
+            //         courier->dump_unit(false,"printout.txt",14);
+            //         courier->running = false;
+            //         timer.end();
+            //         break;
+            //     }
+            // }
+        #endif 
     #else 
         try {
-            // g_ptr<Acorn::Workshop_Unit> acorn =  Acorn::make_unit<Acorn::Workshop_Unit>();
-            // acorn->run(acorn->process(readFile("GDSL/mixos-acorn/test.gld")));
+            #if TESTING_LANGUGE_ONLY
+                g_ptr<Acorn::Workshop_Unit> acorn =  Acorn::make_unit<Acorn::Workshop_Unit>();
+                acorn->run(acorn->process(readFile("GDSL/mixos-acorn/test.gld")));
+            #else
+                g_ptr<Acorn::Webcorn_Core> webcorn =  Acorn::make_unit<Acorn::Webcorn_Core>();
+                //list<g_ptr<Acorn::Webcorn_Core>> webcorns;
 
-            g_ptr<Acorn::Webcorn_Core> webcorn =  Acorn::make_unit<Acorn::Webcorn_Core>();
-
-            //webcorn->setup_trace_res_flipbook();
-            bool in_debug = false;
-            for(int i = 1; i < argc; i++) {
-                std::string arg(argv[i]);
-                webcorn->uargs << arg;
-                if(arg=="--debug") in_debug = true;
-            }
-            if(!in_debug) {
-                // std::set_terminate([](){
-                //     fprintf(stderr, "std::terminate called!\n");
-                //     void* array[20];
-                //     size_t size = backtrace(array, 20);
-                //     backtrace_symbols_fd(array, size, STDERR_FILENO);
-                //     abort();
-                // });
-            }
-            webcorn->run(webcorn->process(readFile("web/webcorn.gld")));
-            //webcorn->run(webcorn->process(readFile("GDSL/mixos-acorn/test.gld")));
+                //webcorn->setup_trace_res_flipbook();
+                bool in_debug = false;
+                for(int i = 1; i < argc; i++) {
+                    std::string arg(argv[i]);
+                    webcorn->uargs << arg;
+                    if(arg=="--debug") in_debug = true;
+                    // if(arg=="--units") {
+                    //     int amt = std::stoi(arg.substr(7));
+                    //     for(int i=0;i<6;i++) {
+                    //         g_ptr<Acorn::Webcorn_Core> new_unit = Acorn::make_unit<Acorn::Webcorn_Core>();
+                    //         new_unit->uargs << webcorn->uargs;
+                    //         webcorns << new_unit;
+                    //     }
+                    // }
+                }
+                if(!in_debug) {
+                    // std::set_terminate([](){
+                    //     fprintf(stderr, "std::terminate called!\n");
+                    //     void* array[20];
+                    //     size_t size = backtrace(array, 20);
+                    //     backtrace_symbols_fd(array, size, STDERR_FILENO);
+                    //     abort();
+                    // });
+                }
+                // for(auto& unit : webcorns) {
+                //     unit->start_thread([unit](){
+                //         unit->run(unit->process(readFile("web/webcorn.gld")));
+                //     });
+                // }
+                webcorn->run(webcorn->process(readFile("web/webcorn.gld")));
+                //webcorn->run(webcorn->process(readFile("GDSL/mixos-acorn/test.gld")));
+            #endif
         } catch(std::exception& e) {
             print("FATAL EXCEPTION: ", e.what());
         } catch(...) {

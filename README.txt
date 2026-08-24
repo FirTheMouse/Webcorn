@@ -3,6 +3,7 @@ Flags cheat sheet
 For the intial build (cmake -B build):
     cmake -B build -DUSE_TLS=ON : Use to turn TLS on or off when compiling
     cmake -B build -DUSE_ASAN=ON : ASAN is also an option
+    to use clang: -DCMAKE_CXX_COMPILER=clang++
         If you want TLS you need to do this first:
             first time only:
                 pip3 install jsonschema jinja2 --break-system-packages
@@ -20,6 +21,9 @@ For running webcorn (./webcorn)
     --debug : turns debug features on, namely no terminate handler, and Thistle will auto-log in as Fir.
     --files : directories to whiteliest, only goes one directory deep, seperated by commas
     --script : a script to run on startup
+    --units : how many units to startup, this is needed for Webcorn
+
+For running Hazel (./hazel)
 
 
 
@@ -41,9 +45,18 @@ Website
 cmake --build build && ./webcorn --port=443 --twigcode=web/goldensystems/website.twg --files=web/goldensystems/files
 
 Election Madness
-cmake --build build && ./webcorn --port=443 --project=web/electionmadness/ --twigcode=web/electionmadness/website.twg --files=web/electionmadness/files --script=web/electionmadness/init.gld
-cmake --build build && ./webcorn --port=443 --tls=cert --project=web/electionmadness/ --twigcode=web/electionmadness/website.twg --files=web/electionmadness/files --script=web/electionmadness/init.gld
+cmake --build build && ./webcorn --port=443 --private --project=web/electionmadness/ --twigcode=web/electionmadness/website.twg --files=web/electionmadness/files --script=web/electionmadness/init.gld
+cmake --build build && ./webcorn --port=443 --private --tls=cert --project=web/electionmadness/ --twigcode=web/electionmadness/website.twg --files=web/electionmadness/files --script=web/electionmadness/init.gld
 
+
+cmake --build build && ./hazel ./webcorn --port=443 --project=web/electionmadness/ --twigcode=web/electionmadness/website.twg --files=web/electionmadness/files --script=web/electionmadness/init.gld --verbosity=3 --units=8
+
+cmake --build build && ./hazel ./webcorn --port=443 --project=web/electionmadness/ --twigcode=web/electionmadness/website.twg --files=web/electionmadness/files --script=web/electionmadness/init.gld --verbosity=1 --units=12
+
+Standard production launch:
+cmake --build build && ./hazel ./webcorn --port=443 --project=web/electionmadness/ --twigcode=web/electionmadness/website.twg --files=web/electionmadness/files --script=web/electionmadness/init.gld --units=8 --tls=cert --verbosity=0
+
+cmake --build build && ./webcorn --port=443 --project=web/electionmadness/ --units=3 --verbosity=3
 
 If you don't
 

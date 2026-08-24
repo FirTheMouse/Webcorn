@@ -1,0 +1,48 @@
+##
+    register root_path;
+    "root_path" {
+        in htmlemiting {
+            subemit("body",false,"","");
+        }
+    }
+##
+
+void standard_header {
+    html '<meta name="viewport" content="width=device-width, initial-scale=1">';
+    style "
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html { font-size: 17px; }
+        @media (min-width: 560px) {
+            html { font-size: 20px; }
+        }
+        @keyframes skeleton_pulse { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    ";
+    script read_file("web/webcorn.js");
+}
+
+root_path {
+    standard_header;
+    div {
+        "height" : "100vh";
+        "display" : "flex";
+        "flex-direction" : "column";
+        for(int j=0;j<2;j++) {
+            div {
+                "width" : "100%";
+                "height" : "50%";
+                for(int i=0;i<2;i++) {
+                    iframe {
+                        "src" : "http://localhost:443/";
+                        "width" : "50%";
+                        "height" : "100%";
+                        "border" : "none";
+                    }
+                }
+            }
+        }
+    }
+}

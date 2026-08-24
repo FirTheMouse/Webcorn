@@ -18,6 +18,9 @@
     #include <fcntl.h>
     #include <arpa/inet.h>
 
+    #include <netinet/in.h>
+    #include <netdb.h>
+
     #define _UUID_T
     typedef unsigned char uuid_t[16];
 
@@ -146,18 +149,6 @@
 
 
 
-size_t current_memory_usage() {
-    #ifdef _WIN32
-        return 0;
-    #else
-        // struct mach_task_basic_info info;
-        // mach_msg_type_number_t size = MACH_TASK_BASIC_INFO_COUNT;
-        // task_info(mach_task_self(), MACH_TASK_BASIC_INFO, (task_info_t)&info, &size);
-        // return info.resident_size; // current RSS in bytes
-        return 0;
-    #endif
-}
-
 namespace Acorn {
 
     uint32_t session_username_offset;
@@ -230,6 +221,10 @@ namespace Acorn {
        uint32_t scriptsheet_id = reg_id("scriptsheet");
        uint32_t storesheet_id = reg_id("storesheet");
        uint32_t formsheet_id = reg_id("formsheet");
+
+       uint32_t print_memory_id = add_function("print_memory",[this](Context& ctx){
+            print(children_to_string(ctx,ctx.node().children()),": ",current_rss()," | ",current_vsz());
+       });
 
         struct qeue_request {
             qeue_request() {}
@@ -319,8 +314,9 @@ namespace Acorn {
             return cookies.substr(pos, pos_end - pos);
         }
         uint32_t get_cookie_id = add_function("get_cookie",[this](Context& ctx){
-            std::string request = string(*(Ptr*)ctx.node().children()[0].value().get()).to_std();
-            std::string name = string(*(Ptr*)ctx.node().children()[1].value().get()).to_std();
+            standard_sub_process(ctx);
+            std::string request = ctx.node().getString(0).to_std();
+            std::string name = ctx.node().getString(1).to_std();
             string output = resolve_string_ticket(ctx.node());
             output = extract_cookie(request,name);
         },sizeof(Ptr),string_id);
@@ -328,11 +324,11 @@ namespace Acorn {
         void cry(const std::string& message) {
             types.label = message;
             types.live = false;
-            print("Unit ",uid," cried for ",message);
+            //print("Unit ",uid," cried for ",message);
             while(!types.live) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
-            print("Unit ",uid," was answered ");
+           // rint("Unit ",uid," was answered ");
         }
         uint32_t cry_id = add_function("cry",[this](Context& ctx){
             standard_sub_process(ctx);
@@ -465,16 +461,59 @@ namespace Acorn {
             move_file(from.to_std(),to.to_std());
         });
 
+        std::string http_get(const std::string& host, const std::string& path, uint16_t port) {
+            #ifdef _WIN32
+                reutrn "IMPLMENT HTTP GET FOR WINDOWS";
+            #else 
+                int sock = socket(AF_INET, SOCK_STREAM, 0);
+                if(sock < 0) { print("Socket failed"); return ""; }
+            
+                struct hostent* server = gethostbyname(host.c_str());
+                if(!server) { print("Host not found"); close(sock); return ""; }
+            
+                struct sockaddr_in addr;
+                memset(&addr, 0, sizeof(addr));
+                addr.sin_family = AF_INET;
+                addr.sin_port = htons(port);
+                memcpy(&addr.sin_addr.s_addr, server->h_addr, server->h_length);
+            
+                if(connect(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+                    print("Connect failed"); close(sock); return "";
+                }
+            
+                std::string request = "GET " + path + " HTTP/1.1\r\n"
+                    "Host: " + host + "\r\n"
+                    "Connection: close\r\n\r\n";
+            
+                send(sock, request.c_str(), request.length(), 0);
+            
+                std::string response;
+                char buf[4096];
+                int len;
+                while((len = recv(sock, buf, sizeof(buf)-1, 0)) > 0) {
+                    buf[len] = 0;
+                    response += buf;
+                }
+            
+                close(sock);
+                return response;
+            #endif
+        }
+
         uint32_t http_get_id = add_function("http_get", [this](Context& ctx){
             standard_sub_process(ctx);
             std::string host = string(*(Ptr*)ctx.node().children()[0].value().get()).to_std();
             std::string path = string(*(Ptr*)ctx.node().children()[1].value().get()).to_std();
+            int port = 8080;
+            if(ctx.node().children().length()>2) {
+                port = ctx.node().getInt(2);
+            }
             //print("GETTING HTTP FROM ",host," AT ",path);
             string output = resolve_string_ticket(ctx.node());
             #if USE_TLS 
                 output = tls_get(host, path);
             #else
-                output = "ADD NON-TLS GET LATER!";
+                output = http_get(host,path,(uint16_t)port);
             #endif
         }, sizeof(Ptr), string_id);
 
@@ -500,6 +539,7 @@ namespace Acorn {
         }
         int webcorn_bind(int fd, int port, int opt) {
             setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char*)&opt, sizeof(opt));
+            setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, (char*)&opt, sizeof(opt));
             struct sockaddr_in addr;
             memset(&addr, 0, sizeof(addr));
             addr.sin_family = AF_INET;
@@ -509,7 +549,7 @@ namespace Acorn {
             return result;
         }
         int webcorn_listen(int fd) {
-            int result = listen(fd, 10);
+            int result = listen(fd, SOMAXCONN);
             return result;
         }
         int webcorn_accept(int fd) {
@@ -521,7 +561,7 @@ namespace Acorn {
 
             //Read timeout
             struct timeval tv;
-            tv.tv_sec = 2;
+            tv.tv_sec = 10;
             tv.tv_usec = 0;
             setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
@@ -536,13 +576,13 @@ namespace Acorn {
                 if(ret != 0) {
                     if(ret != MBEDTLS_ERR_SSL_FATAL_ALERT_MESSAGE) {
                         char err[256]; mbedtls_strerror(ret, err, sizeof(err));
-                        print(red("TLS handshake to "+std::to_string(client_fd)+" failed: "), err);
+                        //print(red("TLS handshake to "+std::to_string(client_fd)+" failed: "), err);
                     }
                     mbedtls_ssl_free(&conn->ssl);
                     ::close(client_fd);
                     return -1;
                 }
-                print("Created a TLS connection to ",client_fd);
+                //print("Created a TLS connection to ",client_fd);
                 current_tls = conn;
             #endif
 
@@ -567,13 +607,16 @@ namespace Acorn {
                         if(bytes == MBEDTLS_ERR_NET_CONN_RESET) {
                             break; //Browser dropped the connection, just return empty
                         }
+                        if(bytes == 0) {
+                            break; //Peer closed cleanly with no data
+                        }
                         if(bytes <= 0) {
                             char err[256]; mbedtls_strerror(bytes, err, sizeof(err));
                             print("TLS read error: ",err);
                             break;
                         }
                         buffer[bytes] = 0;
-                        print("Read ",bytes," bytes: ",std::string(buffer,std::min(bytes,50)));
+                        //print("Read ",bytes," bytes: ",std::string(buffer,std::min(bytes,50)));
                         request += buffer;
                         size_t header_end = request.find("\r\n\r\n");
                         if(header_end != std::string::npos) {
@@ -592,7 +635,7 @@ namespace Acorn {
                             break;
                         }
                     }
-                    print("TLS read done, request length: ",request.length());
+                    //print("TLS read done, request length: ",request.length());
                     return request;
                 }
                 #endif
@@ -813,13 +856,14 @@ namespace Acorn {
 
         //This is a thistle specific thing for now, until I can generilize it.
         uint32_t ledgerpool = 0;
+        std::string sessionpath;
 
         void manage_sessions(const std::string& unitcode) {
-            std::string sessionpath = get_compiler_flag("--project");
+            sessionpath = get_compiler_flag("--project");
             if(sessionpath.empty()) {
                 sessionpath = "web/thistle/";;
             }
-            print("Session path: ",sessionpath);
+            //print("Session path: ",sessionpath);
 
             while(true) {
                 g_ptr<Webcorn_Core> unit = nullptr;
@@ -844,7 +888,7 @@ namespace Acorn {
                 }
                 if(unit) {
                     std::string fullreq = unit->types.label.to_std();
-                    print("Unit ",unit->uid," has aksed for ",fullreq);
+                    //print("Unit ",unit->uid," has aksed for ",fullreq);
                     list<std::string> req = split_str(fullreq,':');
                     std::string cmd = req[0];
                     std::string arg = req.length()>1?req[1]:"";
@@ -947,6 +991,15 @@ namespace Acorn {
                             }
                         }
                         unit->types.live = true;
+                    } else if(cmd=="INVEST") {
+                        ColCol& unitdata = unit->types[unitdata_col];
+                        value_col unit_global_values(unit->uid, unitdata_col, global_value_table_idx);
+                        if(subunits.hasKey(sessionpath+req[2])) {
+                            Ptr dataptr = load_subunit(sessionpath+req[2]);
+                            if(unit_global_values.hasKey(arg)) {
+                                unit_global_values.get(arg).set((void*)&dataptr);
+                            }
+                        }
                     } else if(cmd=="FILE") {
                         if(session_col==0) {
                             print(red("webcorn:manage_sessions:FILE no valid session column in the main unit! Ensure a session manager was started"));
@@ -1119,7 +1172,7 @@ namespace Acorn {
                     unit->types.live = true;
                 }   
                 else if(has_queued) {
-                    print(green("Fuffiled a qeued request"));
+                    //print(green("Fuffiled a qeued request"));
                     #if USE_TLS
                         as<Webcorn_Core>(units[server->unit])->current_tls = queued.tls;
                     #endif
@@ -1139,7 +1192,7 @@ namespace Acorn {
             new_server->unit = uid;
             new_server->sethash("session_manager");
             servers << new_server;
-            ledgerpool = load_sheet("web/thistle/ledger");
+            //ledgerpool = load_sheet("web/thistle/ledger");
             new_server->thread->run_blocking([this, unitcode]() mutable {
                 manage_sessions(unitcode);
             });
@@ -1173,7 +1226,7 @@ namespace Acorn {
                     for(int i=0;i<servers.length();i++) {
                         if(servers[i]->gethash()==sessionhash) {
                             server = servers[i];
-                            print("Retrived session ",sessionhash," server unit ",server->unit);
+                            //print("Retrived session ",sessionhash," server unit ",server->unit);
                             break;
                         }
                     }
@@ -1182,7 +1235,7 @@ namespace Acorn {
                         return;
                     }   
                     if(server->getfd()!=0) {
-                        print(yellow("Retrived server is busy, qeueing a request instead"));
+                        //print(yellow("Retrived server is busy, qeueing a request instead"));
                         qeue_request req(session,server_fd,message,unitcode);
                         #if USE_TLS
                             req.tls = current_tls; current_tls = nullptr;
@@ -1194,11 +1247,16 @@ namespace Acorn {
                     for(int i=1;i<servers.length();i++) { //Server 1 is the session manager, so not avaliable for file serving
                         if((servers[i]->gethash()==0||any_can_serve) && servers[i]->getfd()==0) {
                             server = servers[i];
-                            print("Found avaliable server unit ",server->unit);
+                            //print("Found avaliable server unit ",server->unit);
                             break;
                         }
                     }
                     if(!server) {
+                        // if(servers.length()>10) {
+                        //     webcorn_close(server_fd);
+                        //     print(red("Refused connection because there are already too many servers"));
+                        //     return;
+                        // }
                         g_ptr<Server> new_server = make<Server>();
                         new_server->thread = make<Thread>();
                         g_ptr<Webcorn_Core> webcorn = make_unit<Webcorn_Core>();
@@ -1208,8 +1266,8 @@ namespace Acorn {
                         servers << new_server;
                         server = new_server;
                         uint16_t uid = webcorn->uid;
-                        print("Dispatched a new server unit ",uid);
-                        new_server->thread->run_blocking([webcorn, unitcode]() mutable {
+                        //print("Dispatched a new server unit ",uid);
+                        new_server->thread->run_raw([webcorn, unitcode]() mutable {
                             webcorn->run(webcorn->process(unitcode));
                         });
                     } 
@@ -1220,7 +1278,33 @@ namespace Acorn {
             #endif
             server->setlabel(message);
             server->setfd(server_fd);
-            print("Server fd is now ",server->getfd());
+            //print("Server fd is now ",server->getfd());
+        });
+
+        void setup_unit(uint32_t server_fd, const std::string& unitcode) {
+            g_ptr<Server> server = nullptr;
+            {
+                std::lock_guard<std::mutex> lock(servers_mutex);
+                g_ptr<Server> new_server = make<Server>();
+                new_server->thread = make<Thread>();
+                g_ptr<Webcorn_Core> webcorn = make_unit<Webcorn_Core>();
+                webcorn->uargs << uargs;
+                new_server->unit = webcorn->uid;
+                new_server->sethash(0);
+                servers << new_server;
+                server = new_server;
+                uint16_t uid = webcorn->uid;
+                server->setfd(server_fd);
+                new_server->thread->run_raw([webcorn, unitcode]() mutable {
+                    webcorn->run(webcorn->process(unitcode));
+                });
+            }
+        }
+        uint32_t setup_unit_id = add_function("setup_unit",[this](Context& ctx){
+            standard_sub_process(ctx);
+            int server_fd = ctx.node().getInt(0);
+            std::string unitcode = ctx.node().getString(1).to_std();
+            setup_unit(server_fd,unitcode);
         });
 
         uint32_t terminate_all_servers = add_function("terminate_all_servers",[this](Context& ctx){
@@ -1540,18 +1624,25 @@ namespace Acorn {
             "onclick", "onchange", "onsubmit", "oninput",
             "onfocus", "onblur", "onkeydown", "onkeyup",
             "onmouseenter", "onmouseleave", "onload", "onmouseover",
-            "role","lang","colspan", "rowspan", "scope",
+            "role", "lang", "colspan", "rowspan", "scope",
             "rows", "cols", "autocorrect", "autocapitalize", "spellcheck", "wrap",
             "autocomplete", "autofocus", "enctype", "novalidate", "pattern", "size",
-            "download", "controls", "autoplay", "loop", "muted", "poster",  "oncontextmenu"
+            "download", "controls", "autoplay", "loop", "muted", "poster", "oncontextmenu",
+            "inputmode", "enterkeyhint",
+            "onscroll", "onresize", "ontouchstart", "ontouchend", "ontouchmove",
+            "onwheel", "ondblclick", "onkeypress",
+            "ondragstart", "ondrop", "ondragover",
+            "accept"
         }, false};
-
+        
         _lookup is_svg_structural{{
             "fill", "stroke", "stroke-width", "stroke-opacity",
             "fill-opacity", "d", "viewBox", "cx", "cy", "r",
             "x", "y", "width", "height", "points",
             "transform", "clip-path", "opacity",
-            "x1", "y1", "x2", "y2", "rx", "ry"
+            "x1", "y1", "x2", "y2", "rx", "ry",
+            "preserveAspectRatio", "xmlns", "marker-end",
+            "text-anchor", "dominant-baseline"
         }, false};
 
         bool in_svg = false;
@@ -1562,7 +1653,7 @@ namespace Acorn {
         });
 
         bool is_prop_structural(const std::string& name) {
-            return is_structural[name] || name.substr(0,5) == "data-";
+            return is_structural[name] || name.substr(0,5) == "data-" || name.substr(0,5) == "aria-";
         }
         uint32_t is_prop_structural_id = add_function("is_prop_structural",[this](Context& ctx){
             standard_sub_process(ctx);
@@ -2673,7 +2764,94 @@ namespace Acorn {
 
         }); 
 
-        list<std::string*> propbin;
+
+        uint32_t init_propbin() {
+            ColCol col;
+            col.label = "Propbin";
+            uint32_t id = types.length();
+            types.push(col);
+            return id;
+        }
+        uint32_t propbin_col = init_propbin();
+        //list<map<std::string,std::string>> propbin;
+
+
+                
+        void subemit(Context& ctx, std::string tag, bool self_closing, std::string structural, std::string content, bool local = false) {
+            uint32_t sctructuralat = create_column(types[propbin_col],sizeof(Ptr),string_id); //Structural
+            uint32_t stylisticat = create_column(types[propbin_col],sizeof(Ptr),string_id); //Stylistic
+            uint32_t partsat = create_column(types[propbin_col],sizeof(Ptr),string_id); //Part
+
+            Ptr strticket = get_ticket(name_store_id,1,char_id);
+            types[propbin_col][partsat].push(&strticket);
+
+            ctx.sub().source() = "";
+            Node node = ctx.sub().node();
+            if(node.scopes().length()==0) {
+                if(is_live(node.left())) {
+                    start_stage(html_handlers);
+                    process_node(ctx,node.left());
+                    start_stage(x_handlers);
+                }
+            } else {
+                Node scope = node.scopes().get(0);
+                for(int i=0;i<scope.children().length();i++) {
+                    Node child = scope.children().get(i);
+                    start_stage(html_handlers);
+                    process_node(ctx,child);
+                    start_stage(x_handlers);
+                }
+            }
+            uint32_t plen = types[propbin_col].length()-types[propbin_col].free.length();
+
+            Col& structural_props = types[propbin_col][sctructuralat];
+            Col& stylistic_props = types[propbin_col][stylisticat];
+            Col& part_props = types[propbin_col][partsat];
+            
+            ((string&)*(Ptr*)part_props[0]).push(ctx.sub().source());
+
+            list<CCol*> structural_props_cells = structural_props.allCells();
+            for(uint32_t i=0;i<structural_props_cells.length();i++) {
+                CCol& cell = *structural_props_cells[i];
+                structural+=((QString&)cell).to_std()+"=\""+((string&)*(Ptr*)structural_props[cell.index]).to_std()+"\" ";
+            }
+            std::string stylistic = "";
+            list<CCol*> stylistic_props_cells = stylistic_props.allCells();
+            for(uint32_t i=0;i<stylistic_props_cells.length();i++) {
+                CCol& cell = *stylistic_props_cells[i];
+                stylistic+=((QString&)cell).to_std()+": "+((string&)*(Ptr*)stylistic_props[cell.index]).to_std()+"; ";
+            }
+            std::string parts = ((string&)*(Ptr*)part_props[0]).to_std();
+
+            if(stylistic.length()>0) {
+                stylistic = " style=\""+stylistic+"\"";
+            }
+            if(structural.length()>0) {
+                structural = " "+structural;
+            }
+
+            std::string part = "";
+            if(self_closing) {
+                part = "<"+tag+structural+stylistic+"/>";
+            } else {
+                part = "<"+tag+structural+stylistic+">"+content+parts+"</"+tag+">";
+            }
+            if(local) {
+                if(is_live(ctx.sub().node())) {
+                    string output = resolve_string_ticket(ctx.sub().node());
+                    output = part;
+                }
+            } else if(plen>3) {
+                ((string&)*(Ptr*)(types[propbin_col][plen-4])[0]).push(part);
+            } else {
+                ctx.sub().source() = part;
+            }
+
+            Acorn::recycle_column(types[propbin_col],plen-1);
+            Acorn::recycle_column(types[propbin_col],plen-2);
+            Acorn::recycle_column(types[propbin_col],plen-3);
+            recycle_column(strticket);
+        }
 
         void init() override {
             register_type("div",component_id,0);
@@ -2818,66 +2996,150 @@ namespace Acorn {
             };
 
 
+            // add_function("subemit",[this](Context& ctx){
+            //     standard_sub_process(ctx);
+            //     std::string tag = ctx.node().getString(0).to_std();
+            //     bool self_closing = ctx.node().getBool(1);
+            //     std::string content = ctx.node().getString(3).to_std();
 
-            // Ptr string propbin;
+            //     std::string structural = ctx.node().getString(2).to_std();
+
+            //     map<std::string,std::string> structural_props;
+            //     map<std::string,std::string> stylistic_props;
+            //     map<std::string,std::string> part_props;
+                
+            //     propbin.push(structural_props); propbin.push(stylistic_props); propbin.push(part_props);
+
+            //     ctx.sub().source() = "";
+            //     Node node = ctx.sub().node();
+            //     if(node.scopes().length()>0) {
+            //         Node scope = node.scopes().get(0);
+            //         for(int i=0;i<scope.children().length();i++) {
+            //             Node child = scope.children().get(i);
+            //             start_stage(html_handlers);
+            //             process_node(ctx,child);
+            //             start_stage(x_handlers);
+            //         }
+            //     }
+            //     std::string newsrc = ctx.sub().source().to_std();
+            //     part_props = propbin.pop();
+            //     stylistic_props = propbin.pop(); 
+            //     structural_props = propbin.pop(); 
+            //     part_props["ANY"]+=newsrc;
+
+            //     for(auto& e : structural_props.entrySet()) {
+            //         structural+=e.key+"=\""+e.value+"\" ";
+            //     }
+            //     std::string stylistic = "";
+            //     for(auto& e : stylistic_props.entrySet()) {
+            //         stylistic+=e.key+": "+e.value+"; ";
+            //     }
+            //     std::string parts = part_props["ANY"];
+
+            //     if(stylistic.length()>0) {
+            //         stylistic = " style=\""+stylistic+"\"";
+            //     }
+            //     if(structural.length()>0) {
+            //         structural = " "+structural;
+            //     }
+
+            //     std::string part = "";
+            //     if(self_closing) {
+            //         part = "<"+tag+structural+stylistic+"/>";
+            //     } else {
+            //         part = "<"+tag+structural+stylistic+">"+content+parts+"</"+tag+">";
+            //     }
+            //     if(propbin.length()>0) {
+            //         propbin[propbin.length()-1]["ANY"]+=part;
+            //     } else {
+            //         ctx.sub().source() = part;
+            //     }
+            // });
+            // html_handlers[property_id] = [this](Context& ctx){
+            //     standard_sub_process(ctx);
+            //     std::string prop; 
+            //     std::string val;
+
+            //     if(ctx.node().children().length()==2) {
+            //         prop = ctx.node().getString(0).to_std();
+            //         val = ctx.node().getString(1).to_std();
+            //     } else if(ctx.node().children().length()==1) {
+            //         std::string name = ctx.node().name().to_std();
+            //         if(name.at(0)==':') {
+            //             prop = name.substr(name.find(':')+1);
+            //             val = ctx.node().getString(0).to_std();
+            //         } else {
+            //             val = name.substr(0, name.find(':'));
+            //             prop = ctx.node().getString(0).to_std();
+            //         }
+            //     } else if(ctx.node().children().length()==0) {
+            //         std::string name = ctx.node().name().to_std();
+            //         val = name.substr(0,name.find(':'));
+            //         prop = name.substr(name.find(':')+1);
+            //     }
+
+            //     if(is_prop_structural(prop)||(in_svg&&is_svg_structural[prop])) {
+            //         propbin[propbin.length()-3].getOrPut(prop,val);
+            //     } else {
+            //         propbin[propbin.length()-2].getOrPut(prop,val);
+            //     }
+            // };
+
 
             add_function("subemit",[this](Context& ctx){
                 standard_sub_process(ctx);
                 std::string tag = ctx.node().getString(0).to_std();
                 bool self_closing = ctx.node().getBool(1);
                 std::string content = ctx.node().getString(3).to_std();
-
                 std::string structural = ctx.node().getString(2).to_std();
-                std::string stylistic = "";
-                std::string parts;
-
-                propbin.push(&structural); propbin.push(&stylistic); propbin.push(&parts);
-
-                ctx.sub().source() = "";
-                Node node = ctx.sub().node();
-                if(node.scopes().length()>0) {
-                    Node scope = node.scopes().get(0);
-                    for(int i=0;i<scope.children().length();i++) {
-                        Node child = scope.children().get(i);
-                        start_stage(html_handlers);
-                        process_node(ctx,child);
-                        start_stage(x_handlers);
-                    }
-                }
-                std::string newsrc = ctx.sub().source().to_std();
-                parts+=newsrc;
-                propbin.pop(); propbin.pop(); propbin.pop();
-
-                if(stylistic.length()>0) {
-                    stylistic = " style=\""+stylistic+"\"";
-                }
-                if(structural.length()>0) {
-                    structural = " "+structural;
-                }
-
-                std::string part = "";
-                if(self_closing) {
-                    part = "<"+tag+structural+stylistic+"/>";
-                } else {
-                    part = "<"+tag+structural+stylistic+">"+content+parts+"</"+tag+">";
-                }
-                if(propbin.length()>0) {
-                    (*propbin[propbin.length()-1])+=part;
-                } else {
-                    ctx.sub().source() = part;
-                }
+                subemit(ctx,tag,self_closing,structural,content);
+            });
+            add_function("local_subemit",[this](Context& ctx){
+                standard_sub_process(ctx);
+                std::string tag = ctx.node().getString(0).to_std();
+                bool self_closing = ctx.node().getBool(1);
+                std::string content = ctx.node().getString(3).to_std();
+                std::string structural = ctx.node().getString(2).to_std();
+                subemit(ctx,tag,self_closing,structural,content,true);
+            },sizeof(Ptr),string_id);
+            add_function("emit_part",[this](Context& ctx){
+                standard_sub_process(ctx);
+                uint32_t binat = types[propbin_col].length()-types[propbin_col].free.length();
+                ((string&)*(Ptr*)types[propbin_col][binat-1][0]).push(ctx.node().getString(0));
             });
             html_handlers[property_id] = [this](Context& ctx){
                 standard_sub_process(ctx);
-                std::string prop = ctx.node().getString(0).to_std();
-                std::string val = ctx.node().getString(1).to_std();
-
-                if(is_prop_structural(prop)||(in_svg&&is_svg_structural[prop])) {
-                    (*propbin[propbin.length()-3])+=(prop+"=\""+val+"\" ");
+                string prop = ctx.node().getString(0);
+                string val = ctx.node().getString(1);
+                uint32_t binat = types[propbin_col].length()-types[propbin_col].free.length();
+                if(is_prop_structural(prop.to_std())||(in_svg&&is_svg_structural[prop.to_std()])) {
+                    binat = binat-3;
                 } else {
-                    (*propbin[propbin.length()-2])+=(prop+": "+val+"; ");
+                    binat = binat-2;
+                }
+                Col& bin = types[propbin_col][binat];
+                if(!bin.hasKey(prop.col().storage,prop.col().size)) {
+                    bin.qput(&val,prop.col().storage,prop.col().size,string_id);
                 }
             };
+            
+            
+            // r_handlers[property_id] = [this](Context& ctx){
+            //     standard_sub_process(ctx);
+            //     if(ctx.root().type()!=qmark_id) {
+            //         ctx.node().name().col().clear();
+            //         for(int i=1;i>=0;i--) {
+            //             if(i==0) ctx.node().name().push(':');
+            //             Node c = ctx.node().children()[i];
+            //             if(c.type()==literal_id) {
+            //                 ctx.node().name().push(c.name().to_std());
+            //                 recycle_node(c);
+            //                 ctx.node().children().removeAt(i);
+            //             }
+            //         }
+            //     }
+            // };
+
 
             html_handlers[func_decl_id] = [this](Context& ctx){
                 fire_quals(ctx,ctx.node().value());
@@ -3028,7 +3290,7 @@ namespace Acorn {
 
             r_handlers[find_node_id] = [this](Context& ctx){
                 ctx.node().value(make_value(node_id,sizeof(Ptr)));
-                resolve_overload(ctx);
+                //:/
             };
             x_handlers[find_node_id] = [this](Context& ctx){
                 standard_sub_process(ctx);

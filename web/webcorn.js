@@ -9,57 +9,62 @@ function resetWebrunner() {
     });
 }
 
-// const parser = new DOMParser();
-// const doc = parser.parseFromString(html, 'text/html');
-// Array.from(doc.body.children).forEach(newEl => {
-//     if(newEl.id) {
-//         const targets = Array.from(document.querySelectorAll('#'+newEl.id));
-//         targets.forEach(el => el.outerHTML = newEl.outerHTML);
-//     }
-// });
+function apply_theme(el, css) {
+    css.split(';').forEach(rule => {
+        const [prop, val] = rule.split(':');
+        if(prop && val) el.style.setProperty(prop.trim(), val.trim());
+    });
+}
+
+function read_run_response(response) {
+    if(!response) {console.log('no response from run'); return};
+    var to_return = '';
+    const instructions = response.split('@');
+    instructions.forEach(instr => {
+        if(instr.startsWith('FRAG ')) {
+            const space = instr.indexOf(' ', 5);
+            const target = instr.slice(5, space);
+            const content = instr.slice(space + 1);
+            document.querySelectorAll('#'+target).forEach(el => {
+                el.outerHTML = content;
+                document.querySelectorAll('#'+target+' script').forEach(old => {
+                    const script = document.createElement('script');
+                    script.textContent = old.textContent;
+                    document.body.appendChild(script);
+                    document.body.removeChild(script);
+                });
+            });
+        } else if(instr.startsWith('LOG ')) {
+            console.log('[TwigSnap]', instr.slice(4));
+        } else if(instr === 'RELOAD') {
+            window.location.reload();
+        } else if(instr.startsWith('RUN ')) {
+            console.log('RUNNING:'+instr);
+            eval(instr.slice(4));
+        } else if(instr.startsWith('RETURN ')) {
+            to_return+=instr.slice(7);
+        }
+    });
+    return to_return;
+}
 
 function run(ptr, ...captures) {
     const body = [ptr, ...captures].join('@'); //@ is the delmiter we use for runs
-    fetch(window.location.pathname, {
+    return fetch(window.location.pathname, {
         method: 'RUN',
         body: body
     }).then(r => r.text()).then(response => {
-        if(!response) {console.log('no response from run'); return};
-        const instructions = response.split('@');
-        instructions.forEach(instr => {
-            if(instr.startsWith('FRAG ')) {
-                const space = instr.indexOf(' ', 5);
-                const target = instr.slice(5, space);
-                const content = instr.slice(space + 1);
-                document.querySelectorAll('#'+target).forEach(el => {
-                    el.outerHTML = content;
-                    document.querySelectorAll('#'+target+' script').forEach(old => {
-                        const script = document.createElement('script');
-                        script.textContent = old.textContent;
-                        document.body.appendChild(script);
-                        document.body.removeChild(script);
-                    });
-                });
-            } else if(instr.startsWith('LOG ')) {
-                console.log('[TwigSnap]', instr.slice(4));
-            } else if(instr === 'RELOAD') {
-                window.location.reload();
-            } else if(instr.startsWith('RUN ')) {
-                console.log('RUNNING:'+instr);
-                eval(instr.slice(4));
-            }
-        });
+        return read_run_response(response);
     });
-    //Single id version
-    // }).then(r => r.text()).then(html => {
-    //     if(!html) return;
-    //     const parser = new DOMParser();
-    //     const doc = parser.parseFromString(html, 'text/html');
-    //     const newEl = doc.body.firstChild;
-    //     if(newEl && newEl.id) {
-    //         document.getElementById(newEl.id).outerHTML = newEl.outerHTML;
-    //     }
-    // });
+}
+
+function emit_reload(el) {
+    fetch(window.location.pathname, {
+        method: 'JSRELOAD',
+        body: el.dataset.ptr
+    }).then(r => r.text()).then(response => {
+        return read_run_response(response);
+    });
 }
 
 function make_snap(el) {
@@ -114,8 +119,6 @@ window.addEventListener('load', update_all_transforms);
 //     mouse_y = e.clientY;
 //     update_all_transforms();
 // });
-
-
 
 function fragthree(target, instruction, content) {
     fetch(window.location.pathname, {

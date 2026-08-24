@@ -1,0 +1,31 @@
+bool reset = true;
+
+if(reset) {
+    print("Thistle Reseting");
+    ColColCol sub = usubunits.add("web/thistle/data.gsu");
+
+    ColCol common = sub.add("Common");
+    Header& users = sub.add("Users");
+    users.unlock;
+    
+    users.ribbonT("Fir") {
+        "username", "Fir" ;
+        "role", "admin" ;
+        "org", "thistle" ;
+        "password", secure_hash("changeme") ;
+        "inbox", [string] ;
+        "sheets", [string] ;
+    }
+
+    users.ribbonT("Ash") {
+        "username", "Ash" ;
+        "role", "employee" ;
+        "org", "thistle" ;
+        "password", secure_hash("changeme") ;
+        "inbox", [string] ;
+        "sheets", [string] ;
+    }
+    sub.save;
+} else {
+    ColColCol sub = load_subunit("web/thistle/data.gsu");
+}

@@ -1,4 +1,298 @@
 ##
+    global int set_cell(Ptr cellptr, string valstr) {
+        ColColCol sheet = cellptr;
+        duck val = from_string(valstr);
+        //print("SC Val: ",val," ",SV#val);
+        if(is_live(*cellptr)) {
+            *(*cellptr) = val;
+        } else {
+            *cellptr = sheet.getByTag(#storesheet).add;
+            *(*cellptr) = val;
+        }
+        save_subunit(sheet);
+    }
+
+    global Ptr create_form_question_subunit(Ptr cell, string type) {
+        ColColCol sheet = cell;
+        Ptr metaptr = sheet.getByTag(#metadatasheet);
+        set_cell(metaptr,type);
+        Ptr formptr = sheet.getByTag(#formsheet);
+        *formptr = sheet.getByTag(#storesheet).add;
+        *formptr.clear;
+        return formptr;
+    }
+
+    global Ptr create_form_question(int spool, int col, int row, string type) {
+        Ptr metaptr = makePtr3(find_sheet(spool,#metadatasheet,1),col,row);
+        set_cell(metaptr,type);
+        Ptr formptr = makePtr3(find_sheet(spool,#formsheet),col,row);
+        *formptr = get_ticket(find_sheet(spool,#storesheet),0);
+        *formptr.clear;
+        return formptr;
+    }
+
+    global int add_dropdown_option(int spool, Ptr fp, string label, string value) {
+        duck val = from_string(value);
+        int vofa = V#val;
+        if(vofa==(#string)) {
+            fp.push(get_ticket(find_sheet(spool,#storesheet),32));
+        } else {
+            fp.push(val);
+        }
+        int idx = fp.length-1;
+        fp.get(idx)=val;
+        setsidx(fp,idx);
+        fp.celllabel(label);
+    }
+
+    global int generate_ledger() {
+        ColCol pool = utypes.add;
+        pool.tag(#datasheet);
+
+        pool.add("Employee Name").retype(string);
+        pool.add("Report Date").retype(string);
+        pool.add("Place of Supply").retype(string);
+        pool.add("Transaction Date").retype(string);
+        pool.add("Expense Description").retype(string);
+        pool.add("G&A / Store Expense").retype(string);
+        pool.add("Department / Store #").retype(string);
+        pool.add("Vendor").retype(string);
+        pool.add("Total Amount").retype(float);
+
+        ColCol store = utypes.add;
+        store.tag(#storesheet);
+
+        return utypes.indexof(pool);
+    }
+
+    global int generate_redberry_sheet() {
+        int spool = create_sheet;
+        add_form(spool);
+        int oncol = 0;
+        Ptr cellptr = makePtr3(spool,0,0);
+        Ptr formptr = deadptr;
+        Ptr fp = deadptr;
+
+        add_column_to_sheet(spool); csetlabel(spool,oncol,"Employee Name");
+        add_row_to_sheet(spool);
+            formptr = create_form_question(spool,oncol,0,"Input");
+            fp = *formptr;
+            csetlabel(getpool(fp),getidx(fp),"Employee Name");
+        oncol++;
+
+        add_column_to_sheet(spool); csetlabel(spool,oncol,"Report Date");
+            formptr = create_form_question(spool,oncol,0,"Date");
+            fp = *formptr;
+            csetlabel(getpool(fp),getidx(fp),"Report Date");
+        oncol++;
+
+        add_column_to_sheet(spool); csetlabel(spool,oncol,"Place of Supply");
+            formptr = create_form_question(spool,oncol,0,"Dropdown");
+            fp = *formptr;
+            csetlabel(getpool(fp),getidx(fp),"Place of Supply");
+            add_dropdown_option(spool,fp,"NL Newfoundland","NL Newfoundland");
+            add_dropdown_option(spool,fp,"NS Nova Scotia","NS Nova Scotia");
+            add_dropdown_option(spool,fp,"PE Prince Edward Island","PE Prince Edward Island");
+            add_dropdown_option(spool,fp,"NB New Brunswick","NB New Brunswick");
+            add_dropdown_option(spool,fp,"QC Quebec","QC Quebec");
+            add_dropdown_option(spool,fp,"ON Ontario","ON Ontario");
+            add_dropdown_option(spool,fp,"MB Manitoba","MB Manitoba");
+            add_dropdown_option(spool,fp,"SK Saskatchewan","SK Saskatchewan");
+            add_dropdown_option(spool,fp,"AB Alberta","AB Alberta");
+            add_dropdown_option(spool,fp,"BC British Columbia","BC British Columbia");
+            add_dropdown_option(spool,fp,"US United States","US United States");
+        oncol++;
+
+        add_column_to_sheet(spool); csetlabel(spool,oncol,"Transaction Date");
+            formptr = create_form_question(spool,oncol,0,"Date");
+            fp = *formptr;
+            csetlabel(getpool(fp),getidx(fp),"Transaction Date");
+        oncol++;
+
+        add_column_to_sheet(spool); csetlabel(spool,oncol,"Expense Description");
+            formptr = create_form_question(spool,oncol,0,"Dropdown");
+            fp = *formptr;
+            csetlabel(getpool(fp),getidx(fp),"Expense Description");
+            add_dropdown_option(spool,fp,"1010-Meals","1010-Meals");
+            add_dropdown_option(spool,fp,"1020-Entertainment","1020-Entertainment");
+            add_dropdown_option(spool,fp,"1025-Hotel","1025-Hotel");
+            add_dropdown_option(spool,fp,"1030-Taxi","1030-Taxi");
+            add_dropdown_option(spool,fp,"1040-Kilometres $.72 per KM","1040-Kilometres $.72 per KM");
+            add_dropdown_option(spool,fp,"1045-Parking","1045-Parking");
+            add_dropdown_option(spool,fp,"1050-Fuel","1050-Fuel");
+            add_dropdown_option(spool,fp,"1060-Car rental","1060-Car rental");
+            add_dropdown_option(spool,fp,"1065-Car Rental Fuel","1065-Car Rental Fuel");
+            add_dropdown_option(spool,fp,"1070-Travel Expense","1070-Travel Expense");
+            add_dropdown_option(spool,fp,"1080-Gym membership","1080-Gym membership");
+            add_dropdown_option(spool,fp,"1090-Car maintenance","1090-Car maintenance");
+            add_dropdown_option(spool,fp,"1100-Gift cards","1100-Gift cards");
+            add_dropdown_option(spool,fp,"1110-Cell & Other Telephone","1110-Cell & Other Telephone");
+            add_dropdown_option(spool,fp,"1120-Internet","1120-Internet");
+            add_dropdown_option(spool,fp,"1130-Food Test-Competitive Review","1130-Food Test-Competitive Review");
+            add_dropdown_option(spool,fp,"1140-Food Concepts-Photos","1140-Food Concepts-Photos");
+            add_dropdown_option(spool,fp,"1145-Apartment Rent","1145-Apartment Rent");
+            add_dropdown_option(spool,fp,"2010-Alarm & Surveillance","2010-Alarm & Surveillance");
+            add_dropdown_option(spool,fp,"2020-CHAMPS","2020-CHAMPS");
+            add_dropdown_option(spool,fp,"2030-Cleaning Supplies","2030-Cleaning Supplies");
+            add_dropdown_option(spool,fp,"2040-Computer supplies","2040-Computer supplies");
+            add_dropdown_option(spool,fp,"2050-Document Storage","2050-Document Storage");
+            add_dropdown_option(spool,fp,"2060-Employee Recognition","2060-Employee Recognition");
+            add_dropdown_option(spool,fp,"2070-Equipment Rental","2070-Equipment Rental");
+            add_dropdown_option(spool,fp,"2080-Extermination expenses","2080-Extermination expenses");
+            add_dropdown_option(spool,fp,"2090-Health & Safety","2090-Health & Safety");
+            add_dropdown_option(spool,fp,"2100-Internet & WEB Hosting","2100-Internet & WEB Hosting");
+            add_dropdown_option(spool,fp,"2110-Kitchen Supplies","2110-Kitchen Supplies");
+            add_dropdown_option(spool,fp,"2120-Landscaping","2120-Landscaping");
+            add_dropdown_option(spool,fp,"2130-Licences & permits","2130-Licences & permits");
+            add_dropdown_option(spool,fp,"2140-Maint. Building","2140-Maint. Building");
+            add_dropdown_option(spool,fp,"2150-Maint. Computer Equip.","2150-Maint. Computer Equip.");
+            add_dropdown_option(spool,fp,"2160-Maint. Equipment","2160-Maint. Equipment");
+            add_dropdown_option(spool,fp,"2210-Maint.POS(Cash register)","2210-Maint.POS(Cash register)");
+            add_dropdown_option(spool,fp,"2220-Office Supplies","2220-Office Supplies");
+            add_dropdown_option(spool,fp,"2230-Paper Products","2230-Paper Products");
+            add_dropdown_option(spool,fp,"2240-Postage","2240-Postage");
+            add_dropdown_option(spool,fp,"2250-Courier","2250-Courier");
+            add_dropdown_option(spool,fp,"2260-Professional fees","2260-Professional fees");
+            add_dropdown_option(spool,fp,"2270-Professional Membership","2270-Professional Membership");
+            add_dropdown_option(spool,fp,"2280-Promotional items","2280-Promotional items");
+            add_dropdown_option(spool,fp,"2290-Recruitment","2290-Recruitment");
+            add_dropdown_option(spool,fp,"2300-Restaurant supplies","2300-Restaurant supplies");
+            add_dropdown_option(spool,fp,"2310-Snow removal","2310-Snow removal");
+            add_dropdown_option(spool,fp,"2320-Sponsorships","2320-Sponsorships");
+            add_dropdown_option(spool,fp,"2330-Technical support","2330-Technical support");
+            add_dropdown_option(spool,fp,"2340-Training","2340-Training");
+            add_dropdown_option(spool,fp,"2350-Uniforms","2350-Uniforms");
+            add_dropdown_option(spool,fp,"2370-Waste disposal","2370-Waste disposal");
+            add_dropdown_option(spool,fp,"3000-Pre-Opening 1","3000-Pre-Opening 1");
+            add_dropdown_option(spool,fp,"9000-Other-Enter Comments","9000-Other-Enter Comments");
+        oncol++;
+
+        add_column_to_sheet(spool); csetlabel(spool,oncol,"G&A / Store Expense");
+            formptr = create_form_question(spool,oncol,0,"Dropdown");
+            fp = *formptr;
+            csetlabel(getpool(fp),getidx(fp),"G&A / Store Expense");
+            add_dropdown_option(spool,fp,"2-G&A","2-G&A");
+            add_dropdown_option(spool,fp,"3-Store Expense","3-Store Expense");
+        oncol++;
+
+        add_column_to_sheet(spool); csetlabel(spool,oncol,"Department / Store #");
+            formptr = create_form_question(spool,oncol,0,"Dropdown");
+            fp = *formptr;
+            csetlabel(getpool(fp),getidx(fp),"Department / Store #");
+            add_dropdown_option(spool,fp,"1000-Finance","1000-Finance");
+            add_dropdown_option(spool,fp,"1100-Accounting","1100-Accounting");
+            add_dropdown_option(spool,fp,"1200-Information Technology","1200-Information Technology");
+            add_dropdown_option(spool,fp,"1300-Human Resources","1300-Human Resources");
+            add_dropdown_option(spool,fp,"1400-Executive","1400-Executive");
+            add_dropdown_option(spool,fp,"1600-CCV and Board","1600-CCV and Board");
+            add_dropdown_option(spool,fp,"1700-Real Estate","1700-Real Estate");
+            add_dropdown_option(spool,fp,"1800-Payroll","1800-Payroll");
+            add_dropdown_option(spool,fp,"1900-Project Management","1900-Project Management");
+            add_dropdown_option(spool,fp,"2000-Redberry Operations","2000-Redberry Operations");
+            add_dropdown_option(spool,fp,"2100-Burger King Operations","2100-Burger King Operations");
+            add_dropdown_option(spool,fp,"2400-Taco Bell Operations","2400-Taco Bell Operations");
+            add_dropdown_option(spool,fp,"2500-Jersey Mike Operations","2500-Jersey Mike Operations");
+            add_dropdown_option(spool,fp,"3000-Head Office","3000-Head Office");
+            add_dropdown_option(spool,fp,"5000-Marketing BK","5000-Marketing BK");
+            add_dropdown_option(spool,fp,"7000-Othr Incom/Exp.","7000-Othr Incom/Exp.");
+            add_dropdown_option(spool,fp,"7500-Othr Incom/Exp.Lease","7500-Othr Incom/Exp.Lease");
+        oncol++;
+
+        add_column_to_sheet(spool); csetlabel(spool,oncol,"Vendor");
+            formptr = create_form_question(spool,oncol,0,"Input");
+            fp = *formptr;
+            csetlabel(getpool(fp),getidx(fp),"Vendor");
+        oncol++;
+
+        add_column_to_sheet(spool); csetlabel(spool,oncol,"Total Amount");
+            formptr = create_form_question(spool,oncol,0,"Input");
+            fp = *formptr;
+            csetlabel(getpool(fp),getidx(fp),"Total Amount");
+
+        return spool;
+    }
+
+    global ColCol thistle_ledger = utypes.add;
+    global int append_to_thistle_ledger(int spool) {
+        ColCol pool = utypes.get(spool);
+        int index_to_return = 0;
+        for(int i=0;i<pool.length;i++) {
+            Ptr p = pool.get(i);
+            bool found_col = false;
+            for(int j=0;j<thistle_ledger.length;j++) {
+                Ptr ledger_p = thistle_ledger.get(j);
+                if(ledger_p.label==p.label) {
+                    index_to_return = ledger_p.length;
+                    for(int e=0;e<p.length;e++) {
+                        Ptr element = p.get(e);
+                        if(is_live(element)) {
+                            ledger_p.push(*element);
+                        } else {
+                            ledger_p.push_default;
+                        }
+                    }
+                    found_col = true;
+                    break;
+                }
+            }
+            if(!found_col) {
+                string pstr = p.label;
+                Ptr ledger_p = thistle_ledger.add(pstr);
+                index_to_return = ledger_p.length;
+                ledger_p.label(pstr);
+                for(int e=0;e<p.length;e++) {
+                    Ptr element = p.get(e);
+                    if(is_live(element)) {
+                        if(ledger_p.tag==0) {ledger_p.retype(*element);}
+                        ledger_p.push(*element);
+                    } else {
+                        ledger_p.push_default;
+                    }
+                }
+            }
+        }
+        return index_to_return;
+    }
+    global void header_append_to_thistle_ledger(int header_at) {
+        ColCol pool = utypes.get(header_at);
+        Ptr ribbon = deadptr;
+        int i=pool.length-1;
+        while(i>=0) {
+            ribbon = makePtr3(header_at,i,0);
+            if(ribbon.label=="Ribbon") {
+                i=0;
+            }
+            i=i-1;
+        }
+        if(is_live(ribbon)) {
+            for(int i=0;i<ribbon.length;i++) {
+                Ptr field = (ribbon|S=i);
+                Ptr element = *field;
+                element; //I think the star unary is blocking in m stage, so just doing this for now
+                bool found_col = false;
+                for(int j=0;j<thistle_ledger.length;j++) {
+                    Ptr ledger_p = thistle_ledger.get(j);
+                    if(ledger_p.label==field.celllabel) {
+                        ledger_p.push(*element);
+                        found_col = true;
+                        break;
+                    }
+                }
+                if(!found_col) {
+                    string pstr = field.celllabel;
+                    Ptr ledger_p = thistle_ledger.add(pstr);
+                    ledger_p.label(pstr);
+                    ledger_p.retype(*element);
+                    ledger_p.push(*element);
+                }
+            }   
+        }
+        //dump_pool(thistle_ledger,true);
+    }
+##
+
+
+##
     global bool darkmode; darkmode = false;
 ##
 

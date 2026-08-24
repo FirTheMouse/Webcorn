@@ -8,27 +8,33 @@
     }
 ##
 
+
 root_path {
     script read_file("web/webcorn.js");
-    static string thing_color = "gray";
     div thing_holder {
-        "background-color" : thing_color;
+        "background-color" : "gray";
         "width" : "80px";
-        text "Hello";
-        "onclick" : capture(
-
-        ) {
-            if(thing_color=="gray") {
-                thing_color = "red";
-            } else {
-                thing_color = "gray";
+        for(int i=0;i<100;i++) {
+            div {
+                "background-color" : (i==0?"blue":"red");
+                "width" : "40px";
+                "height" : "40px";
+                "class" : "thing";
+                "onclick" : "
+                    event.stopPropagation();
+                    const root = this.parentElement;
+                    Array.from(root.children).forEach(child => {
+                        child.style.backgroundColor = 'red';
+                    });
+                    this.style.backgroundColor = 'blue';
+                ";
             }
-            thing_holder.reload();
-            emit_js("
-                setTimeout(() => {
-                    getel('"+capture_node(thing_holder)+"').style.backgroundColor = 'blue';
-                }, 200);
-            ");
         }
+        "onclick" : "
+            Array.from(this.children).forEach(child => {
+                child.style.backgroundColor = 'red';
+            });
+        ";
     }
+    DEBUG_ROOT_X_VERBOSE;
 }

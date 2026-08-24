@@ -59,6 +59,8 @@ if(reset) {
     ColColCol sub = usubunits.add("web/electionmadness/data.gsu");
 
     ColCol ledger = sub.add("Ledger");
+    ColCol users = sub.add("Users");
+    users.unlock; //<- Since this will be used by multiple people
     ColCol emmap = sub.add("Map");
 
     Header tx_senate = sub.add("TX-Senate");
@@ -172,9 +174,26 @@ if(reset) {
         "votes",[char];
     }
 
+    Header tR = sub.add("CA-Governer");
+    tR.ribbonT("James Talarico") {
+        "image","web/electionmadness/files/james_talarico.webp" ;
+        "link","https://ballotpedia.org/United_States_Senate_election_in_Texas,_2026" ;
+        "party","Democrat" ;
+        "points","6" ;
+        "votes",[char];
+    }
+    tR.ribbonT("Ken Paxton") {
+        "image","web/electionmadness/files/james_talarico.webp" ;
+        "link","https://ballotpedia.org/United_States_Senate_election_in_Texas,_2026" ;
+        "party","Republican" ;
+        "points","4" ;
+        "votes",[char];
+    }
+
     Ptr Header races = ledger.add(Ptr,"races");
-    for(int r=2;r<sub.length;r++) {
+    for(int r=3;r<sub.length;r++) {
         races.push(sub[r]);
+        sub[r].unlock;
     }
     Ptr Ptr Header bystate = ledger.add(Ptr,"bystate");
     for(int r=0;r<races.length;r++) {
@@ -196,4 +215,10 @@ if(reset) {
     sub.save;
 } else {
     ColColCol database = load_subunit("web/electionmadness/data.gsu");
+    database.unlock;
+    ColCol users = database["Users"];
+    users.unlock; //<- Since this will be used by multiple people
+    for(int r=3;r<database.length;r++) {
+        database[r].unlock;
+    }
 }
