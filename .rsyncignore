@@ -2,4 +2,5 @@ webcorn
 hazel
 build
 .git
+data.gsu
 ext/mbedtls

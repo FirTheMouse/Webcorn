@@ -151,12 +151,12 @@
 
 namespace Acorn {
 
-    uint32_t session_username_offset;
-    uint32_t session_userpath_offset;
-    uint32_t session_ip_offset;
-    uint32_t session_role_offset;
-    uint32_t session_org_offset;
-    uint32_t session_timestamp_offset;
+    inline uint32_t session_username_offset;
+    inline uint32_t session_userpath_offset;
+    inline uint32_t session_ip_offset;
+    inline uint32_t session_role_offset;
+    inline uint32_t session_org_offset;
+    inline uint32_t session_timestamp_offset;
 
     struct Session : Ptr {
         Session() {}

@@ -1,19 +1,22 @@
-inlined background_theme {
-    "background-color" : "rgb(51, 51, 51)";
-}
-inlined banner_theme {
-    "background-color" : "rgb(31, 60, 27)";
-}
+##
+    global string golden_color = " #dea426";
+    global string golden_color_L1 = "rgb(235, 175, 47)";
+    global string golden_color_D1 = "rgb(201, 150, 39)";
+
+    global string pebble_color = "rgb(67, 67, 67)";
+    global string pebble_color_L2 = "rgb(110, 110, 110)";
+    global string pebble_color_L1 = "rgb(83, 83, 83)";
+    global string pebble_color_D1 = "rgb(52, 51, 51)";
+    global string pebble_color_D2 = "rgb(30, 30, 30)";
+
+    global string pine_color = "rgb(31, 60, 27)";
+    global string pine_color_L1 = "rgb(39, 76, 34)";
+##
+
+
 inlined card_theme {
     "border-radius" : "8px";
     "background-color" : "rgb(67, 67, 67)";
-}
-inlined pill_theme {
-    "border-radius" : "10px";
-    "background-color" : "rgb(205, 253, 255)";
-    "display" : "flex";
-    "align-items" : "center";
-    "justify-content" : "center";
 }
 inlined main_font {
     "font-family" : "system-ui, sans-serif";
@@ -36,717 +39,2134 @@ inlined text_three_theme {
     "color" : " rgb(210, 210, 210)";
     main_font;
 }
-inlined golden_color_theme {
-    "color" : "#dea426";
+
+inlined hoverable_theme {
+    "background-color" : transparent;
+    "transition" : "background-color 0.15s ease";
+    "onmouseenter" : "if(this.style.backgroundColor==='transparent')this.style.backgroundColor='rgba(0,0,0,0.04)'";
+    "onmouseleave" : "if(this.style.backgroundColor==='rgba(0, 0, 0, 0.04)')this.style.backgroundColor='transparent'";
+}
+inlined skeleton_pulse {
+    "background" : "linear-gradient(90deg, rgb(60,60,60) 25%, rgb(80,80,80) 50%, rgb(60,60,60) 75%)";
+    "background-size" : "200% 100%";
+    "animation" : "skeleton_pulse 1.5s infinite";
 }
 
-##
-    register login;
-    "login" {
-        in htmlemiting {
-            ctx.source.append("<!DOCTYPE html><html><body>");
-            emit_contents;
-            ctx.source.append("</body></html>");
-        }
-        in posting {
-            validate_login;
+
+inlined post_text_theme {
+    "white-space" : "pre-wrap";
+    "color" : " rgb(238, 238, 238)";
+    "margin" : "4 8 4 8px";
+    "font-size" : "0.9rem";
+    "font-weight" : "400";
+    "line-height" : "1.5";
+    main_font;
+}
+
+stateless template div section_header(string title) {
+    div {
+        "border" : "none";
+        "background-color" : pine_color_L1;
+        "border-radius" : "12px";
+        "margin" : "8px";
+        "width" : "100%";
+        text title {
+            "text-align" : "center"; 
+            "margin" : "5px"; 
+            "font-weight" : "900"; 
+            "font-size" : "1.2rem"; 
+            "color" : golden_color; 
+            main_font;
         }
     }
-##
+}
 
-login {
+
+stateless template div section_header_behaviour(string title, string behavior) {
     div {
-        style "
-            td:hover {
-                background-color:rgb(234, 234, 234);
-            }
-            input:focus {
-                outline: none;
-            }
-            textarea:focus {
-                outline: none;
-            }
+        "border" : "none";
+        "background-color" : pine_color_L1;
+        "border-radius" : "12px";
+        "margin" : "8px";
+        "width" : "100%";
+        "onclick" : behavior;
+        "cursor" : "pointer";
+        text title {
+            "text-align" : "center"; 
+            "margin" : "5px"; 
+            "font-weight" : "900"; 
+            "font-size" : "1.2rem"; 
+            "color" : golden_color; 
+            main_font;
+        }
+    }
+}
 
-            * {
-                box-sizing: border-box;
+
+stateless template div collapse_section(string label, string section, string behaviour_expand, string behaviour_hide) {
+    button {
+        "border" : "none";
+        "background-color" : pine_color_L1;
+        "border-radius" : "12px";
+        "margin" : "8px";
+        "cursor" : "pointer";
+        text label {"margin" : "5px"; "font-weight" : "700"; "font-size" : "0.9rem"; "color" : golden_color; main_font;}
+        string label_section = label.substr(0,label.length-2);
+        "onclick" : "
+            const el = getel("+js_lit(section)+");
+            if(el.style.height === '0px') {
+                el.style.height = el.scrollHeight + 'px';
+                this.children[0].innerText = '"+label_section+" v';
+                "+behaviour_expand+";
+            } else {
+                el.style.height = '0px';
+                this.children[0].innerText = '"+label_section+" ^';
+                "+behaviour_hide+";
             }
         ";
+    }
+}
 
-        script read_file("web/webcorn.js");
 
-        background_theme;
+div top_bar(string on_route) {
+    div main_bar {
+        "display" : "flex";
+        "flex-direction" : "row";
+        "align-items" : "center";
+        "justify-content" : "space-between";
+        "padding" : "16px 32px";
+        "width" : "100%";
+        "background-color" : pine_color;
+
         div {
             "display" : "flex";
-            "min-height" : "100vh";
-                div {
-                    "flex" : "1";
-                    "display" : "flex";
-                    "flex-direction" : "column";
-                    "justify-content" : "center";
-                    "align-items" : "center";
-                        div {
-                            "display" : "flex";
-                            "justify-content" : "center";
-                            "align-items" : "end";
-                            "flex-direction" : "column";
-                            "width" : "480px";
-                            "height" : "200px";
-                            "padding" : "40px";
-                            "gap" : "12px";
-                            "border-radius" : "12px";
-                            "box-shadow" : "0 4px 24px rgba(0,0,0,0.08)";
+            "flex-direction" : "row";
+            "align-items" : "start";  
+            "gap" : "12px"; 
 
-                                inlined login_input_theme {
-                                    "border" : "none";
-                                    "border-bottom" : "2px solid rgb(200,200,200)";
-                                    "border-radius" : "0px";
-                                    "background-color" : "transparent";
-                                    "padding" : "8px 0px";
-                                }
+            "cursor" : "pointer";
+            "onclick" : "window.location.href='/'";     
 
-                                div {
-                                    "display" : "flex";
-                                    "align-items" : "center";
-                                    "width" : "100%";
-                                    "gap" : "7px";
-                                        text "Username:" {
-                                            "width" : "70px";
-                                            "font-size" : "14px";
-                                            "flex-shrink" : "0";
-                                            text_theme;
-                                        }
-                                        input {
-                                            "id" : "username";
-                                            "flex" : "1";
-                                            login_input_theme;
-                                        }
-                                }
+            img {
+                "width" : "80px";
+                "height" : "80px";
+                "object-fit" : "contain";
+                "flex-shrink" : "0";
+                "src" : "web/goldensystems/files/icon.png";
+            }
 
-                                div {
-                                    "display" : "flex";
-                                    "align-items" : "center";
-                                    "width" : "100%";
-                                    "gap" : "8px";
-                                        text "Password:" {
-                                            "width" : "70px";
-                                            "font-size" : "14px";
-                                            "flex-shrink" : "0";
-                                            text_theme;
-                                        }
-                                        input {
-                                            "id" : "password";
-                                            "type" : "password";
-                                            "flex" : "1";
-                                            login_input_theme;
-                                        }
-                                }
-
-                                button {
-                                    "id" : "login";
-                                    "onclick" : "postForm({username: getel('username').value, password: getel('password').value})";
-                                    text "Login" {
-                                        "font-size" : "14px";
-                                        text_theme;
-                                    }
-                                    "width" : "75%";
-                                    "border" : "none";
-                                    "border-radius" : "4px";
-                                    "background-color" : "rgb(230, 230, 230)";
-                                }
-                        }
+            div {
+                "display" : "flex";
+                "flex-direction" : "column";
+                text "Golden" {
+                    "id" : "title_text";
+                    "margin-bottom" : "0px";
+                    "font-size" : "2.2rem";
+                    "font-weight" : "700";
+                    "color" : golden_color;
+                    main_font;
                 }
+                text "Systems & Software" {
+                    "font-size" : "1rem";
+                    "color" : golden_color_D1;
+                    "font-weight" : "500";
+                    main_font;
+                }
+            }
+        }
+
+        div navlinks {
+            "display" : "flex";
+            "flex-direction" : "row";
+            "gap" : "24px";
+            "align-items" : "center";
+            "overflow-y" : "hidden";
+            "transition" : "height 0.6s ease";
+
+            stateless template div nav_link(string label, string route) {
+                text label {
+                    "font-size" : "1rem";
+                    "font-weight" : (on_route==route?"700":"500");
+                    "color" : (on_route==route?golden_color_L1:golden_color_D1);
+                    "cursor" : "pointer";
+                    "text-decoration" : (on_route==route?"underline":"none");
+                    "onclick" : "window.location.href="+js_lit(route);
+                    main_font;
+                }
+            }
+
+            nav_link("blog","/blog");
+            nav_link("GDSL","/GDSL");
+            nav_link("about","/about");
+            nav_link("contact","/contact");
+        }
+
+        button {
+            "display" : "none";
+            "border" : "none";
+            "background-color" : pebble_color;
+            "border-radius" : "12px";
+            "width" : "20%";
+            text "v" {"margin" : "5px"; "color" : golden_color_L1; main_font;}
+            "onclick" : "
+                const nav = this.parentElement.children[1];
+                if(nav.style.height === '0px') {
+                    nav.style.height = nav.scrollHeight + 'px';
+                    this.children[0].innerText = '^';
+                } else {
+                    nav.style.height = '0px';
+                    this.children[0].innerText = 'v';
+                }
+            ";
         }
     }
+    script "
+        function update_nav() {
+            const bar = getel("+js_lit(capture_node(main_bar))+");
+            if(window.innerWidth <= 980) {
+                bar.style.flexDirection = 'column';
+                bar.children[1].style.flexDirection = 'column';
+                bar.children[1].style.height = '0px';
+                bar.children[2].style.display = 'block';
+            } else {
+                bar.style.flexDirection = 'row';
+                bar.children[1].style.flexDirection = 'row';
+                bar.children[1].style.height = 'auto';
+                bar.children[2].style.display = 'none';
+            }
+        }
+        window.addEventListener('resize', update_nav);
+        update_nav();
+    ";
 }
 
-div main_banner {
-    "display" : "flex";
-    "flex-direction" : "row";
-    "width" : "100%";
-    "height" : "10%";
-    "align-items" : "center";
-    "justify-content" : "center";
-    "padding" : "10px";
-    banner_theme;
-    img {
-        "width" : "5%";
-        "height" : "auto";
-        "src" : "web/goldensystems/files/icon.png";
-    }
-}
 
-div bottom_banner {
-    "display" : "flex";
-    "flex-direction" : "row";
-    "width" : "100%";
-    "height" : "10%";
-    "align-items" : "center";
-    "justify-content" : "center";
-    "padding" : "10px";
-    banner_theme;
-    img {
-        "width" : "5%";
-        "height" : "auto";
-        "src" : "web/goldensystems/files/icon.png";
-    }
-    text "Contact" {
-        "color" : "#dea426";
-        text_one_theme;
-    }
+
+void standard_header {
+    html '<meta name="viewport" content="width=device-width, initial-scale=1">';
+    html "<link rel='icon' type='image/png' href='web/goldensystems/files/favicon.png'>";
+    style "
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html { font-size: 17px; }
+        @media (min-width: 560px) {
+            html { font-size: 20px; }
+        }
+        @keyframes skeleton_pulse { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    ";
+    script read_file("web/webcorn.js");
 }
 
 ##
     register root_path;
     "root_path" {
         in htmlemiting {
-            ctx.source.append("<!DOCTYPE html><html><head>");
-            ctx.source.append("<link rel='icon' type='image/png' href='web/goldensystems/files/favicon.png'>");
-            ctx.source.append("<body>");
-            emit_contents;
-            ctx.source.append("</head></body></html>");
+            subemit("body",false,"","");
         }
     }
 ##
 
 root_path {
-    style "
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-    ";
-    script read_file("web/webcorn.js");
+    standard_header;
+    top_bar("/");
     div {
         "display" : "flex";
-        "width" : "100%";
-        "min-height" : "400vh";
-        "align-items" : "top";
-        "justify-content" : "center";
         "flex-direction" : "column";
-        background_theme;
-        
-        main_banner;
-
-        div {
-            "flex" : "1";
-            "height" : "100%";
-            "display" : "flex";
-            "flex-direction" : "column";
-            "justify-content" : "top";
-            "align-items" : "center";
-            text "A Good Slogan" {
-                "margin-top" : "100px";
-                "color" : "rgb(175, 105, 55)";
-                "font-size" : "120px";
-                "font-weight" : "1000";
-                text_one_theme;
-            }
-            div {
-                "width" : "60%";
-                text "Extending on the meaning of that slogan with some clever saying" {
-                    "text-align" : "center";
-                    "color" : "rgb(155, 93, 48)";
-                    "font-size" : "40px";
-                    "font-weight" : "600";
-                    text_one_theme;
-                }
-            }
+        "align-items" : "center";
+        "min-height" : "100vh";
+        "background-color" : pebble_color_D1;
+        text "UNDER CONSTRUCTION" {
+            "font-size" : "2.8rem";
+            "font-weight" : "1000";
+            "color" : "white";
+            "text-align" : "center";
+            "max-width" : "100%";
+            "padding" : "0 16px";
+            main_font;
         }
-
-        div {
-            "flex" : "1";
-            "height" : "100%";
-            "display" : "flex";
-            "flex-direction" : "column";
-            "justify-content" : "top";
-            "align-items" : "center";
-            text "A Meaingful Phrase" {
-                "class" : "fade_in";
-                "opacity" : "0"; 
-                "transform" : "translateX(100%)"; 
-                "transition" : "opacity 1.0s ease, transform 1.0s ease";
-                "text-align" : "center";
-                "color" : "rgb(155, 93, 48)";
-                "font-size" : "40px";
-                text_one_theme;
-            }
-            text "The End of it" {
-                "class" : "fade_in";
-                "opacity" : "0"; 
-                "transform" : "translateX(-100%)"; 
-                "transition" : "opacity 1.0s ease, transform 1.0s ease";
-                "text-align" : "center";
-                "color" : "rgb(155, 93, 48)";
-                "font-size" : "40px";
-                text_one_theme;
-            }
+        text "To the blog ->" {
+            "font-size" : "2rem";
+            "font-weight" : "800";
+            "color" : golden_color_D1;
+            "cursor" : "pointer";
+            "onclick" : "goTo('/blog')";
+            main_font;
         }
-
-        div {
-            "flex" : "1";
-            "height" : "100%";
-            "display" : "flex";
-            "flex-direction" : "column";
-            "justify-content" : "top";
-            "align-items" : "center";
-            text "Code Log" {
-                "class" : "fade_in";
-                "opacity" : "0"; 
-                "transform" : "translateY(100px)"; 
-                "transition" : "opacity 0.6s ease, transform 0.6s ease";
-                "text-align" : "center";
-                "color" : "rgb(155, 93, 48)";
-                "font-size" : "40px";
-                text_one_theme;
-                "onclick" : "goTo('/codelog')";
-            }
-        }
-
-        div {
-            "flex" : "1";
-            "height" : "100%";
-            "display" : "flex";
-            "flex-direction" : "column";
-            "justify-content" : "top";
-            "align-items" : "center";
-            text "See Golden" {
-                "class" : "fade_in";
-                "opacity" : "0"; 
-                "transform" : "translateY(100px)"; 
-                "transition" : "opacity 0.6s ease, transform 0.6s ease";
-                "text-align" : "center";
-                "color" : "rgb(205, 122, 62)";
-                "font-size" : "40px";
-                text_one_theme;
-                "onclick" : "goTo('/Golden')";
-            }
-        }
-
-
-        bottom_banner;
     }
-
-    script "
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if(entry.isIntersecting) {
-                    entry.target.style.opacity = '1';
-                    entry.target.style.transform = 'translateY(0)';
-                }
-            });
-        }, { threshold: 0.1 });
-
-        document.querySelectorAll('.fade_in').forEach(el => observer.observe(el));
-    ";
 }
 
 ##
-    global bool tracer_on; tracer_on = false;
-    global string shapestr; shapestr = "";
-    global Node trace_reload_target; trace_reload_target = deadnode;
-    register Golden;
-    "Golden" {
+    register about;
+    "about" {
         in htmlemiting {
-            ctx.source.append("<!DOCTYPE html><html><head>");
-            ctx.source.append("<link rel='icon' type='image/png' href='web/goldensystems/files/favicon.png'>");
-            ctx.source.append("<body>");
-            emit_contents;
-            ctx.source.append("</head></body></html>");
+            subemit("body",false,"","");
         }
-        in fraging {
-            string src = ctx.source;
-            string target = src.slice(0,src.find(" "));
-            string instr = src.slice(" ",1,2);
-            string content = src.slice(src.find(" ",0,2)+1,src.length);
-            print("TARGET: ",target);        
-            print("INSTR: ",instr);
-            print("CONTENT: ",content);
-            if(target.length!=0) {                
-                Node to_edit = find_node(target,ctx.node);                
-                ctx.source = "";            
-                if(instr=="run") {
-                    Node root = compile(content);           
-                    execut root;        
+    }
+##
+
+about {
+    standard_header;
+    top_bar("/about");
+    div {
+        "display" : "flex";
+        "flex-direction" : "column";
+        "justify-content" : "center";
+        "align-items" : "center";
+        "min-height" : "150vh";
+        "background-color" : pebble_color_D2;
+        div {
+            "margin" : "16px";
+            "padding" : "12px";
+            "border-radius" : "8px";
+            "background-color" : pebble_color;
+            "display" : "flex";
+            "flex-direction" : "column";
+            "max-width" : "800px";
+            "width" : "100%";
+            "height" : "100%";
+
+            section_header("About me");
+            div {
+                "display" : "flex";
+                "width" : "100%";
+                "justify-content" : "center";
+                img {
+                    "src" : project_path+"files/computer_mouse2.png";
+                    "height" : "250px";
+                    "width" : "300px";
+                    "border-radius" : "8px";
                 }
-                htmlemit to_edit;            
-            } else {                
-                print("No target for frag request!");            
             }
+            text "My name is Jackson, though I'm known online as FirTheMouse. I'm currently living in Lansing MI though I intend to move to Toronto once I have the means." {post_text_theme;}
+            text "I'm a systems theorist, programmer, writer, amateur 3d modeler, and avid TTRPG player." {post_text_theme;}
+            text "If you want to join a discord server where we're hosting games (DnD and Pathfinder) almost every night contact me on discord." {"onclick" : "goTo('/contact')"; "text-decoration" : "underline"; "cursor" : "pointer"; post_text_theme;}
+
+            section_header("About us");
+            text "Right now, Golden Systems isn't even a registered company, it's just me starting to get my name out there." {post_text_theme;}
+            text "So there isn't much to say on that aspect, if you're looking at this website as a potential client you probably already know me, if not:" {post_text_theme;}
+            text "  - I provide services to anyone who wants something made without dealing with a consulting company or AI slop." {post_text_theme;}
+            text "  - I build all my own tools, and I work on passion projects. If you have a vision you haven't been able to realize, I can help. If you just want a quick buck then no." {post_text_theme;}
+            text "  - I can also offer advice or help with your own projects, if you're having trouble with maintainability and extensibility." {post_text_theme;}
+            text "  - I'm willing to do stuff for free if it's a worthwhile project." {post_text_theme;}
+
+            section_header("About the work");
+            text "I'm working on a tech stack called GDSL, currently it stretches from memory model to web programming, with a compiler, web server architecture, database, and probably some other things in between." {post_text_theme;}
+            text "I have an experimental ISA/bytecode and machine architecture, and my next extension of the stack is likely to be into operating systems." {post_text_theme;}
+            link "source" {"href" : "https://github.com/FirTheMouse/Webcorn.git"; "cursor" : "pointer"; post_text_theme;}
+            link "Oh, and I made a game engine before this" {"href" : "https://github.com/FirTheMouse/Golden.git"; "cursor" : "pointer"; post_text_theme;}
+
+            section_header("Collaborators not contributors");
+            text "If my work interests you at all, reach out to me directly so we can talk. While the code is open source I don't want to have to maintain legibility for everyone or backward compatibility deeper than the surface." {post_text_theme;}
+            text "I'm very open to working with others, just not as anonymous contributors." {post_text_theme;}
+        }
+        
+    }
+}
+
+
+##
+    register contact;
+    "contact" {
+        in htmlemiting {
+            subemit("body",false,"","");
+        }
+    }
+##
+
+contact {
+    standard_header;
+    top_bar("/contact");
+    div {
+        "display" : "flex";
+        "flex-direction" : "column";
+        "justify-content" : "center";
+        "align-items" : "center";
+        "min-height" : "100vh";
+        "width" : "100%";
+        "background-color" : pebble_color_D2;
+        div {
+            "margin" : "16px";
+            "padding" : "12px";
+            "border-radius" : "8px";
+            "background-color" : pebble_color;
+            "display" : "flex";
+            "flex-direction" : "column";
+            "max-width" : "800px";
+            "width" : "100%";
+            "height" : "100%";
+
+            text "Discord is prefered, click on the text to copy it" {post_text_theme;}
+
+            div {
+                "display" : "flex";
+                "flex-direction" : "row";
+                "justify-content" : "center";
+                "gap" : "16px";
+                "width" : "100%";
+                    div {
+                        "width" : "100%";
+                        "display" : "flex";
+                        "flex-direction" : "column";
+                        "align-items" : "center";
+                        section_header("Discord");
+                        text "FirTheMouse" {
+                            "onclick" : "
+                                const el = this;
+                                navigator.clipboard.writeText('FirTheMouse');
+                                el.innerText = 'Copied!';
+                                setTimeout(() => el.innerText = 'FirTheMouse', 1200);
+                            "; 
+                            "cursor" : "pointer";
+                            post_text_theme;
+                        }
+                    }
+                    div {
+                        "width" : "100%";
+                        "display" : "flex";
+                        "flex-direction" : "column";
+                        "align-items" : "center";
+                        section_header("Email");
+                        text "jcconners6707 [at] gmail [dot] com" {
+                            "onclick" : "
+                                const el = this;
+                                navigator.clipboard.writeText('jcconners6707@gmail.com');
+                                el.innerText = 'Copied!';
+                                setTimeout(() => el.innerText = 'jcconners6707 [at] gmail [dot] com', 1200);
+                            "; 
+                            "cursor" : "pointer";
+                            post_text_theme;
+                        }
+                    }
+            }
+        }
+        
+    }
+}
+
+
+##
+    register blog;
+    "blog" {
+        in htmlemiting {
+            subemit("body",false,"","");
+        }
+    }
+##
+
+blog {
+    standard_header;
+    top_bar("/blog");
+    div {
+        "display" : "flex";
+        "justify-content" : "center";
+        "min-height" : "300vh";
+        "background-color" : pebble_color_D2;
+
+
+        div post_board_holder {
+            "height" : "100vh";
+            "width" : "100%";
+            "scroll-snap-align" : "start";
+            "display" : "flex";
+            "justify-content" : "center";
+            "align-items" : "center";
+            "padding" : "24px";
+
+            div {
+                "position" : "relative";
+                "width" : "100%";
+                "max-width" : "600px";
+                "height" : "100%";
+                "max-height" : "90vh";
+                "display" : "flex";
+                "flex-direction" : "column";
+                "align-items" : "center";
+                "gap" : "5px";
+                "border-radius" : "16px";
+                "overflow-y" : "auto";
+                "padding" : "24px";
+                text "Posts" {
+                    "color" : "white";
+                    "font-size" : "32px";
+                    "font-weight" : "800";
+                    "text-align" : "center";
+                    "width" : "100%";
+                    "padding" : "16px 0px 8px 0px";
+                    main_font; 
+                }
+                div {
+                    "width" : "100%";
+                    "height" : "100%";
+                    "display" : "flex";
+                    "flex-direction" : "column";
+                    "align-items" : "center";
+                    "gap" : "5px";
+                    "overflow-y" : "auto";
+                    
+                    stateless template div post_tally(string post_date, string post_title, string post_behaviour) {
+                        div {
+                            "height" : "30px";
+                            "width" : "95%";
+                            "border-radius" : "10px";
+                            "display" : "flex";
+                            "align-items" : "center";
+                            "justify-content" : "center";
+                            "overflow" : "hidden";
+                            "background-color" : pebble_color_L1;
+                            "cursor" : "pointer";
+                            "onclick" : post_behaviour;
+
+                            text post_date {
+                                "color" : "white";
+                                "font-size" : "14px";
+                                "font-weight" : "700";
+                                "background-color" : "rgba(0,0,0,0.25)";
+                                "height" : "100%";
+                                "display" : "flex";
+                                "align-items" : "center";
+                                "padding" : "0 16px";
+                                main_font;
+                            }
+                            text post_title {
+                                "flex" : "1";
+                                "color" : "white";
+                                "font-size" : "14px";
+                                "font-weight" : "600";
+                                "padding-left" : "12px";
+                                main_font;
+                            }
+                        }
+                    }
+
+                    post_tally("8/29","Setting up my website","goTo('/8_29_setting_up_my_website')");
+                }
+            }
+        }
+    }
+}
+
+
+inlined outer_page_theme {
+    "display" : "flex";
+    "flex-direction" : "column";
+    "justify-content" : "center";
+    "align-items" : "center";
+    "min-height" : "100vh";
+    "width" : "100%";
+    "background-color" : pebble_color_D2;
+}
+
+inlined inner_page_theme {
+    "margin" : "30px";
+    "padding" : "12px";
+    "border-radius" : "8px";
+    "background-color" : pebble_color;
+    "display" : "flex";
+    "flex-direction" : "column";
+    "max-width" : "800px";
+    "width" : "100%";
+    "height" : "100%";
+}
+
+
+##
+    register GDSL;
+    "GDSL" {
+        in htmlemiting {
+            subemit("body",false,"","");
+        }
+    }
+##
+
+GDSL {
+    standard_header;
+    top_bar("/GDSL");
+    div {
+        "display" : "flex";
+        "flex-direction" : "column";
+        "justify-content" : "center";
+        "align-items" : "center";
+        "min-height" : "150vh";
+        "width" : "100%";
+        "background-color" : pebble_color_D2;
+        div {
+            "margin" : "16px";
+            "padding" : "12px";
+            "border-radius" : "8px";
+            "background-color" : pebble_color;
+            "display" : "flex";
+            "flex-direction" : "column";
+            "max-width" : "800px";
+            "width" : "100%";
+            "height" : "100%";
+
+            section_header("What is GDSL?");
+            text "GDSL is the name for my stack, it used to mean Golden Domain Specific Language, back when this was just a basic compiler for button behaviour in my game engine (Golden)." {post_text_theme;}
+            text "Now GDSL is quite a bit larger, and still growing, but the name still sticks!" {post_text_theme;}
+            text "This isn't really documentation, it's more of an explanation of the elements and systems at play for the curious." {post_text_theme;}
+            text "If you want to know more or collaborate, please reach out to me!" {"onclick" : "goTo('/contact')"; "text-decoration" : "underline"; "cursor" : "pointer"; post_text_theme;}
+            text "Click on the headers to go to the page for it." {post_text_theme;}
+
+            section_header_behaviour("Acorn","goTo('/GDSL_acorn')");
+            section_header_behaviour("Core","goTo('/GDSL_core')");
+            section_header_behaviour("Compiler","goTo('/GDSL_compiler')");
+            section_header_behaviour("Language","goTo('/GDSL_language')");
+            section_header_behaviour("Webcorn","goTo('/GDSL_webcorn')");
+            section_header_behaviour("TwigSnap","goTo('/GDSL_twigsnap')");
+        }
+        
+    }
+}
+
+##
+    register GDSL_acorn;
+    "GDSL_acorn" {
+        in htmlemiting {
+            subemit("body",false,"","");
         }
     }
 ##
 
 
-Golden {
-    style "
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-    ";
-    script read_file("web/webcorn.js");
+inlined nav_arrow_theme {
+    "color" : golden_color;
+    "margin-top" : "-40px";
+    main_font;
+}
+
+GDSL_acorn {
+    standard_header;
+    top_bar("/GDSL_acorn");
     div {
+        outer_page_theme;
+        div {
+            inner_page_theme;
+
+            div {
+                "display" : "flex";
+                "flex-direction" : "row";
+                "justify-content" : "space-between";
+                "width" : "100%";
+
+                text "<- GDSL" {"onclick" : "goTo('/GDSL')"; nav_arrow_theme;}
+                text "Core ->" {"onclick" : "goTo('/GDSL_core')"; nav_arrow_theme;}
+            }
+
+            section_header("Acorn");
+            text "Acorn is the memory model for GDSL, it's the (current) lowest level, and it can also refer to the experimental ISA/bytecode" {post_text_theme;}
+            text "Acorn is the name of a character in Golden, an orphaned child. I chose that name because the other child was Pip which is more contested in the tech space. Also, because Acorns are the seeds of things so it fits both ways." {post_text_theme;}
+            link "source" {"href" : "https://github.com/FirTheMouse/GDSL/blob/main/mixos-acorn/util/Acorn-Type.hpp"; "cursor" : "pointer"; post_text_theme;}
+
+            section_header("QCol");
+            text "At its core, Acorn is really just ranges of bytes. The QCol is about as primitive as it gets, just storage, length, and capacity." {post_text_theme;}
+            text "Derived from the QCol is the QString and QCellCol. Both are just forms of QCol that specialize their storage for chars and CCols respectively." {post_text_theme;}
+
+            section_header("CCol");
+            text "The CCol is the next step up from the QCol, it adds the concept of things. Where a QCol is just some range, a CCol has element_size and a tag that lets it become an array of things." {post_text_theme;}
+            text "It also has Index and Hash, which are used by the QCellCol and as scratch space otherwise." {post_text_theme;}
+            text "Live is more important, it's actually a general locking system with reader and writer locks crammed into a byte. It used to just be a flag for recycling." {post_text_theme;}
+            text "Then there's gen and cachelevel, cachelevel is unused, gen is incremented on each recycle so staleness can be detected." {post_text_theme;}
+
+            section_header("QCellCol");
+            text "A specialization of QCol for storing CCols, this is Acorn's map when used in combination with a col." {post_text_theme;}
+            text "Each CCol, or cell, uses its index to point into a Col, its hash for lookup, and its storage and tag for the key so it can be recovered for printing or collision detection." {post_text_theme;}
+            text "Originally it was just linear search, but I upgraded it to be a robin hood style map." {post_text_theme;}
+
+            section_header("Col");
+            text "The Col is one of the two core things in Acorn, it adds labels, free list, cells, and heterogeneity." {post_text_theme;}
+            text "Label is just a QString." {post_text_theme;}
+            text "The free list is a g_lib (my C++ standard library) list, it is likely it will be replaced with a QCol in the future. Its purpose is to store which slots in the column have been recycled." {post_text_theme;}
+            text "Cells is a QCellCol maintained by the Col, it provides a secondary lookup method other than just indexes, using keys. It's also how slots can be labeled." {post_text_theme;}
+            text "Heterogeneous is a flag that marks if a Col is storing homogenous data like an int or elements with a layout like a Node (think like a struct in C)." {post_text_theme;}
+
+            section_header("Ptr");
+            text "Ptr is the other core thing in Acorn, it plays many, many roles." {post_text_theme;}
+            text "A Ptr is a 32 byte structure composed of a void pointer cache, one byte cachelevel, one byte specialization, and two bytes gen. Then five levels." {post_text_theme;}
+            text "Specialization is currently just used for marking if a Ptr is dead or not, but it's open for future extension." {post_text_theme;}
+            text "Gen is for tracking Ptr relevance when the slot it refers to gets recycled." {post_text_theme;}
+            text "Cache is used to accelerate Ptr resolution when we know the real storage won't change. The cachelevels are:" {post_text_theme;}
+            text "  0=no cache (full resolution)" {post_text_theme;}
+            text "  1=sidx valid, cache is a col" {post_text_theme;}
+            text "  2=idx valid, cache is a ColCol" {post_text_theme;}
+            text "  3=pool valid, cache is a ColColCol" {post_text_theme;}
+            text "  4=subunit valid, cache is a PtrColColCol" {post_text_theme;}
+            text "Most Ptrs are cachelevel 3, because subunits use one level of indirection so that their Ptrs can remain stable even as the count of subunits changes." {post_text_theme;}
+            text "Cache can be swapped out to get Region and Zone as levels, but I haven't done that anywhere yet." {post_text_theme;}
+        }
+    }
+}
+
+##
+    register GDSL_core;
+    "GDSL_core" {
+        in htmlemiting {
+            subemit("body",false,"","");
+        }
+    }
+##
+
+GDSL_core {
+    standard_header;
+    top_bar("/GDSL_core");
+    div {
+        outer_page_theme;
+        div {
+            inner_page_theme;
+
+            div {
+                "display" : "flex";
+                "flex-direction" : "row";
+                "justify-content" : "space-between";
+                "width" : "100%";
+
+                text "<- Acorn" {"onclick" : "goTo('/GDSL_acorn')"; nav_arrow_theme;}
+                text "Compiler ->" {"onclick" : "goTo('/GDSL_compiler')"; nav_arrow_theme;}
+            }
+
+            section_header("Core");
+            text "The Core is where a lot of Acorn's model gets furnished. It adds a bunch of key elements, registers the core types, contains Units and Subunits, and much more."  {post_text_theme;}
+            link "source" {"href" : "https://github.com/FirTheMouse/GDSL/blob/main/mixos-acorn/Acorn-Core.hpp"; "cursor" : "pointer"; post_text_theme;}
+
+            section_header("Hierarchy");
+            text "ColCol and ColColCol are both just Cols of Cols, also known as pools and subunits." {post_text_theme;}
+            text "When a Ptr is resolved it goes through a sequence starting at its cachelevel:" {post_text_theme;}
+            text "unit -> subunit -> pool -> column -> slot" {post_text_theme;}
+            text "unit|subunit|pool|column|slot" {post_text_theme;}
+            text "4|3|2|1|0" {post_text_theme;}
+            text "These are what the cache/field levels mean. So a 'level 3 Ptr' just means it knows its location up to the subunit level" {post_text_theme;}
+
+            section_header("Layout");
+            text "Layouts are a group of Cols describing how to interpret a heterogeneous Col. The layout I'm using isn't fixed right now, and it's something that's very prone to change in the future."  {post_text_theme;}
+            text "Currently its just offsets, labels, tags, subtags, sizes, subsizes, and ptrs. Plus an overloads column which is of a struct combining Ptrs and a type (very subject to change)."  {post_text_theme;}
+            text "Layouts let a Col be interpreted by its tag, it's how later structures like Node and Value are constructed while still being just Ptrs."  {post_text_theme;}
+
+            section_header("Handler");
+            text "A handler is a function which accepts a Context object."  {post_text_theme;}
+            text "Stages are swappable groups of handlers."  {post_text_theme;}
+            text "The handlers are stored in the first pool, each row is a stage."  {post_text_theme;}
+
+            section_header("Types");
+            text "Types in GDSL are just a registered unsigned integer (uint32_t) id, so for instance Ptr might be type 2, int might be type 18, identifier could be 38, etc..."  {post_text_theme;}
+            text "Each type has its own Col in the handler pool, with slots for every stage."  {post_text_theme;}
+            text "Storeable types (like int, string, float) have 3 ids registered to them, the normal id, prefix id, and suffix id, nothing actually holds these ids, they are only used for handler storage."  {post_text_theme;}
+
+            section_header("Subunit");
+            text "A Subunit is a Col denoting persistable group of ColCols (pools)."  {post_text_theme;}
+            text "They are stored with a level of indirection, meaning that the addition of more subunits does not invalidate caches held by Ptrs at level 3."  {post_text_theme;}
+            text "They can be saved, loaded, and bounced (save and remove from storage), and most database operations use subunits at their highest level."  {post_text_theme;}
+            text ".gsu is the file handle they use."  {post_text_theme;}
+
+            section_header("Unit");
+            text "A Unit is a self-contained process, database, compiler, and much more. They contain and manage the Acorn memory model through subunits."  {post_text_theme;}
+            text "The first Subunit in a Unit is called Types and contains the handler and layout pools, alongside all the storage for compiler types. Types is often copied from the global template Subunit on Unit construction."  {post_text_theme;}
+            text "Units have their own ids, threads, logging, and other equipment necessary for a process."  {post_text_theme;}
+            text "All the methods that allow the Acorn memory model to be operated on as a compiler or database live here."  {post_text_theme;}
+            text "Units also have a system called snapshotting for saving backward compatible versions of the memory model."  {post_text_theme;}
+
+            section_header("Node");
+            text "A Node is an instance of something, it has position, relation to other nodes, type, name, and reference to a value."  {post_text_theme;}
+            text "Nodes are what handlers are typically called on, this also gives them behaviour as a side effect of their type."  {post_text_theme;}
+            text "A graph of nodes is called a nodenet, traversal of a nodenet is called a program."  {post_text_theme;}
+            text "Node is a layout described heterogeneous data type, and is one of the three primary things used by the compiler."  {post_text_theme;}
+            text "It isn't a C++ struct, rather it's just an alias for Ptr with methods that make the get from the Col look like normal object access."  {post_text_theme;}
+            text "The specific fields are: type (uint32_t), subtype (uint32_t), name (Ptr), x and y and z (floats), value (Ptr), children (Col of Ptrs), scopes (Col of Ptrs), quals (Col of Ptrs)."  {post_text_theme;}
+            text "node_table (Col of Ptrs), value_table (Col of Ptrs), parent (Ptr), owner (Ptr), in_scope (Ptr), resolved and mute (bools), and opt_str (Ptr)."  {post_text_theme;}
+            text "The use of these fields is all in the compiler."  {post_text_theme;}
+            text "The node can theoretically be used in many places outside the compiler, though the compiler tends to grow to absorb that field rather than the node migrating."  {post_text_theme;}
+
+            section_header("Value");
+            text "A Value is a thing which exists without position or behaviour of its own. It has type, data, size, and reference to other values." {post_text_theme;}
+            text "A Value is almost always represented by one or more Nodes." {post_text_theme;}
+            text "Value is the same sort of thing as Node in terms of storage and representation in C++ and Acorn."  {post_text_theme;}
+            text "The specific fields are: type (uint32_t), subtype (uint32_t), data (Ptr), reg and loc and address (ints), size (uint32_t), subsize (uint32_t), sub_values (Col of Ptrs), quals (Col of Ptrs), type_scope (Ptr), store (Ptr)."  {post_text_theme;}
+            text "Same as Node, Value primarily exists in the compiler."  {post_text_theme;}
+
+            section_header("Context");
+            text "A Context is the environment in which behaviour occurs, it has multiple node slots, a value, an index, a source text, and relation to other Contexts." {post_text_theme;}
+            text "Context is the same sort of thing as Node and Value in terms of storage and representation in C++ and Acorn."  {post_text_theme;}
+            text "The specific fields are: node and qual and left and out and root (Ptrs), result (Col of ptrs), value (Ptr), index and state and pass (ints), flag (bool), sub and parent (Ptr), source (Ptr)."  {post_text_theme;}
+            text "Same as Node and Value, Context primarily exists in the compiler."  {post_text_theme;}
+
+            section_header("Quals");
+            text "A qual is a Node in the quals Col on either a Node or Value. They are the primary carrier of additional type behaviour and other annotations."  {post_text_theme;}
+            text "Like storeable types, they have three ids registered to them, the prefix id (+1) is for when they're on a Value, the suffix id (+2) is for when they're on a Node."  {post_text_theme;}
+            text "Firing a qual just means traversing the quals list of a Node or Value and triggering each handler with the type offset according to its position."  {post_text_theme;}
+
+            section_header("The Triad");
+            text "Together Node, Value, and Context form a triad covering most relation and behaviour I've needed to express." {post_text_theme;}
+            text "They work together to represent instance, existence, and context, and the seams between them are where much of the reality in GDSL happens." {post_text_theme;}
+
+            section_header("A Historical Aside");
+            text "You may notice the actual file is called Acorn-Type, that's because the memory model started life as a way for me to avoid writing type boilerplate in a compiler." {post_text_theme;}
+            text "As GDSL evolved, I realized that Type (an early system for columnar memory) was essentially a generalization of the ECS pattern which I was familiar with from my game engine work." {post_text_theme;}
+            text "This was what caused GDSL to transition from being just a button scripting language to a more general purpose language. The core concept at that time was OOP syntax with ECS performance." {post_text_theme;}
+            text "When GDSL was moved out of the game engine, it started to shed its core relation to Type, eventually it was pushed to the periphery as a field 'store' on Value." {post_text_theme;}
+        }
+    }
+}
+
+
+
+##
+    register GDSL_compiler;
+    "GDSL_compiler" {
+        in htmlemiting {
+            subemit("body",false,"","");
+        }
+    }
+##
+
+GDSL_compiler {
+    standard_header;
+    top_bar("/GDSL_compiler");
+    div {
+        outer_page_theme;
+        div {
+            inner_page_theme;
+
+            div {
+                "display" : "flex";
+                "flex-direction" : "row";
+                "justify-content" : "space-between";
+                "width" : "100%";
+
+                text "<- Core" {"onclick" : "goTo('/GDSL_core')"; nav_arrow_theme;}
+                text "Language ->" {"onclick" : "goTo('/GDSL_language')"; nav_arrow_theme;}
+            }
+
+            section_header("Compiler");
+            text "Compiler is maybe not the best term for what this is, though it's the one I used a year ago and it sticks."  {post_text_theme;}
+            text "The GDSL compiler is more a nodenet assembler, annotator, and interpreter."  {post_text_theme;}
+            text "It is made up of different stages and pass types. Most stages have one or two prominent functions that handle most behaviour."  {post_text_theme;}
+            link "source" {"href" : "https://github.com/FirTheMouse/GDSL/blob/main/mixos-acorn/Acorn-Compiler.hpp"; "cursor" : "pointer"; post_text_theme;}
+
+            section_header("Passes");
+            text "The passes are different ways to walk the nodenet, they're actually in the Core but used almost exclusively by the Compiler at the moment."  {post_text_theme;}
+            text "Standard_process just invokes the handler for a type with a context."  {post_text_theme;}
+            text "Standard_sub_process invokes standard_process on each child of a node, it requires a context and occurs within other passes."  {post_text_theme;}
+            text "Standard_direct_pass is like standard_sub_process but it also traverses scopes and constructs its own context."  {post_text_theme;}
+            text "Standard_resolving_pass traverses scoped nodes, then unscoped nodes, then the children of scoped nodes, then the scopes of the children of nodes."  {post_text_theme;}
+            text "Standard_travel_pass is like the direct pass but it won't go into scopes on its own, can be passed a sub context, and can return a state."  {post_text_theme;}
+            text "Backwards_pass is just a backwards version of the direct pass."  {post_text_theme;}
+            text "Memory_backwards_pass is like the backwards pass but it processes scopes before nodes." {post_text_theme;}
+
+            section_header("TAST");
+            text "TAST means Tokenize, Assemble, Scope, Type, referring to the original four stages used to turn a source text into a nodenet ready for annotation."  {post_text_theme;}
+            text "Tokenizing (tokenize_stage) goes char by char down a source text stored in a Context and produces nodes from it into the Result Col on the Context, using State for things like in string behaviour."  {post_text_theme;}
+            text "Assembling (a_stage) goes down the Result Col and produces the actual nodenet shape from the flat stream Tokenize produced."  {post_text_theme;}
+            text "Naming (n_stage) was added to give some more breathing room after the a stage so names could be resolved before scoping."  {post_text_theme;}
+            text "Scoping (s_stage) assembles the scope relations in the nodenet."  {post_text_theme;}
+            text "Typing (t_stage) resolves identifiers and operators into various declarations, calls, and references."  {post_text_theme;}
+
+            section_header("DRE");
+            text "DRE means Discover, Resolve, Evaluate, referring to the original three stages used to annotate an assembled nodenet."  {post_text_theme;}
+            text "Discovering (d_stage) used to be an important part of identifier resolution, but all of its former responsibilities have been absorbed by the t and r stages."  {post_text_theme;}
+            text "Resolving (r_stage) refines relationships formed by the t stage. It used to be where all overload resolution happened, but now it’s just where constant overload resolution occurs."  {post_text_theme;}
+            text "Evaluating (e_stage) does dead code elimination, constant propagation, and other forms of analysis and optimization."  {post_text_theme;}
+            text "The e and m stage code is currently located in the language, not the compiler, because that's how I organized things" {post_text_theme;}
+
+            section_header("MIX");
+            text "MIX means Model, Interpret, Execute, referring to the original three stages used to lower or execute an annotated nodenet."  {post_text_theme;}
+            text "Model (m_stage) assigns storage to all values in the nodenet, and can handle register layout and other pre-emission codegen responsibilities."  {post_text_theme;}
+            text "Interpret (i_stage) interprets and emits a representation of the nodent for a given target, such as turning it into ISA instructions."  {post_text_theme;}
+            text "Execute (x_stage) is native execution of the nodenet in GDSL, currently the main way I run code because I despise dealing with ISAs and performance hasn't been an issue." {post_text_theme;}
+            link "It's worth noting most of the lowering machinery is actually located in the older GDSL-C, I never really ported over the i stage because I simply haven't needed native codegen." {"href" : "https://github.com/FirTheMouse/GDSL/blob/main/modules/GDSL-C.hpp"; "cursor" : "pointer"; post_text_theme;}
+        }
+    }
+}
+
+
+##
+    register GDSL_language;
+    "GDSL_language" {
+        in htmlemiting {
+            subemit("body",false,"","");
+        }
+    }
+##
+
+GDSL_language {
+    standard_header;
+    top_bar("/GDSL_language");
+    div {
+        outer_page_theme;
+        div {
+            inner_page_theme;
+
+            div {
+                "display" : "flex";
+                "flex-direction" : "row";
+                "justify-content" : "space-between";
+                "width" : "100%";
+
+                text "<- Compiler" {"onclick" : "goTo('/GDSL_compiler')"; nav_arrow_theme;}
+                text "Webcorn ->" {"onclick" : "goTo('/GDSL_webcorn')"; nav_arrow_theme;}
+            }
+
+            section_header("Language");
+            text "The language can be called GDSL, Acorn_script, or Q-Script, I often refer to it as Acorn_script to remove confusion with GDSL the project."  {post_text_theme;}
+            text "It is really just the registration of handlers to the compiler, and the boundary between the two is quite fuzzy, don't take the way I arrange my code as gospel if you read it."  {post_text_theme;}
+            link "source" {"href" : "https://github.com/FirTheMouse/GDSL/blob/main/mixos-acorn/Acorn-Script.hpp"; "cursor" : "pointer"; post_text_theme;}
+
+            section_header("Basics");
+            text "Acorn_script shares most of its basic syntax with C, brackets, braces, parens, semicolons, standard control flows, variable declarations, types, etc..."  {post_text_theme;}
+            text "Strings, locking, and data structures all come from the Acorn memory model rather than a standard library."  {post_text_theme;}
+            text "There are various logging, debugging, and other standard library utilities baked into the language itself, since I prefer C++ interop and performance over philosophical purity at this stage." {post_text_theme;}
+            text "My intent is not to make some exotic language: the syntax of C or JavaScript or Python are all proven UX, I just don't subscribe to their underlying implementations."  {post_text_theme;}
+            text "I believe duck typing and high level syntax shouldn't require giving up control over memory, and that the memory model should know what's in it rather than the pointer."  {post_text_theme;}
+
+            section_header("Precompiling blocks");
+            text "The two hashes (## ##), this code executes during the tokenizing stage."  {post_text_theme;}
+            text "Values can be passed out with the global qual, since precompiling blocks exist before any normal scopes in which a variable could be declared." {post_text_theme;}
+
+            section_header("Homoiconicity");
+            text "Acorn_script is fully self modifying (including the compiler), since each handler can just be a Ptr to a scope in the langauge."  {post_text_theme;}
+            text "Register and newstage are keywords used to register new types and stages."  {post_text_theme;}
+            text "A string with a scope is a node block, used to register behaviour via on and in which add overloads and stage behaviour respectively."  {post_text_theme;}
+            text "Nodes, Values, and Contexts are also native to the language, like every other data type with a layout. Inside an on or in handler the context is accessed with the ctx keyword."  {post_text_theme;}
+
+            section_header("YAPA");
+            text "YAPA means Yet Another Ptr Alias, and it's where most of the high level syntax in Acorn_script lives."  {post_text_theme;}
+            text "Any type which is really just an interpretation of Ptr can be registered as a YAPA type with a level, this gives it overloads telling it which level of its Ptr is the important one."  {post_text_theme;}
+            text "As an example: a YAPA-1 Ptr refers to a Col, the important field is slot (sidx). If you called .get on a YAPA-1 you would move the slot. A YAPA-2 refers to a ColCol, .get would give you a YAPA-1 Ptr by moving the column (idx) field."  {post_text_theme;}
+            text "YAPAs can also be indirect, meaning they are a YAPA-1 of Ptrs which should be resolved an additional time on gets and such. Object is one of these, which is why it can have different properties without a layout."  {post_text_theme;}
+            text "Locking, database operations, and general data structure work all go through the YAPA interface."  {post_text_theme;}
+        }
+    }
+}
+
+
+##
+    register GDSL_webcorn;
+    "GDSL_webcorn" {
+        in htmlemiting {
+            subemit("body",false,"","");
+        }
+    }
+##
+
+GDSL_webcorn {
+    standard_header;
+    top_bar("/GDSL_webcorn");
+    div {
+        outer_page_theme;
+        div {
+            inner_page_theme;
+
+            div {
+                "display" : "flex";
+                "flex-direction" : "row";
+                "justify-content" : "space-between";
+                "width" : "100%";
+
+                text "<- Language" {"onclick" : "goTo('/GDSL_language')"; nav_arrow_theme;}
+                text "TwigSnap ->" {"onclick" : "goTo('/GDSL_twigsnap')"; nav_arrow_theme;}
+            }
+
+            section_header("Webcorn");
+            text "Webcorn is the networking layer for GDSL and contains all the faculties and systems used to host servers and serve webpages."  {post_text_theme;}
+            text "It also has a lot of code I should probably delete because it isn't used anymore."  {post_text_theme;}
+            text "A lot of the important stuff belongs in TwigSnap's page, so this one is probably going to be quite brief."  {post_text_theme;}
+            link "source" {"href" : "https://github.com/FirTheMouse/Webcorn/blob/main/web/Webcorn-Core.hpp"; "cursor" : "pointer"; post_text_theme;}
+
+            section_header("Basics");
+            text "All the normal POSIX, tls provided by Embedtls, exposed as Acorn_script functions."  {post_text_theme;}
+            text "Cry is one of the IPC methods, a unit can mark itself dead and expose its label, a session manager unit polls and services such crying units."  {post_text_theme;}
+            text "Units can be dispatched, with a server created to keep track of them, though this way of doing things has been pushed to the side by the newer stateless model."  {post_text_theme;}
+       
+            section_header("Webcorn.gld");
+            text "The actual Acorn_script code that handles starting up the units, tls, and dispatching received requests."  {post_text_theme;}
+        }
+    }
+}
+
+
+##
+    register GDSL_twigsnap;
+    "GDSL_twigsnap" {
+        in htmlemiting {
+            subemit("body",false,"","");
+        }
+    }
+##
+
+GDSL_twigsnap {
+    standard_header;
+    top_bar("/GDSL_twigsnap");
+    div {
+        outer_page_theme;
+        div {
+            inner_page_theme;
+
+            div {
+                "display" : "flex";
+                "flex-direction" : "row";
+                "justify-content" : "space-between";
+                "width" : "100%";
+
+                text "<- Webcorn" {"onclick" : "goTo('/GDSL_webcorn')"; nav_arrow_theme;}
+                text "GDSL ->" {"onclick" : "goTo('/GDSL')"; nav_arrow_theme;}
+            }
+
+
+            section_header("TwigSnap");
+            text "TwigSnap is a dialect of Acorn_script that introduces html emission behaviour, request handeling, and the RUN protocal."  {post_text_theme;}
+            text "It's what I program websites like this in." {post_text_theme;}
+            link "source" {"href" : "https://github.com/FirTheMouse/Webcorn/blob/main/web/webrunner.gld"; "cursor" : "pointer"; post_text_theme;}
+
+            section_header("Basics");
+            text "TwigSnap has the same syntax as Acorn_script, but introduces new scoped keywords like div, text, input, which resolve as function calls."  {post_text_theme;}
+            link "I could explain it in depth, but I feel like just looking at the code for this website is more informative." {"href" : "https://github.com/FirTheMouse/Webcorn/blob/main/web/goldensystems/website.twg"; "cursor" : "pointer"; post_text_theme;}
+            link "Or my current project if you want a more complete and complex application." {"href" : "https://github.com/FirTheMouse/Webcorn/blob/main/web/electionmadness/website.twg"; "cursor" : "pointer"; post_text_theme;}
+
+            section_header("Subemit");
+            text "TwigSnap emits HTML by running an htmlemitting stage, each scoped keyword uses subemit to traverse its children and construct a stack of properties."  {post_text_theme;}
+            text "Since TwigSnap is just Acorn_script but more, all normal variables, functions, and control flows still work during this stage. If a type has no htmlemitting handler it defaults to its x stage handler."  {post_text_theme;}
+            
+            section_header("Inlined");
+            text "Inlined is a TwigSnap keyword that essentially just makes a function call, at this stage there's no real difference between void and inlined, but in the future I can add optimizations here."  {post_text_theme;}
+
+            section_header("Template");
+            text "A function call which can preserve its scope, if it isn't declared as stateless. This was more prominent before I started liking statless more."  {post_text_theme;}
+
+            section_header("Capture");
+            text "A keyword which emits a string pointing to itself and a list of its arguments as strings. It can also be signaled to instead run itself when called like a function call."  {post_text_theme;}
+            text "Because nodes have a persistent identity they can be serialized and called back, and even preserved across restarts by having the subunit re-adopt the Ptr."  {post_text_theme;}
+            text "Captures can also execute JavaScript code on the client."  {post_text_theme;}
+
+            section_header("RUN protocal");
+            text "This is what captures emit as strings, on the TwigSnap end it is decoded into a Node to execute like a function call with arguments, on the JavaScript side it can be interpreted as fragment swaps and code to eval."  {post_text_theme;}
+            text "I prefer to push behaviour into JavaScript on the client to save roundtripping when it's a presentation concern. Though TwigSnap can very much operate server-side."  {post_text_theme;}
+        }
+    }
+}
+
+
+
+
+
+
+##
+    register "8_29_setting_up_my_website";
+    "8_29_setting_up_my_website" {
+        in htmlemiting {
+            subemit("body",false,"","");
+        }
+    }
+##
+
+8_29_setting_up_my_website {
+    standard_header;
+    top_bar("8_29_setting_up_my_website");
+    div {
+        "background-color" : pebble_color_D2;
+        "min-height" : "300vh";
         "display" : "flex";
-        "width" : "100%";
-        "height" : "100%";
-        "align-items" : "top";
-        "justify-content" : "center";
+        "align-items" : "center";
         "flex-direction" : "column";
 
-        script "
-            let points = [];
-            let preview_line = null;
+        text "Setting up my website" {
+            "color" : golden_color_L1;
+            "font-size" : "2rem";
+            "font-weight" : "900";
+            "margin" : "16 0 16 0px";
+            main_font;
+        }
 
-            function screen_to_svg(e) {
-                const img = document.getElementById('trace_canvas').querySelector('img');
-                const scaleX = 1920 / img.offsetWidth;
-                const scaleY = 1080 / img.offsetHeight;
-                return {
-                    x: e.offsetX * scaleX,
-                    y: e.offsetY * scaleY
+    div {
+        "background-color" : pebble_color_D1;
+        "border-radius" : "8px";
+        "width" : "100%";
+        "max-width" : "700px";
+        "padding" : "8px";
+        "display" : "flex";
+        "flex-direction" : "column";
+
+        collapse_section("What is this website ^",capture_node(section_getting_started),"","");
+        div section_getting_started {
+            "height" : "0px";
+            "overflow-y" : "hidden";
+            "transition" : "height 0.6s ease";  
+            text "This website is a place for me to put my blog posts, contact details, and documentation for my projects." {post_text_theme;} 
+            text "Intially I had just a GitHub page, and I did one blog post with some essays about 6 months ago, but it made me realize my work wasn't ready to be public yet." {post_text_theme;}
+            text "Now that I'm close to shipping my first project for a client, I'm comfortable finally revealing myself to the world, and thus: this website." {post_text_theme;}
+        }
+
+        collapse_section("Technical asides ^",capture_node(section_technical_asides),"","");
+        div section_technical_asides {
+            "height" : "0px";
+            "overflow-y" : "hidden";
+            "transition" : "height 0.6s ease";  
+            text "I have a technical aside I want to go off on, yet most readers of this post probably aren't here to listen to me talk about language design. So ironically, the first element of this blog post is probably going to be adding the mechanism to make the technical aside collapsable." {post_text_theme;} 
+            text "To do this, I'll just use some JavaScript, given as it's a client side presentation concern. I'll basically just steal the code I use in the top bar on smaller screens. I don't want to use the exact arrow design, because I want more of an expand down and to the side, so that the label of 'technical aside' remains there." {post_text_theme;}
+        }
+
+
+        collapse_section("Aside: route registration is too verbose ^",capture_node(Aside_route_registration_is_too_verbose),"","");
+        div Aside_route_registration_is_too_verbose {
+            "height" : "0px";
+            "overflow-y" : "hidden";
+            "transition" : "height 0.6s ease";  
+            "background-color" : pebble_color_D1;
+
+            text "Welcome to the techincal aside! Here's what the code to make this button work looks like:" 
+            {
+               post_text_theme;
+            }
+
+            div {
+                "background-color" : "black";
+                "margin" : "8px";
+
+                text ""+
+                "\n    button {"+
+                "\n        \"border\" : \"none\";"+
+                "\n        \"background-color\" : pine_color;"+
+                "\n        \"border-radius\" : \"12px\";"+
+                "\n        \"padding\" : \"0 16 0 16px\";"+
+                "\n        text \"Aside: route registration is too verbose ^\" {"+
+                "\n                    \"margin\" : \"5px\"; \"font-weight\" : \"700\";"+
+                "\n                    \"color\" : golden_color_L1; main_font;"+
+                "\n          }"+
+                "\n        \"onclick\" : \""+
+                "\n            const el = getel(\"+js_lit(capture_node(Aside_route_registration_is_too_verbose))+\");"+
+                "\n            if(el.style.height === '0px') {"+
+                "\n                el.style.height = el.scrollHeight + 'px';"+
+                "\n                this.children[0].innerText = 'Aside: route registration is too verbose v';"+
+                "\n            } else {"+
+                "\n                el.style.height = '0px';"+
+                "\n                this.children[0].innerText = 'Aside: route registration is too verbose ^';"+
+                "\n            }"+
+                "\n        \";"+
+                "\n    }\n"
+                {
+                    "white-space" : "pre";
+                    "font-size" : "0.8rem";
+                    "color" : "white";
+                    main_font;
                 };
             }
 
-            function distance(a, b) {
-                return Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2);
+            text "And now, the actual aside.
+I'm not happy with the way route registration currently works, it's a bit too verbose and flat. The reason why I use precompiling blocks and register a new language keyword is so that I can assign stage based behaviour, since TwigSnap used to use POST and FRAG handlers rather than the modern RUN system.  So when I'm registering the route for this post it looks like:" 
+            {
+               post_text_theme;
             }
 
-            function draw_trace() {
-                const svg = document.getElementById('trace_svg');
-                document.querySelectorAll('.trace_mark').forEach(el => el.remove());
-
-                points.forEach((p, i) => {
-                    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                    circle.setAttribute('cx', p.x);
-                    circle.setAttribute('cy', p.y);
-                    circle.setAttribute('r', '6');
-                    circle.setAttribute('fill', 'gold');
-                    circle.classList.add('trace_mark');
-                    if(i === 0) circle.id = 'first_point';
-                    svg.appendChild(circle);
-                });
-
-                if(points.length > 1) {
-                    const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-                    polyline.setAttribute('points', points.map(p => p.x+','+p.y).join(' '));
-                    polyline.setAttribute('stroke', 'gold');
-                    polyline.setAttribute('stroke-width', '2');
-                    polyline.setAttribute('fill', 'none');
-                    polyline.classList.add('trace_mark');
-                    svg.appendChild(polyline);
-                }
-            }
-
-            function close_shape() {
-                if(preview_line) { preview_line.remove(); preview_line = null; }
-                document.querySelectorAll('.trace_mark').forEach(el => el.remove());
-
-                const d = 'M ' + points.map(p => p.x+','+p.y).join(' L ') + ' Z';
-                console.log('PATH: ', d);
-                points = [];
-                fragthree('trace_canvas','run','print(\"'+d+'\"); shapestr.append(\"'+d+'|\");');
-            }
-
-            function handle_trace_click(e) {
-                if(document.getElementById('trace_canvas').style.cursor !== 'crosshair') return;
-                const {x, y} = screen_to_svg(e);
-
-                if(points.length > 2 && distance({x,y}, points[0]) < 20) {
-                    close_shape();
-                    return;
-                }
-
-                points.push({x, y});
-                draw_trace();
-            }
-
-            function handle_trace_move(e) {
-                if(points.length === 0) return;
-                if(document.getElementById('trace_canvas').style.cursor !== 'crosshair') return;
-
-                const svg = document.getElementById('trace_svg');
-                const {x, y} = screen_to_svg(e);
-
-                if(!preview_line) {
-                    preview_line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                    preview_line.setAttribute('stroke', 'gold');
-                    preview_line.setAttribute('stroke-width', '2');
-                    preview_line.setAttribute('stroke-dasharray', '4');
-                    svg.appendChild(preview_line);
-                }
-
-                const last = points[points.length-1];
-                preview_line.setAttribute('x1', last.x);
-                preview_line.setAttribute('y1', last.y);
-                preview_line.setAttribute('x2', x);
-                preview_line.setAttribute('y2', y);
-
-                const first = document.getElementById('first_point');
-                if(first && points.length > 2 && distance({x,y}, points[0]) < 20) {
-                    first.setAttribute('fill', 'white');
-                    first.setAttribute('r', '10');
-                } else if(first) {
-                    first.setAttribute('fill', 'gold');
-                    first.setAttribute('r', '6');
-                }
-            }
-
-            function setup_tracer() {
-                const canvas = document.getElementById('trace_canvas');
-                canvas.removeEventListener('click', handle_trace_click);
-                canvas.removeEventListener('mousemove', handle_trace_move);
-                canvas.addEventListener('click', handle_trace_click);
-                canvas.addEventListener('mousemove', handle_trace_move);
-            }
-        ";
-
-        main_banner;
-
-        html "<audio id='GoldenOne' src='web/goldensystems/files/GoldenOne.wav' preload='auto'></audio>";
-        html "<audio id='TheMiceRise' src='web/goldensystems/files/TheMiceRise.wav' preload='auto'></audio>";
-
-        div trace_display {
-            "display" : "flex";
-            "flex-direction" : "column";
             div {
-                "flex" : "20";
-                "id" : "trace_canvas";
-                "heigth" : "90%";
-                "position" : "relative";  
                 "background-color" : "black";
-                if(tracer_on) {
-                    "cursor" : "crosshair";
-                    script "
-                        (function() {
-                            setup_tracer();
-                        })();
-                    ";
-                }
-                img {
-                    "width" : "100%";
-                    "height" : "auto";
-                    "display" : "block";
-                    "src" : "web/goldensystems/files/campfire.png";
-                }
-                div {
-                    style "
-                        .eyes path {
-                            fill-opacity: 0;
-                            transition: fill-opacity 0.2s ease;
-                        }
-                        .eyes:hover path {
-                            fill-opacity: 0.6;
-                        }
-                        .ears path {
-                            fill-opacity: 0;
-                            transition: fill-opacity 0.2s ease;
-                        }
-                        .ears:hover path {
-                            fill-opacity: 0.6;
-                        }
-                    ";
-
-                    svg {
-                        "id" : "trace_svg";
-                        "viewBox" : "0 0 1920 1080";
-                        "style" : "position:absolute;top:0;left:0;width:100%;height:100%";
-                        string eye_colour = "rgb(175, 105, 55)";
-                        g {
-                            "class" : "eyes";
-                            "onclick" : "goTo('/videos')";
-                            path {
-                                "d" : "M665.5 188H649.5L644.5 197V208L657.5 220.5H671L679 211L677 197L665.5 188Z";
-                                "fill" : eye_colour;
-                            }
-                            path {
-                                "d" : "M722.5 206L717.5 217.5L722.5 227.5H732L744 220.5L747.5 208L744 197H733.5L722.5 206Z";
-                                "fill" : eye_colour;
-                            }
-                        }
-                        
-                        string ear_colour = "rgb(190, 70, 100)";
-                        g {
-                            "class" : "ears";
-                            "onclick" : "
-                                const a = document.getElementById('GoldenOne');
-                                if(a.paused) { a.play(); } else { a.pause(); a.currentTime = 0; }
-                            ";
-
-                            path {
-                                "d" : "M 647.3647871116225,322.4539877300614 L 711.4384349827387,382.0858895705522 L 711.4384349827387,430.6748466257669 L 671.6685845799769,457.17791411042947 L 618.6421173762946,443.9263803680982 L 603.1760644418872,377.66871165644176 Z";
-                                "fill" : ear_colour;
-                            }
-                            path {
-                                "d" : "M 790.9781357882623,311.4110429447853 L 788.7686996547756,373.25153374233133 L 793.187571921749,406.3803680981595 L 808.6536248561564,417.4233128834356 L 815.2819332566168,390.92024539877303 L 810.8630609896433,337.9141104294479 Z";
-                                "fill" : ear_colour;
-                            }
-                        }
-
-                        g {
-                            "class" : "ears";
-                            "onclick" : "
-                                const a = document.getElementById('TheMiceRise');
-                                if(a.paused) { a.play(); } else { a.pause(); a.currentTime = 0; }
-                            ";
-
-                            path {
-                                "d" : "M 1150.6938775510203,327.7871825876663 L 1171.5918367346937,335.6227327690447 L 1184.6530612244896,361.74123337363966 L 1185.9591836734694,395.69528415961304 L 1168.9795918367347,429.6493349455865 L 1141.5510204081631,437.4848851269649 L 1108.8979591836735,411.36638452237 L 1112.816326530612,382.63603385731557 Z";
-                                "fill" : ear_colour;
-                            }
-                            path {
-                                "d" : "M 974.3673469387754,338.23458282950423 L 992.6530612244898,356.5175332527207 L 1010.938775510204,389.16565900846433 L 1014.8571428571428,416.590084643289 L 995.2653061224489,446.62636033857314 L 970.4489795918366,445.3204353083434 L 957.3877551020407,428.3434099153567 L 952.1632653061224,394.3893591293833 L 956.0816326530611,360.43530834340993 Z";
-                                "fill" : ear_colour;
-                            }
-                        }
-
-                        Ptr string shapes = split_str(shapestr,"|");
-                        for(int i=0;i<shapes.length;i++) {
-                            path {
-                                "d" : shapes.get(i);
-                                "fill" : eye_colour;
-                            }
-                        }
-                    }
-                }
-            }
-            div {
-                "flex" : "1";
-                button {
-                    text "Trace" {text_theme;}
-                    "onclick" : capture(
-                        js_do("
-                            document.getElementById('trace_canvas').style.cursor = 
-                                document.getElementById('trace_canvas').style.cursor === 'crosshair' 
-                                ? 'default' 
-                                : 'crosshair';
-                                setup_tracer();
-                        ");
-                    ){
-                        tracer_on = !tracer_on;
-                    }
-                }
-                button {
-                    text "SAVE" {text_theme;}
-                    "onclick" : capture {
-                        write_file("web/goldensystems/files/tracesave",shapestr);
-                        trace_display.reload;
-                    }
-                }
-                button {
-                    text "LOAD" {text_theme;}
-                    "onclick" : capture{
-                        shapestr = read_file("web/goldensystems/files/tracesave");
-                        trace_display.reload;
-                    }
-                }
+                "margin" : "8px";
+                text "
+    ##
+        register \"8_29_setting_up_my_website\";
+        \"8_29_setting_up_my_website\" {
+            in htmlemiting {
+                subemit(\"body\",false,\"\",\"\");
             }
         }
-    }
-}
+    ##
 
+    8_29_setting_up_my_website {
+        standard_header;
+        top_bar(\"8_29_setting_up_my_website\");
+        div {
 
-
-##
-    register videos;
-    "videos" {
-        in htmlemiting {
-            ctx.source.append("<!DOCTYPE html><html><head>");
-            ctx.source.append("<link rel='icon' type='image/png' href='web/goldensystems/files/favicon.png'>");
-            ctx.source.append("<body>");
-            emit_contents;
-            ctx.source.append("</head></body></html>");
         }
     }
-##
-
-videos {
-    style "
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-    ";
-    script read_file("web/webcorn.js");
-
-    div {
-        "display" : "flex";
-        "width" : "100%";
-        "height" : "100%";
-        "align-items" : "top";
-        "justify-content" : "center";
-        "flex-direction" : "column";
-        "gap" : "24px";
-        "padding" : "40px";
-
-        stateless template div video_card(string vid) {
-            video {
-                "width" : "100%";
-                "border-radius" : "8px";
-                "controls" : "true";
-                "src" : "web/goldensystems/files/"+vid+".mov";
+                "
+                {
+                    "white-space" : "pre";
+                    "font-size" : "0.8rem";
+                    "color" : "white";
+                    main_font;
+                };
+            }
+            text "That feels like too much to me, we're restarting the name of the route 3 times and the in htmlemitting behaviour is always the same. But, I promised myself I'd just write the blog today, not go off on a sidequest." 
+            {
+                post_text_theme;
             }
         }
 
-        video_card("CityBuildierProofOfConcept");
-        video_card("Eureka");
-        video_card("Cuttery");
-        video_card("ConfigPanel");
-        video_card("GoldenDemoMemory");
-        video_card("GoldenStart");
-        video_card("GoldenStart2");
-        video_card("EarlyModernGUI");
-        video_card("ModernGUI");
-    }
-}
 
-##
-    register codelog;
-    "codelog" {
-        in htmlemiting {
-            ctx.source.append("<!DOCTYPE html><html><head>");
-            ctx.source.append("<link rel='icon' type='image/png' href='web/goldensystems/files/favicon.png'>");
-            ctx.source.append("<body>");
-            emit_contents;
-            ctx.source.append("</head></body></html>");
-        }
-    }
-##
+        collapse_section("Readability ^",capture_node(section_readability),"getel("+js_lit(capture_node(text_demo))+").style.display = 'block'","getel("+js_lit(capture_node(text_demo))+").style.display = 'none'");
 
-codelog {
-    style "
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-    ";
-    script read_file("web/webcorn.js");
-    div {
-        "display" : "flex";
-        "width" : "100%";
-        "min-height" : "400vh";
-        "align-items" : "top";
-        "justify-content" : "center";
-        "flex-direction" : "column";
-        background_theme;
-        main_banner;
+        div text_demo {
+            "display" : "none";
+            "background-color" : pebble_color;
+            "margin-left" : "calc(-50vw + 50%)";
+            "margin-right" : "calc(-50vw + 50%)";
+            "width" : "100vw";
+            text "This is how the text currently looks to me on the page, which I'm not very satisfied with at all! It feels almost exahusting to read, probably because of the line length and bright white color and lack of good breaks between lines. So, let me go and try to fix this." {
+                "white-space" : "pre-wrap";
+                "color" : "white";
+                "margin" : "4 8 4 8px";
+                "font-size" : "1rem";
+                main_font;
+            }
+        }   
+        
+        div section_readability {
+            "height" : "0px";
+            "overflow-y" : "hidden";
+            "transition" : "height 0.6s ease";  
+            text "I need to actaully make this text readable. That means making a theme: " 
+            {
+                post_text_theme;
+            }
 
         div {
-            "flex" : "1";
-            "gap" : "1%";
-            Ptr string logs = split_str(read_file("web/goldensystems/files/codelog.txt"),"\n");
-            for(int i=0;i<logs.length;i++) {
-                text logs.get(i) {
-                    golden_color_theme;
-                    "margin" : "20px";
-                    text_one_theme;
+            "background-color" : "black";
+            "margin" : "8px";
+            text '
+    inlined post_text_theme {
+        "white-space" : "pre-wrap";
+        "color" : "white";
+        "margin" : "4 8 4 8px";
+        "font-size" : "1rem";
+        main_font;
+    }
+            ' 
+            {
+                "white-space" : "pre-wrap";
+                "font-size" : "0.8rem";
+                "color" : "white";
+                main_font;
+            };
+        }
+
+        text "This can just be dropped in now on each of these paragraphs. Yes, it's basically just a CSS style sheet, and yes, I do have a style attribute I can use to do normal CSS, I just prefer these themes since they can have code in them and it's more local." {post_text_theme;}
+
+        text "And there we go, much better, ignore the fact that the text before looked like this also (I didn't want the blog before this point to be exhausting to read)." {post_text_theme;}
+        text "I moved the body into a card on a darker background, then made the text smaller and an off-white, and added more line spacing. The biggest impact though was fixing a max width for the card, it makes the lines a lot less exhausting in length." {post_text_theme;}
+
+        div {
+            "background-color" : "black";
+            "margin" : "8px";
+            text '
+    inlined post_text_theme {
+        "white-space" : "pre-wrap";
+        "color" : " rgb(238, 238, 238)";
+        "margin" : "4 8 4 8px";
+        "font-size" : "0.9rem";
+        "font-weight" : "400";
+        "line-height" : "1.5";
+        main_font;
+    }
+            ' 
+            {
+                "white-space" : "pre-wrap";
+                "font-size" : "0.8rem";
+                "color" : "white";
+                main_font;
+            };
+        }
+        }
+
+        div {
+            "border" : "none";
+            "background-color" : pine_color_L1;
+            "border-radius" : "12px";
+            "margin" : "8px";
+            text "A Fragment" {"text-align" : "center"; "margin" : "5px"; "font-weight" : "700"; "font-size" : "0.9rem"; "color" : golden_color; main_font;}
+        }
+
+        text "I want to preserve a fragment of the website so future readers can see what I was working with." {post_text_theme;}
+        text "This will just be a copy paste of the current website code with external themes and such replaced, so it remains as-is." {post_text_theme;}
+        text "Though, since it won't be able to change pages, I'll simulate that with a little URL bar which you should see below, keep scrolling to see how I built the website up from here." {post_text_theme;}
+
+        script "function puppet_goTo(label, route) {
+            getel('puppet_url_text').innerText = label; Array.from(getel('8_29_pages').children).forEach(e => {
+                if(e.id.startsWith(route)) {
+                    console.log('Puppet ',e.id,' starts with ',route);
+                    e.style.display = 'flex';
+                } else {
+                    e.style.display = 'none';
                 }
+            });
+        }";
+        div {
+            "display" : "flex";
+            "justify-content" : "center";
+            "overflow" : "hidden";
+            "border" : "2px solid black";
+            "border-radius" : "8px";
+            div {
+                "display" : "flex";
+                "flex-direction" : "column";
+                "justify-content" : "center";
+                "width" : "100%";
+                div {
+                    "flex" : "1";
+                    "border-radius" : "10 10 0 0px";
+                    "display" : "flex";
+                    "align-items" : "center";
+                    "justify-content" : "center";
+                    "overflow" : "hidden";
+                    "background-color" : "white";
+
+                    text "At: " {
+                        "color" : "black";
+                        "font-size" : "14px";
+                        "font-weight" : "700";
+                        "background-color" : "rgba(0,0,0,0.25)";
+                        "height" : "100%";
+                        "display" : "flex";
+                        "align-items" : "center";
+                        "padding" : "0 16px";
+                        main_font;
+                    }
+                    text "/" {
+                        "id" : "puppet_url_text";
+                        "flex" : "1";
+                        "color" : "black";
+                        "border" : "none";
+                        "font-size" : "14px";
+                        "font-weight" : "600";
+                        "padding-left" : "12px";
+                        main_font;
+                    }
+                }
+
+
+
+                div {
+                    div puppet_main_bar {
+                        "display" : "flex";
+                        "flex-direction" : "row";
+                        "align-items" : "center";
+                        "justify-content" : "space-between";
+                        "padding" : "16px 32px";
+                        "width" : "100%";
+                        "background-color" : "rgb(31, 60, 27)";
+                        div {
+                            "display" : "flex";
+                            "flex-direction" : "row";
+                            "align-items" : "start";  
+                            "gap" : "12px"; 
+
+                            "cursor" : "pointer";
+                            "onclick" : "puppet_goTo('/','puppet_root_path')";
+
+                            img {
+                                "width" : "80px";
+                                "height" : "80px";
+                                "object-fit" : "contain";
+                                "flex-shrink" : "0";
+                                "src" : "web/goldensystems/files/old_icon.png";
+                            }
+
+                            div {
+                                "display" : "flex";
+                                "flex-direction" : "column";
+                                text "Golden" {
+                                    "id" : "title_text";
+                                    "margin-bottom" : "0px";
+                                    "font-size" : "2.2rem";
+                                    "font-weight" : "700";
+                                    "color" : golden_color;
+                                    main_font;
+                                }
+                                text "Systems & Software" {
+                                    "font-size" : "1rem";
+                                    "color" : golden_color_D1;
+                                    "font-weight" : "500";
+                                    main_font;
+                                }
+                            }
+                        }
+
+                        div {
+                            "display" : "flex";
+                            "flex-direction" : "row";
+                            "gap" : "24px";
+                            "align-items" : "center";
+                            "overflow-y" : "hidden";
+                            "transition" : "height 0.6s ease";
+
+                            stateless template div nav_link(string label, string route) {
+                                text label {
+                                    "font-size" : "1rem";
+                                    "font-weight" : "500";
+                                    "color" : golden_color_D1;
+                                    "cursor" : "pointer";
+                                    "onclick" : "const route = "+js_lit(route)+"; puppet_goTo( '/'+route.split('_').slice(1).join('_'),route)";
+                                    main_font;
+                                }
+                            }
+
+                            nav_link("blog","puppet_blog");
+                            nav_link("GDSL","puppet_GDSL_start");
+                            nav_link("about","puppet_about");
+                            nav_link("contact","puppet_contact");
+                        }
+
+                        button {
+                            "display" : "none";
+                            "border" : "none";
+                            "background-color" : pebble_color;
+                            "border-radius" : "12px";
+                            "width" : "20%";
+                            text "v" {"margin" : "5px"; "color" : golden_color_L1; main_font;}
+                            "onclick" : "
+                                const nav = this.parentElement.children[1];
+                                if(nav.style.height === '0px') {
+                                    nav.style.height = nav.scrollHeight + 'px';
+                                    this.children[0].innerText = '^';
+                                } else {
+                                    nav.style.height = '0px';
+                                    this.children[0].innerText = 'v';
+                                }
+                            ";
+                        }
+                    }
+                    script "
+                        function update_puppet_nav() {
+                            const bar = getel("+js_lit(capture_node(puppet_main_bar))+");
+                            if(window.innerWidth <= 980) {
+                                bar.style.flexDirection = 'column';
+                                bar.children[1].style.flexDirection = 'column';
+                                bar.children[1].style.height = '0px';
+                                bar.children[2].style.display = 'block';
+                            } else {
+                                bar.style.flexDirection = 'row';
+                                bar.children[1].style.flexDirection = 'row';
+                                bar.children[1].style.height = 'auto';
+                                bar.children[2].style.display = 'none';
+                            }
+                        }
+                        window.addEventListener('resize', update_puppet_nav);
+                        update_puppet_nav();
+                    ";
+                }
+
+                div {
+                    "id" : "8_29_pages";
+                    div puppet_root_path {
+                        "display" : "flex";
+                        "flex-direction" : "column";
+                        "align-items" : "center";
+                        "min-height" : "50vh";
+                        "background-color" : pebble_color_D1;
+                        text "UNDER CONSTRUCTION" {
+                            "id" : "puppet_root_text";
+                            "font-size" : "2.8rem";
+                            "font-weight" : "1000";
+                            "color" : "white";
+                            "text-align" : "center";
+                            "max-width" : "100%";
+                            "padding" : "0 16px";
+                            main_font;
+                        }
+                        text "To the blog ->" {
+                            "font-size" : "2rem";
+                            "font-weight" : "800";
+                            "color" : golden_color_D1;
+                            "cursor" : "pointer";
+                            "onclick" : "puppet_goTo('/blog','puppet_blog')";
+                            main_font;
+                        }
+                    }
+                    div puppet_blog {
+                        "display" : "none";
+                        "justify-content" : "center";
+                        "min-height" : "50vh";
+                        "background-color" : pebble_color_D2;
+
+                        div {
+                            "id" : "puppet_blog_hidden_view";
+                            "display" : "block";
+                        }
+
+                        div {
+                            "id" : "puppet_blog_visible_view";
+                            "height" : "50vh";
+                            "width" : "100%";
+                            "scroll-snap-align" : "start";
+                            "display" : "none";
+                            "justify-content" : "center";
+                            "align-items" : "center";
+                            "padding" : "24px";
+
+                            div {
+                                "position" : "relative";
+                                "width" : "100%";
+                                "max-width" : "600px";
+                                "height" : "100%";
+                                "max-height" : "90vh";
+                                "display" : "flex";
+                                "flex-direction" : "column";
+                                "align-items" : "center";
+                                "gap" : "5px";
+                                "border-radius" : "16px";
+                                "overflow-y" : "auto";
+                                "padding" : "24px";
+                                text "Posts" {
+                                    "color" : "white";
+                                    "font-size" : "32px";
+                                    "font-weight" : "800";
+                                    "text-align" : "center";
+                                    "width" : "100%";
+                                    "padding" : "16px 0px 8px 0px";
+                                    main_font; 
+                                }
+                                div {
+                                    "width" : "100%";
+                                    "height" : "100%";
+                                    "display" : "flex";
+                                    "flex-direction" : "column";
+                                    "align-items" : "center";
+                                    "gap" : "5px";
+                                    "overflow-y" : "auto";
+                                    
+                                    stateless template div post_tally(string post_date, string post_title) {
+                                        div {
+                                            "height" : "30px";
+                                            "width" : "95%";
+                                            "border-radius" : "10px";
+                                            "display" : "flex";
+                                            "align-items" : "center";
+                                            "justify-content" : "center";
+                                            "overflow" : "hidden";
+                                            "background-color" : pebble_color_L1;
+                                            "onclick" : "this.children[1].innerText = 'Already there!'; setTimeout(()=>{this.children[1].innerText = "+js_lit(post_title)+"},600);"
+                                            text post_date {
+                                                "color" : "white";
+                                                "font-size" : "14px";
+                                                "font-weight" : "700";
+                                                "background-color" : "rgba(0,0,0,0.25)";
+                                                "height" : "100%";
+                                                "display" : "flex";
+                                                "align-items" : "center";
+                                                "padding" : "0 16px";
+                                                main_font;
+                                            }
+                                            text post_title {
+                                                "flex" : "1";
+                                                "color" : "white";
+                                                "font-size" : "14px";
+                                                "font-weight" : "600";
+                                                "padding-left" : "12px";
+                                                main_font;
+                                            }
+                                        }
+                                    }
+                                    post_tally("8/29","Setting up my website");
+                                }
+                            }
+                        }
+                    }
+                    div puppet_about {
+                        "display" : "none";
+                        "flex-direction" : "column";
+                        "justify-content" : "center";
+                        "align-items" : "center";
+                        "min-height" : "150vh";
+                        "width" : "100%";
+                        "background-color" : pebble_color_D2;
+
+                        div {
+                            "id" : "puppet_about_hidden_view";
+                            "display" : "block";
+                        }
+
+                        div {
+                            "id" : "puppet_about_visible_view";
+                            "margin" : "16px";
+                            "padding" : "12px";
+                            "border-radius" : "8px";
+                            "background-color" : pebble_color;
+                            "display" : "none";
+                            "flex-direction" : "column";
+                            "max-width" : "800px";
+                            "width" : "100%";
+                            "height" : "100%";
+
+                            section_header("About me");
+                            div {
+                                "display" : "flex";
+                                "width" : "100%";
+                                "justify-content" : "center";
+                                img {
+                                    "src" : project_path+"files/computer_mouse2.png";
+                                    "height" : "250px";
+                                    "width" : "300px";
+                                    "border-radius" : "8px";
+                                }
+                            }
+                            text "My name is Jackson, though I'm known online as FirTheMouse. I'm currently living in Lansing MI though I intend to move to Toronto once I have the means." {post_text_theme;}
+                            text "I'm a systems theorist, programmer, writer, amateur 3d modeler, and avid TTRPG player." {post_text_theme;}
+                            text "If you want to join a discord server where we're hosting games (DnD and Pathfinder) almost every night contact me on discord." {"onclick" : "puppet_goTo('/contact','puppet_contact')"; "text-decoration" : "underline"; "cursor" : "pointer"; post_text_theme;}
+
+                            section_header("About us");
+                            text "Right now, Golden Systems isn't even a registered company, it's just me starting to get my name out there." {post_text_theme;}
+                            text "So there isn't much to say on that aspect, if you're looking at this website as a potential client you probably already know me, if not:" {post_text_theme;}
+                            text "  - I provide services to anyone who wants something made without dealing with a consulting company or AI slop." {post_text_theme;}
+                            text "  - I build all my own tools, and I work on passion projects. If you have a vision you haven't been able to realize, I can help. If you just want a quick buck then no." {post_text_theme;}
+                            text "  - I can also offer advice or help with your own projects, if you're having trouble with maintainability and extensibility." {post_text_theme;}
+                            text "  - I'm willing to do stuff for free if it's a worthwhile project." {post_text_theme;}
+
+                            section_header("About the work");
+                            text "I'm working on a tech stack called GDSL, currently it stretches from memory model to web programming, with a compiler, web server architecture, database, and probably some other things in between." {post_text_theme;}
+                            text "I have an experimental ISA/bytecode and machine architecture, and my next extension of the stack is likely to be into operating systems." {post_text_theme;}
+                            link "source" {"href" : "https://github.com/FirTheMouse/Webcorn.git"; "cursor" : "pointer"; post_text_theme;}
+                            link "Oh, and I made a game engine before this" {"href" : "https://github.com/FirTheMouse/Golden.git"; "cursor" : "pointer"; post_text_theme;}
+
+                            section_header("Collaborators not contributors");
+                            text "If my work interests you at all, reach out to me directly so we can talk. While the code is open source I don't want to have to maintain legibility for everyone or backward compatibility deeper than the surface." {post_text_theme;}
+                            text "I'm very open to working with others, just not as anonymous contributors." {post_text_theme;}
+                        }
+                    }
+
+                    div puppet_contact {
+                        "display" : "none";
+                        "flex-direction" : "column";
+                        "justify-content" : "center";
+                        "align-items" : "center";
+                        "min-height" : "100vh";
+                        "width" : "100%";
+                        "height" : "100%";
+                        "background-color" : pebble_color_D2;
+                        
+                        div {
+                            "id" : "puppet_contact_hidden_view";
+                            "display" : "block";
+                        }
+
+                        div {
+                            "id" : "puppet_contact_visible_view";
+                            "margin" : "16px";
+                            "padding" : "12px";
+                            "border-radius" : "8px";
+                            "background-color" : pebble_color;
+                            "display" : "none";
+                            "flex-direction" : "column";
+                            "max-width" : "800px";
+                            "width" : "100%";
+                            "height" : "100%";
+
+                            text "Discord is prefered, click on the text to copy it" {post_text_theme;}
+
+                            div {
+                                "display" : "flex";
+                                "flex-direction" : "row";
+                                "justify-content" : "center";
+                                "gap" : "16px";
+                                "width" : "100%";
+                                    div {
+                                        "width" : "100%";
+                                        "display" : "flex";
+                                        "flex-direction" : "column";
+                                        "align-items" : "center";
+                                        section_header("Discord");
+                                        text "FirTheMouse" {
+                                            "onclick" : "
+                                                const el = this;
+                                                navigator.clipboard.writeText('FirTheMouse');
+                                                el.innerText = 'Copied!';
+                                                setTimeout(() => el.innerText = 'FirTheMouse', 1200);
+                                            "; 
+                                            "cursor" : "pointer";
+                                            post_text_theme;
+                                        }
+                                    }
+                                    div {
+                                        "width" : "100%";
+                                        "display" : "flex";
+                                        "flex-direction" : "column";
+                                        "align-items" : "center";
+                                        section_header("Email");
+                                        text "jcconners6707 [at] gmail [dot] com" {
+                                            "onclick" : "
+                                                const el = this;
+                                                navigator.clipboard.writeText('jcconners6707@gmail.com');
+                                                el.innerText = 'Copied!';
+                                                setTimeout(() => el.innerText = 'jcconners6707 [at] gmail [dot] com', 1200);
+                                            "; 
+                                            "cursor" : "pointer";
+                                            post_text_theme;
+                                        }
+                                    }
+                            }
+                        }
+                    }
+
+                    div puppet_GDSL_start {
+                        "display" : "none";
+                        "flex-direction" : "column";
+                        "justify-content" : "center";
+                        "align-items" : "center";
+                        "min-height" : "150vh";
+                        "width" : "100%";
+                        "background-color" : pebble_color_D2;
+                        div {
+                            "id" : "puppet_GDSL_hidden_view";
+                            "display" : "blocK";
+                        }
+                        div {
+                            "id" : "puppet_GDSL_visible_view";
+                            "margin" : "16px";
+                            "padding" : "12px";
+                            "border-radius" : "8px";
+                            "background-color" : pebble_color;
+                            "display" : "none";
+                            "flex-direction" : "column";
+                            "max-width" : "800px";
+                            "width" : "100%";
+                            "height" : "100%";
+
+                            section_header("What is GDSL?");
+                            text "GDSL is the name for my stack, it used to mean Golden Domain Specific Language, back when this was just a basic compiler for button behaviour in my game engine (Golden)." {post_text_theme;}
+                            text "Now GDSL is quite a bit larger, and still growing, but the name still sticks!" {post_text_theme;}
+                            text "This isn't really documentation, it's more of an explanation of the elements and systems at play for the curious." {post_text_theme;}
+                            text "If you want to know more or collaborate, please reach out to me!" {"onclick" : "puppet_goTo('contact','/contact')"; "text-decoration" : "underline"; "cursor" : "pointer"; post_text_theme;}
+                            text "Click on the headers to go to the page for it." {post_text_theme;}
+
+                            section_header_behaviour("Acorn","puppet_goTo('/GDSL_acorn','puppet_GDSL_acorn')");
+                            section_header_behaviour("Core","puppet_goTo('/GDSL_core','puppet_GDSL_core')");
+                            section_header_behaviour("Compiler","puppet_goTo('/GDSL_compiler','puppet_GDSL_compiler')");
+                            section_header_behaviour("Language","puppet_goTo('/GDSL_language','puppet_GDSL_language')");
+                            section_header_behaviour("Webcorn","puppet_goTo('/GDSL_webcorn','puppet_GDSL_webcorn')");
+                            section_header_behaviour("TwigSnap","puppet_goTo('/GDSL_twigsnap','puppet_GDSL_twigsnap')");
+                        }
+                        
+                    }
+
+                    div puppet_GDSL_acorn {
+                        "display" : "none";
+                        outer_page_theme;
+                        div {
+                            inner_page_theme;
+
+                            section_header("Acorn");
+                            text "Acorn is the memory model for GDSL, it's the (current) lowest level, and it can also refer to the experimental ISA/bytecode" {post_text_theme;}
+                            text "Acorn is the name of a character in Golden, an orphaned child. I chose that name because the other child was Pip which is more contested in the tech space. Also, because Acorns are the seeds of things so it fits both ways." {post_text_theme;}
+                            link "source" {"href" : "https://github.com/FirTheMouse/GDSL/blob/main/mixos-acorn/util/Acorn-Type.hpp"; "cursor" : "pointer"; post_text_theme;}
+
+                            section_header("QCol");
+                            text "At its core, Acorn is really just ranges of bytes. The QCol is about as primitive as it gets, just storage, length, and capacity." {post_text_theme;}
+                            text "Derived from the QCol is the QString and QCellCol. Both are just forms of QCol that specialize their storage for chars and CCols respectively." {post_text_theme;}
+
+                            section_header("CCol");
+                            text "The CCol is the next step up from the QCol, it adds the concept of things. Where a QCol is just some range, a CCol has element_size and a tag that lets it become an array of things." {post_text_theme;}
+                            text "It also has Index and Hash, which are used by the QCellCol and as scratch space otherwise." {post_text_theme;}
+                            text "Live is more important, it's actually a general locking system with reader and writer locks crammed into a byte. It used to just be a flag for recycling." {post_text_theme;}
+                            text "Then there's gen and cachelevel, cachelevel is unused, gen is incremented on each recycle so staleness can be detected." {post_text_theme;}
+
+                            section_header("QCellCol");
+                            text "A specialization of QCol for storing CCols, this is Acorn's map when used in combination with a col." {post_text_theme;}
+                            text "Each CCol, or cell, uses its index to point into a Col, its hash for lookup, and its storage and tag for the key so it can be recovered for printing or collision detection." {post_text_theme;}
+                            text "Originally it was just linear search, but I upgraded it to be a robin hood style map." {post_text_theme;}
+
+                            section_header("Col");
+                            text "The Col is one of the two core things in Acorn, it adds labels, free list, cells, and heterogeneity." {post_text_theme;}
+                            text "Label is just a QString." {post_text_theme;}
+                            text "The free list is a g_lib (my C++ standard library) list, it is likely it will be replaced with a QCol in the future. Its purpose is to store which slots in the column have been recycled." {post_text_theme;}
+                            text "Cells is a QCellCol maintained by the Col, it provides a secondary lookup method other than just indexes, using keys. It's also how slots can be labeled." {post_text_theme;}
+                            text "Heterogeneous is a flag that marks if a Col is storing homogenous data like an int or elements with a layout like a Node (think like a struct in C)." {post_text_theme;}
+
+                            section_header("Ptr");
+                            text "Ptr is the other core thing in Acorn, it plays many, many roles." {post_text_theme;}
+                            text "A Ptr is a 32 byte structure composed of a void pointer cache, one byte cachelevel, one byte specialization, and two bytes gen. Then five levels." {post_text_theme;}
+                            text "Specialization is currently just used for marking if a Ptr is dead or not, but it's open for future extension." {post_text_theme;}
+                            text "Gen is for tracking Ptr relevance when the slot it refers to gets recycled." {post_text_theme;}
+                            text "Cache is used to accelerate Ptr resolution when we know the real storage won't change. The cachelevels are:" {post_text_theme;}
+                            text "  0=no cache (full resolution)" {post_text_theme;}
+                            text "  1=sidx valid, cache is a col" {post_text_theme;}
+                            text "  2=idx valid, cache is a ColCol" {post_text_theme;}
+                            text "  3=pool valid, cache is a ColColCol" {post_text_theme;}
+                            text "  4=subunit valid, cache is a PtrColColCol" {post_text_theme;}
+                            text "Most Ptrs are cachelevel 3, because subunits use one level of indirection so that their Ptrs can remain stable even as the count of subunits changes." {post_text_theme;}
+                            text "Cache can be swapped out to get Region and Zone as levels, but I haven't done that anywhere yet." {post_text_theme;}
+                        }
+                    }
+
+                    div puppet_GDSL_core {
+                        "display" : "none";
+                        outer_page_theme;
+                        div {
+                            inner_page_theme;
+
+                            section_header("Core");
+                            text "The Core is where a lot of Acorn's model gets furnished. It adds a bunch of key elements, registers the core types, contains Units and Subunits, and much more."  {post_text_theme;}
+                            link "source" {"href" : "https://github.com/FirTheMouse/GDSL/blob/main/mixos-acorn/Acorn-Core.hpp"; "cursor" : "pointer"; post_text_theme;}
+
+                            section_header("Hierarchy");
+                            text "ColCol and ColColCol are both just Cols of Cols, also known as pools and subunits." {post_text_theme;}
+                            text "When a Ptr is resolved it goes through a sequence starting at its cachelevel:" {post_text_theme;}
+                            text "unit -> subunit -> pool -> column -> slot" {post_text_theme;}
+                            text "unit|subunit|pool|column|slot" {post_text_theme;}
+                            text "4|3|2|1|0" {post_text_theme;}
+                            text "These are what the cache/field levels mean. So a 'level 3 Ptr' just means it knows its location up to the subunit level" {post_text_theme;}
+
+                            section_header("Layout");
+                            text "Layouts are a group of Cols describing how to interpret a heterogeneous Col. The layout I'm using isn't fixed right now, and it's something that's very prone to change in the future."  {post_text_theme;}
+                            text "Currently its just offsets, labels, tags, subtags, sizes, subsizes, and ptrs. Plus an overloads column which is of a struct combining Ptrs and a type (very subject to change)."  {post_text_theme;}
+                            text "Layouts let a Col be interpreted by its tag, it's how later structures like Node and Value are constructed while still being just Ptrs."  {post_text_theme;}
+
+                            section_header("Handler");
+                            text "A handler is a function which accepts a Context object."  {post_text_theme;}
+                            text "Stages are swappable groups of handlers."  {post_text_theme;}
+                            text "The handlers are stored in the first pool, each row is a stage."  {post_text_theme;}
+
+                            section_header("Types");
+                            text "Types in GDSL are just a registered unsigned integer (uint32_t) id, so for instance Ptr might be type 2, int might be type 18, identifier could be 38, etc..."  {post_text_theme;}
+                            text "Each type has its own Col in the handler pool, with slots for every stage."  {post_text_theme;}
+                            text "Storeable types (like int, string, float) have 3 ids registered to them, the normal id, prefix id, and suffix id, nothing actually holds these ids, they are only used for handler storage."  {post_text_theme;}
+
+                            section_header("Subunit");
+                            text "A Subunit is a Col denoting persistable group of ColCols (pools)."  {post_text_theme;}
+                            text "They are stored with a level of indirection, meaning that the addition of more subunits does not invalidate caches held by Ptrs at level 3."  {post_text_theme;}
+                            text "They can be saved, loaded, and bounced (save and remove from storage), and most database operations use subunits at their highest level."  {post_text_theme;}
+                            text ".gsu is the file handle they use."  {post_text_theme;}
+
+                            section_header("Unit");
+                            text "A Unit is a self-contained process, database, compiler, and much more. They contain and manage the Acorn memory model through subunits."  {post_text_theme;}
+                            text "The first Subunit in a Unit is called Types and contains the handler and layout pools, alongside all the storage for compiler types. Types is often copied from the global template Subunit on Unit construction."  {post_text_theme;}
+                            text "Units have their own ids, threads, logging, and other equipment necessary for a process."  {post_text_theme;}
+                            text "All the methods that allow the Acorn memory model to be operated on as a compiler or database live here."  {post_text_theme;}
+                            text "Units also have a system called snapshotting for saving backward compatible versions of the memory model."  {post_text_theme;}
+
+                            section_header("Node");
+                            text "A Node is an instance of something, it has position, relation to other nodes, type, name, and reference to a value."  {post_text_theme;}
+                            text "Nodes are what handlers are typically called on, this also gives them behaviour as a side effect of their type."  {post_text_theme;}
+                            text "A graph of nodes is called a nodenet, traversal of a nodenet is called a program."  {post_text_theme;}
+                            text "Node is a layout described heterogeneous data type, and is one of the three primary things used by the compiler."  {post_text_theme;}
+                            text "It isn't a C++ struct, rather it's just an alias for Ptr with methods that make the get from the Col look like normal object access."  {post_text_theme;}
+                            text "The specific fields are: type (uint32_t), subtype (uint32_t), name (Ptr), x and y and z (floats), value (Ptr), children (Col of Ptrs), scopes (Col of Ptrs), quals (Col of Ptrs)."  {post_text_theme;}
+                            text "node_table (Col of Ptrs), value_table (Col of Ptrs), parent (Ptr), owner (Ptr), in_scope (Ptr), resolved and mute (bools), and opt_str (Ptr)."  {post_text_theme;}
+                            text "The use of these fields is all in the compiler."  {post_text_theme;}
+                            text "The node can theoretically be used in many places outside the compiler, though the compiler tends to grow to absorb that field rather than the node migrating."  {post_text_theme;}
+
+                            section_header("Value");
+                            text "A Value is a thing which exists without position or behaviour of its own. It has type, data, size, and reference to other values." {post_text_theme;}
+                            text "A Value is almost always represented by one or more Nodes." {post_text_theme;}
+                            text "Value is the same sort of thing as Node in terms of storage and representation in C++ and Acorn."  {post_text_theme;}
+                            text "The specific fields are: type (uint32_t), subtype (uint32_t), data (Ptr), reg and loc and address (ints), size (uint32_t), subsize (uint32_t), sub_values (Col of Ptrs), quals (Col of Ptrs), type_scope (Ptr), store (Ptr)."  {post_text_theme;}
+                            text "Same as Node, Value primarily exists in the compiler."  {post_text_theme;}
+
+                            section_header("Context");
+                            text "A Context is the environment in which behaviour occurs, it has multiple node slots, a value, an index, a source text, and relation to other Contexts." {post_text_theme;}
+                            text "Context is the same sort of thing as Node and Value in terms of storage and representation in C++ and Acorn."  {post_text_theme;}
+                            text "The specific fields are: node and qual and left and out and root (Ptrs), result (Col of ptrs), value (Ptr), index and state and pass (ints), flag (bool), sub and parent (Ptr), source (Ptr)."  {post_text_theme;}
+                            text "Same as Node and Value, Context primarily exists in the compiler."  {post_text_theme;}
+
+                            section_header("Quals");
+                            text "A qual is a Node in the quals Col on either a Node or Value. They are the primary carrier of additional type behaviour and other annotations."  {post_text_theme;}
+                            text "Like storeable types, they have three ids registered to them, the prefix id (+1) is for when they're on a Value, the suffix id (+2) is for when they're on a Node."  {post_text_theme;}
+                            text "Firing a qual just means traversing the quals list of a Node or Value and triggering each handler with the type offset according to its position."  {post_text_theme;}
+
+                            section_header("The Triad");
+                            text "Together Node, Value, and Context form a triad covering most relation and behaviour I've needed to express." {post_text_theme;}
+                            text "They work together to represent instance, existence, and context, and the seams between them are where much of the reality in GDSL happens." {post_text_theme;}
+
+                            section_header("A Historical Aside");
+                            text "You may notice the actual file is called Acorn-Type, that's because the memory model started life as a way for me to avoid writing type boilerplate in a compiler." {post_text_theme;}
+                            text "As GDSL evolved, I realized that Type (an early system for columnar memory) was essentially a generalization of the ECS pattern which I was familiar with from my game engine work." {post_text_theme;}
+                            text "This was what caused GDSL to transition from being just a button scripting language to a more general purpose language. The core concept at that time was OOP syntax with ECS performance." {post_text_theme;}
+                            text "When GDSL was moved out of the game engine, it started to shed its core relation to Type, eventually it was pushed to the periphery as a field 'store' on Value." {post_text_theme;}
+                        }
+                    }
+
+                    div puppet_GDSL_compiler {
+                        "display" : "none";
+                        outer_page_theme;
+                        div {
+                            inner_page_theme;
+
+                            section_header("Compiler");
+                            text "Compiler is maybe not the best term for what this is, though it's the one I used a year ago and it sticks."  {post_text_theme;}
+                            text "The GDSL compiler is more a nodenet assembler, annotator, and interpreter."  {post_text_theme;}
+                            text "It is made up of different stages and pass types. Most stages have one or two prominent functions that handle most behaviour."  {post_text_theme;}
+                            link "source" {"href" : "https://github.com/FirTheMouse/GDSL/blob/main/mixos-acorn/Acorn-Compiler.hpp"; "cursor" : "pointer"; post_text_theme;}
+
+                            section_header("Passes");
+                            text "The passes are different ways to walk the nodenet, they're actually in the Core but used almost exclusively by the Compiler at the moment."  {post_text_theme;}
+                            text "Standard_process just invokes the handler for a type with a context."  {post_text_theme;}
+                            text "Standard_sub_process invokes standard_process on each child of a node, it requires a context and occurs within other passes."  {post_text_theme;}
+                            text "Standard_direct_pass is like standard_sub_process but it also traverses scopes and constructs its own context."  {post_text_theme;}
+                            text "Standard_resolving_pass traverses scoped nodes, then unscoped nodes, then the children of scoped nodes, then the scopes of the children of nodes."  {post_text_theme;}
+                            text "Standard_travel_pass is like the direct pass but it won't go into scopes on its own, can be passed a sub context, and can return a state."  {post_text_theme;}
+                            text "Backwards_pass is just a backwards version of the direct pass."  {post_text_theme;}
+                            text "Memory_backwards_pass is like the backwards pass but it processes scopes before nodes." {post_text_theme;}
+
+                            section_header("TAST");
+                            text "TAST means Tokenize, Assemble, Scope, Type, referring to the original four stages used to turn a source text into a nodenet ready for annotation."  {post_text_theme;}
+                            text "Tokenizing (tokenize_stage) goes char by char down a source text stored in a Context and produces nodes from it into the Result Col on the Context, using State for things like in string behaviour."  {post_text_theme;}
+                            text "Assembling (a_stage) goes down the Result Col and produces the actual nodenet shape from the flat stream Tokenize produced."  {post_text_theme;}
+                            text "Naming (n_stage) was added to give some more breathing room after the a stage so names could be resolved before scoping."  {post_text_theme;}
+                            text "Scoping (s_stage) assembles the scope relations in the nodenet."  {post_text_theme;}
+                            text "Typing (t_stage) resolves identifiers and operators into various declarations, calls, and references."  {post_text_theme;}
+
+                            section_header("DRE");
+                            text "DRE means Discover, Resolve, Evaluate, referring to the original three stages used to annotate an assembled nodenet."  {post_text_theme;}
+                            text "Discovering (d_stage) used to be an important part of identifier resolution, but all of its former responsibilities have been absorbed by the t and r stages."  {post_text_theme;}
+                            text "Resolving (r_stage) refines relationships formed by the t stage. It used to be where all overload resolution happened, but now it’s just where constant overload resolution occurs."  {post_text_theme;}
+                            text "Evaluating (e_stage) does dead code elimination, constant propagation, and other forms of analysis and optimization."  {post_text_theme;}
+                            text "The e and m stage code is currently located in the language, not the compiler, because that's how I organized things" {post_text_theme;}
+
+                            section_header("MIX");
+                            text "MIX means Model, Interpret, Execute, referring to the original three stages used to lower or execute an annotated nodenet."  {post_text_theme;}
+                            text "Model (m_stage) assigns storage to all values in the nodenet, and can handle register layout and other pre-emission codegen responsibilities."  {post_text_theme;}
+                            text "Interpret (i_stage) interprets and emits a representation of the nodent for a given target, such as turning it into ISA instructions."  {post_text_theme;}
+                            text "Execute (x_stage) is native execution of the nodenet in GDSL, currently the main way I run code because I despise dealing with ISAs and performance hasn't been an issue." {post_text_theme;}
+                            link "It's worth noting most of the lowering machinery is actually located in the older GDSL-C, I never really ported over the i stage because I simply haven't needed native codegen." {"href" : "https://github.com/FirTheMouse/GDSL/blob/main/modules/GDSL-C.hpp"; "cursor" : "pointer"; post_text_theme;}
+                        }
+                    }
+
+                    div puppet_GDSL_language {
+                        "display" : "none";
+                        outer_page_theme;
+                        div {
+                            inner_page_theme;
+
+                            section_header("Language");
+                            text "The language can be called GDSL, Acorn_script, or Q-Script, I often refer to it as Acorn_script to remove confusion with GDSL the project."  {post_text_theme;}
+                            text "It is really just the registration of handlers to the compiler, and the boundary between the two is quite fuzzy, don't take the way I arrange my code as gospel if you read it."  {post_text_theme;}
+                            link "source" {"href" : "https://github.com/FirTheMouse/GDSL/blob/main/mixos-acorn/Acorn-Script.hpp"; "cursor" : "pointer"; post_text_theme;}
+
+                            section_header("Basics");
+                            text "Acorn_script shares most of its basic syntax with C, brackets, braces, parens, semicolons, standard control flows, variable declarations, types, etc..."  {post_text_theme;}
+                            text "Strings, locking, and data structures all come from the Acorn memory model rather than a standard library."  {post_text_theme;}
+                            text "There are various logging, debugging, and other standard library utilities baked into the language itself, since I prefer C++ interop and performance over philosophical purity at this stage." {post_text_theme;}
+                            text "My intent is not to make some exotic language: the syntax of C or JavaScript or Python are all proven UX, I just don't subscribe to their underlying implementations."  {post_text_theme;}
+                            text "I believe duck typing and high level syntax shouldn't require giving up control over memory, and that the memory model should know what's in it rather than the pointer."  {post_text_theme;}
+
+                            section_header("Precompiling blocks");
+                            text "The two hashes (## ##), this code executes during the tokenizing stage."  {post_text_theme;}
+                            text "Values can be passed out with the global qual, since precompiling blocks exist before any normal scopes in which a variable could be declared." {post_text_theme;}
+
+                            section_header("Homoiconicity");
+                            text "Acorn_script is fully self modifying (including the compiler), since each handler can just be a Ptr to a scope in the langauge."  {post_text_theme;}
+                            text "Register and newstage are keywords used to register new types and stages."  {post_text_theme;}
+                            text "A string with a scope is a node block, used to register behaviour via on and in which add overloads and stage behaviour respectively."  {post_text_theme;}
+                            text "Nodes, Values, and Contexts are also native to the language, like every other data type with a layout. Inside an on or in handler the context is accessed with the ctx keyword."  {post_text_theme;}
+
+                            section_header("YAPA");
+                            text "YAPA means Yet Another Ptr Alias, and it's where most of the high level syntax in Acorn_script lives."  {post_text_theme;}
+                            text "Any type which is really just an interpretation of Ptr can be registered as a YAPA type with a level, this gives it overloads telling it which level of its Ptr is the important one."  {post_text_theme;}
+                            text "As an example: a YAPA-1 Ptr refers to a Col, the important field is slot (sidx). If you called .get on a YAPA-1 you would move the slot. A YAPA-2 refers to a ColCol, .get would give you a YAPA-1 Ptr by moving the column (idx) field."  {post_text_theme;}
+                            text "YAPAs can also be indirect, meaning they are a YAPA-1 of Ptrs which should be resolved an additional time on gets and such. Object is one of these, which is why it can have different properties without a layout."  {post_text_theme;}
+                            text "Locking, database operations, and general data structure work all go through the YAPA interface."  {post_text_theme;}
+                        }
+                    }
+
+
+
+                    div puppet_GDSL_webcorn {
+                        "display" : "none";
+                        outer_page_theme;
+                        div {
+                            inner_page_theme;
+
+                            section_header("Webcorn");
+                            text "Webcorn is the networking layer for GDSL and contains all the faculties and systems used to host servers and serve webpages."  {post_text_theme;}
+                            text "It also has a lot of code I should probably delete because it isn't used anymore."  {post_text_theme;}
+                            text "A lot of the important stuff belongs in TwigSnap's page, so this one is probably going to be quite brief."  {post_text_theme;}
+                            link "source" {"href" : "https://github.com/FirTheMouse/Webcorn/blob/main/web/Webcorn-Core.hpp"; "cursor" : "pointer"; post_text_theme;}
+
+                            section_header("Basics");
+                            text "All the normal POSIX, tls provided by Embedtls, exposed as Acorn_script functions."  {post_text_theme;}
+                            text "Cry is one of the IPC methods, a unit can mark itself dead and expose its label, a session manager unit polls and services such crying units."  {post_text_theme;}
+                            text "Units can be dispatched, with a server created to keep track of them, though this way of doing things has been pushed to the side by the newer stateless model."  {post_text_theme;}
+                        
+                            section_header("Webcorn.gld");
+                            text "The actual Acorn_script code that handles starting up the units, tls, and dispatching received requests."  {post_text_theme;}
+                        }
+                    }
+
+
+                    div puppet_GDSL_twigsnap {
+                        "display" : "none";
+                        outer_page_theme;
+                        div {
+                            inner_page_theme;
+
+                            section_header("TwigSnap");
+                            text "TwigSnap is a dialect of Acorn_script that introduces html emission behaviour, request handeling, and the RUN protocal."  {post_text_theme;}
+                            text "It's what I program websites like this in." {post_text_theme;}
+                            link "source" {"href" : "https://github.com/FirTheMouse/Webcorn/blob/main/web/webrunner.gld"; "cursor" : "pointer"; post_text_theme;}
+
+                            section_header("Basics");
+                            text "TwigSnap has the same syntax as Acorn_script, but introduces new scoped keywords like div, text, input, which resolve as function calls."  {post_text_theme;}
+                            link "I could explain it in depth, but I feel like just looking at the code for this website is more informative." {"href" : "https://github.com/FirTheMouse/Webcorn/blob/main/web/goldensystems/website.twg"; "cursor" : "pointer"; post_text_theme;}
+                            link "Or my current project if you want a more complete and complex application." {"href" : "https://github.com/FirTheMouse/Webcorn/blob/main/web/electionmadness/website.twg"; "cursor" : "pointer"; post_text_theme;}
+
+                            section_header("Subemit");
+                            text "TwigSnap emits HTML by running an htmlemitting stage, each scoped keyword uses subemit to traverse its children and construct a stack of properties."  {post_text_theme;}
+                            text "Since TwigSnap is just Acorn_script but more, all normal variables, functions, and control flows still work during this stage. If a type has no htmlemitting handler it defaults to its x stage handler."  {post_text_theme;}
+                            
+                            section_header("Inlined");
+                            text "Inlined is a TwigSnap keyword that essentially just makes a function call, at this stage there's no real difference between void and inlined, but in the future I can add optimizations here."  {post_text_theme;}
+
+                            section_header("Template");
+                            text "A function call which can preserve its scope, if it isn't declared as stateless. This was more prominent before I started liking statless more."  {post_text_theme;}
+
+                            section_header("Capture");
+                            text "A keyword which emits a string pointing to itself and a list of its arguments as strings. It can also be signaled to instead run itself when called like a function call."  {post_text_theme;}
+                            text "Because nodes have a persistent identity they can be serialized and called back, and even preserved across restarts by having the subunit re-adopt the Ptr."  {post_text_theme;}
+                            text "Captures can also execute JavaScript code on the client."  {post_text_theme;}
+
+                            section_header("RUN protocal");
+                            text "This is what captures emit as strings, on the TwigSnap end it is decoded into a Node to execute like a function call with arguments, on the JavaScript side it can be interpreted as fragment swaps and code to eval."  {post_text_theme;}
+                            text "I prefer to push behaviour into JavaScript on the client to save roundtripping when it's a presentation concern. Though TwigSnap can very much operate server-side."  {post_text_theme;}
+                        }
+                    }
+                }
+
+
             }
         }
 
-        bottom_banner;
+
+        collapse_section("Do not click me yet v",capture_node(collapse_section_test),
+            "getel('puppet_root_text').innerText = 'UNDER CONSTRUCTION'",
+            "getel('puppet_root_text').innerText = 'TEST SUCCESS!'; puppet_goTo('/','puppet_root_path'); getel('8_29_pages').scrollIntoView({ behavior: 'smooth', block: 'end' });"
+        );
+        div collapse_section_test {
+            "height" : "auto";
+            "overflow-y" : "hidden";
+            "transition" : "height 0.6s ease";  
+            text "And there we are! It's still missing quite a few parts though, like the actual content for the about and contact page. I want to preserve the lack of that content while still letting you see how it looks as I add it...." {post_text_theme;}
+            text "I have an idea, I'll make buttons that when you push them go back and reveal elements, and collapse this section of the blog post, this one should change the UNDER CONSTRUCTION text. Go up and click the header then check the root page (click the mouse) on the fragment." {post_text_theme;}
+        }
+
+
+        collapse_section("Aside: abstracting collapse section ^",capture_node(Aside_abstracting_collapse_section),"","");
+        div Aside_abstracting_collapse_section {
+            "height" : "0px";
+            "overflow-y" : "hidden";
+            "transition" : "height 0.6s ease";  
+            "background-color" : pebble_color_D1;
+            text "I've now needed to do this collapse section two times, which is enough for me to see how to abstract it into a template to make it a lot simpler to use again" {post_text_theme;}
+            text "This one is quite simple, its just a button that takes a section and toggles its height, and then triggers some expand or hide behaviour. Here it is:" {post_text_theme;}
+            div {
+                "background-color" : "black";
+                "margin" : "8px";
+                text "
+        stateless template div collapse_section(string label, string section, string behaviour_expand, string behaviour_hide) {
+            button {
+                \"border\" : \"none\";
+                \"background-color\" : pine_color;
+                \"border-radius\" : \"12px\";
+                \"margin\" : \"0 16 0 16px\";
+                text label {\"margin\" : \"5px\"; \"font-weight\" : \"700\"; \"color\" : golden_color_L1; main_font;}
+                string label_section = label.substr(0,label.length-2);
+                \"onclick\" : \"
+                    const el = getel(\"+js_lit(section)+\");
+                    if(el.style.height === '0px') {
+                        el.style.height = el.scrollHeight + 'px';
+                        this.children[0].innerText = '\"+label_section+\" v';
+                        \"+behaviour_expand+\";
+                    } else {
+                        el.style.height = '0px';
+                        this.children[0].innerText = '\"+label_section+\" ^';
+                        \"+behaviour_hide+\";
+                    }
+                \";
+            }
+        }
+                "
+                {
+                    "white-space" : "pre-wrap";
+                    "font-size" : "0.8rem";
+                    "color" : "white";
+                    main_font;
+                };
+            }
+            text "And now you can just call it like this: " {post_text_theme;}
+            div {
+                "background-color" : "black";
+                "margin" : "8px";
+                text 'collapse_section("Aside: abstracting collapse section v", capture_node(Aside_abstracting_collapse_section), "","");'
+                {
+                    "white-space" : "pre-wrap";
+                    "font-size" : "0.8rem";
+                    "color" : "white";
+                    main_font;
+                };
+            }
+            text "Much nicer." {post_text_theme;}
+            text "In fact, I'm realizing now that these collapse sections could actually act as headers, for the entire post." {post_text_theme;}
+        }
+
+
+        collapse_section("Making the blog page v",capture_node(section_making_the_blog_page),
+            "getel('puppet_blog_hidden_view').style.display = 'block'; getel('puppet_blog_visible_view').style.display = 'none'; ",
+            "getel('puppet_blog_hidden_view').style.display = 'none'; getel('puppet_blog_visible_view').style.display = 'flex'; puppet_goTo('/blog','puppet_blog'); getel('8_29_pages').scrollIntoView({ behavior: 'smooth', block: 'end' });"
+        );
+        div section_making_the_blog_page {
+            "height" : "auto";
+            "overflow-y" : "hidden";
+            "transition" : "height 0.6s ease";  
+            text "The first question I'm faced with is how to lay out the blog posts. Back in Election Madness I had a design for the vote tally: a board with pills containing the name of the candidate and then their point value. I decided to adapt that for the post board, having the title and date in place of the candidate and points." {post_text_theme;}
+            text "That part is easy enough, just copy paste over some code and swap out parts until it looks right. The decision is what a post should fundamentally be. Simple answer is a block of text, that's quick to load, easy to store, but quite boring. I want to have interactivity, preserved samples of what the website looked like to me as I was making it, but now that introduces more complications. Where should they be stored? I could make .twg files and put them in there, but then I'd have hundreds of them, and each time somebody loads the page I'd need to compile and clean them up. I could embed them in the blog route itself but then that would slow down render time. The biggest constraint I landed on was that I want to be able to share just the URL and have people click on it and go to that post. That means no client-side tabs with pre-loaded posts, and no fragging it in either, they should be separate registered routes." {post_text_theme;}
+            text "So that's how I decided to start it, and likely what your reading this post as." {post_text_theme;}
+        }
+
+
+        collapse_section("Making the about page v",capture_node(section_making_the_about_page),
+            "getel('puppet_about_hidden_view').style.display = 'block'; getel('puppet_about_visible_view').style.display = 'none'; ",
+            "getel('puppet_about_hidden_view').style.display = 'none'; getel('puppet_about_visible_view').style.display = 'flex'; puppet_goTo('/about','puppet_about'); getel('8_29_pages').scrollIntoView({ behavior: 'smooth', block: 'end' });"
+        );
+        div section_making_the_about_page {
+            "height" : "auto";
+            "overflow-y" : "hidden";
+            "transition" : "height 0.6s ease";  
+            text "An about page, a very important part of any website. I... have no clue what to put there to be honest." {post_text_theme;}
+            text "Well I do have one clue:" {post_text_theme;}
+            img {
+                "src" : project_path+"files/computer_mouse2.png";
+                "height" : "250px";
+                "width" : "300px";
+            }
+            text "This is Computer Mouse, the profile picture I use online (made by yours truly). Most about sections have an image, so this feels like it'd fit." {post_text_theme;}
+            text "I think this will be an about me, not about the company that may one day occupy this website." {post_text_theme;}
+            text "I'll use the header styles from the collapsable sections, make them a proper thing, because I think it breaks sections up nicely." {post_text_theme;}
+            text "I'm also going to go with the same card design I'm using for the blog post, maybe slightly wider, since I like the way it looks." {post_text_theme;}
+            text "For actual content... well just click the header for this section and go see for yourself!" {post_text_theme;}
+        }
+
+        collapse_section("Making the contact page v",capture_node(section_making_the_contact_page),
+            "getel('puppet_contact_hidden_view').style.display = 'block'; getel('puppet_contact_visible_view').style.display = 'none'; ",
+            "getel('puppet_contact_hidden_view').style.display = 'none'; getel('puppet_contact_visible_view').style.display = 'flex'; puppet_goTo('/contact','puppet_contact'); getel('8_29_pages').scrollIntoView({ behavior: 'smooth', block: 'end' });"
+        );
+        div section_making_the_contact_page {
+            "height" : "auto";
+            "overflow-y" : "hidden";
+            "transition" : "height 0.6s ease";  
+            text "The contact page is much simpler, I only really have two places to be reached through, Discord and my email, so it just has to host both links" {post_text_theme;}
+            text "The email will be formatted so bots won't scrape it easily, and, I'll make both bits of text clickable to copy to clipboard with some feedback." {post_text_theme;}
+        }
+
+
+        collapse_section("Making the GDSL page v",capture_node(section_making_the_GDSL_page),
+            "getel('puppet_GDSL_hidden_view').style.display = 'block'; getel('puppet_GDSL_visible_view').style.display = 'none'; ",
+            "getel('puppet_GDSL_hidden_view').style.display = 'none'; getel('puppet_GDSL_visible_view').style.display = 'flex'; puppet_goTo('/GDSL','puppet_GDSL_start'); getel('8_29_pages').scrollIntoView({ behavior: 'smooth', block: 'end' });"
+        );
+        div section_making_the_GDSL_page {
+            "height" : "auto";
+            "overflow-y" : "hidden";
+            "transition" : "height 0.6s ease";  
+            text "The final piece is the documentation, which I'm not going to write the entierty of today. I just need to set up enough that a curious reader can see GDSL, without trying to read all the code" {post_text_theme;}
+            text "Delving back into the depths of the stack I'm realizing just how much stuff there really is, which makes complete documentation in time for this post infeasible." {post_text_theme;}
+            text "I decided documenting the general structures is more important than the history for now, most people who even bother going to that section are probably able to meet me halfway." {post_text_theme;}
+            text "The basic structure will just be sections for each major layer of the stack, with explanations for their main components." {post_text_theme;}
+            text "Click this header to see it!" {post_text_theme;}
+        }
+        
+        
+    }
+
     }
 }
+
+
+
+
+
+
+
+

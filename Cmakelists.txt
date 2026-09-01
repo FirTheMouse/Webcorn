@@ -14,7 +14,7 @@ set(ENABLE_TESTING OFF CACHE BOOL "" FORCE)
 set(ENABLE_PROGRAMS OFF CACHE BOOL "" FORCE)
 add_subdirectory(ext/mbedtls)
 
-add_executable(webcorn main.cpp)
+add_executable(webcorn main.cpp GDSL/mixos-acorn/Acorn-Script.cpp)
 add_custom_command(TARGET webcorn POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:webcorn> ${CMAKE_SOURCE_DIR}/webcorn
 )

@@ -1,0 +1,13 @@
+bool reset = true;
+
+if(reset) {
+    print("Goldensystems Reseting");
+    ColColCol sub = usubunits.add("web/goldensystems/data.gsu");
+
+    ColCol common = sub.add("Common");
+    ColCol users = sub.add("Users");
+
+    sub.save;
+} else {
+    ColColCol sub = load_subunit("web/goldensystems/data.gsu");
+}

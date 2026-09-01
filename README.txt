@@ -54,7 +54,7 @@ cmake --build build && ./hazel ./webcorn --port=443 --project=web/electionmadnes
 cmake --build build && ./hazel ./webcorn --port=443 --project=web/electionmadness/ --twigcode=web/electionmadness/website.twg --files=web/electionmadness/files --script=web/electionmadness/init.gld --verbosity=1 --units=12
 
 Standard production launch:
-cmake --build build && ./hazel ./webcorn --port=443 --project=web/electionmadness/ --twigcode=web/electionmadness/website.twg --files=web/electionmadness/files --script=web/electionmadness/init.gld --units=8 --tls=cert --verbosity=0
+ulimit -n 65536 && cmake --build build && ./hazel ./webcorn --port=443 --project=web/electionmadness/ --tls=cert --verbosity=0 --units=8
 
 cmake --build build && ./webcorn --port=443 --project=web/electionmadness/ --units=3 --verbosity=3
 

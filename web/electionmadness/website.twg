@@ -104,10 +104,21 @@ inlined skeleton_pulse {
 }
 
 ##
-    Ptr Ptr votes;
     Ptr int tally_by_state;
-    global bool votes_locked;
     global string guestid;
+    global Object user;
+
+    global void sync_user() {
+        guestid = get_cookie(current_request,"guestid");
+        ColCol users = database["Users"];
+        users.try_read_forever_then {
+            if(users.has(guestid)) {
+                user = users[guestid];
+            } else {
+                user = deadptr;
+            }
+        }
+    }
 
     global void sync_with_database() {
         if(!has_state) {
@@ -118,49 +129,35 @@ inlined skeleton_pulse {
                 response.append("Content-Type: text/html\r\n");
                 response.append("Set-Cookie: guestid="+guestid+"; path=/; SameSite=Lax\r\n");
             }
-            Header& users = database["Users"];
-            if(users.try_read_forever) {
+            ColCol users = database["Users"];
+            users.try_read_forever_then {
                 if(users.has(guestid)) {
-                    Ptr& rbn = users[guestid];
-                    votes = rbn["votes"];
-                    Ptr locked_ptr = rbn["locked"];
-                    votes_locked = *locked_ptr;
+                    user = users[guestid];
                 } else {
-                    votes = deadptr;
+                    user = deadptr;
                 }
-                users.unlock;
             }
-            if(!is_live(votes)) {
-                if(users.try_lock_forever) {
-                    Ptr& rbn = users.ribbonT(guestid) {
-                        "votes", [Ptr] ;
-                        "locked", [false] ;
-                    };
-                    votes = rbn["votes"];
-                    Ptr locked_ptr = rbn["locked"];
-                    votes_locked = *locked_ptr;
-                    users.unlock;
+            if(!is_live(user)) {
+                users.try_lock_forever_then {
+                    user = users.Object(
+                        "votes": [Ptr];
+                        "locked": false;
+                    ).register(guestid);
                 }
             }
             tally_by_state.clear;
-            Ptr& bystate = database[0]["bystate"];
-            for(int i=0;i<bystate.length;i++) {
-                setsidx(bystate,i);
-                Ptr& states = bystate[i];
-                string state_label = bystate.celllabel;
+            Ptr bystate = database[0]["bystate"];
+            bystate.cells((state_label,states) => {
                 tally_by_state.put(state_label,states.length);
-            }
-            if(users.try_read_forever) {
-                for(int i=0;i<votes.length;i++) {
-                    ColCol& votepool = votes[i];
-                    string race_label = votepool.label; 
+            });
+            users.try_read_forever_then {
+                user.votes.cells((race_label,val) => {
                     string state_label = race_label.slice(0,race_label.find("-"));
                     if(tally_by_state.has(state_label)) {
                         int t = tally_by_state[state_label];
                         tally_by_state[state_label]=t-1;
                     }
-                }
-                users.unlock;
+                });
             }
         }
     }
@@ -168,18 +165,14 @@ inlined skeleton_pulse {
         string js = "
             var vote_tally = {};
             var voted_for = {};
-            var votes_locked = "+to_string(votes_locked)+";
+            var votes_locked = "+to_string(user.locked)+";
         ";
-        for(int i=0;i<votes.length;i++) {
-            setsidx(votes,i);
-            Ptr& vote = votes[i];
-            js+="voted_for["+js_lit(votes.celllabel)+"] = "+js_lit(vote.label)+"; ";
-        }
-        for(int i=0;i<tally_by_state.length;i++) {
-            setsidx(tally_by_state,i);
-            string state_label = tally_by_state.celllabel;
-            js+="vote_tally["+js_lit(state_label)+"] = "+to_string(tally_by_state[i])+"; ";
-        }
+        user.votes.cells((race_label,candidate) => {
+            js+="voted_for['"+js_lit(race_label)+"'] = "+js_lit(candidate.label)+"; ";
+        });
+        tally_by_state.cells((state_label,tally) => {
+            js+="vote_tally['"+js_lit(state_label)+"'] = "+to_string(tally)+"; ";
+        });
         return js;
     }
     global int get_tally(string stateid) {
@@ -190,51 +183,36 @@ inlined skeleton_pulse {
         }
     }
     global bool voted_in(string raceid) {
-        return votes.has(raceid);
+        return user.votes.has(raceid);
     }
     global Ptr get_vote(string raceid) {
-        if(votes.has(raceid)) {
-            return votes[raceid];
+        if(user.votes.has(raceid)) {
+            return user.votes.get(raceid);
         } else {
             return deadptr;
-        }
-    }
-    global void set_vote(string raceid, Ptr newvote) {
-        if(votes.has(raceid)) {
-            votes[raceid] = newvote;
         }
     }
     global string check_votes {
         sync_with_database;
         string to_return = "";
-        for(int i=0;i<votes.length;i++){
-            setsidx(votes,i);
-            Ptr& v = votes[i];
-            string ovlabel = v.label;
-            string vlabel = votes.celllabel;
-            to_return+=vlabel;
+        user.votes.cells((race_label,candidate) => {
+            to_return+=race_label;
             to_return+=":";
-            to_return+=ovlabel;
-            if(i+1<votes.length) {
-                to_return+="\n";
-            }
-        }
+            string candidate_name = candidate.label;
+            to_return+=candidate_name;
+            to_return+="\n";
+        });
         return to_return;
     }
 
     global void cast_vote(Ptr candidate) {
         sync_with_database;
-        if(!votes_locked) {
-            ColCol& users = votes;
-            Header& race = candidate;
+        if(!user.locked) {
+            ColCol users = user;
+            ColCol race = candidate;
             string rl = race.label;
-            print("RL: ",rl);
             if(users.try_read_forever) {
-                if(votes.has(rl)) {
-                    votes[rl] = candidate;
-                } else {
-                    votes.put(rl,candidate);
-                }
+                user.votes.getOrPut(rl) = candidate;
                 users.unlock;
                 database.save;
             }
@@ -244,26 +222,18 @@ inlined skeleton_pulse {
     global void lock_in_votes() {
         sync_with_database;
         if(guestid.length>0) {
-            for(int i=0;i<votes.length;i++) {
-                setsidx(votes,i);
-                ColCol& race = votes[i];
-                Ptr& candidate = votes[i];
-                Ptr& tally = candidate["votes"];
-                if(race.try_lock_forever) {
-                    if(tally.has(guestid)) {} 
-                    else {
+            user.votes.cells((race_label,candidate) => {
+                ColCol race = candidate;
+                Ptr tally = candidate.votes;
+                race.try_lock_forever_then {
+                    if(!(tally.has(guestid))) {
                         tally.put(guestid,'T');
                     }
-                    race.unlock;
                 }
-            }
-            Header& users = database["Users"];
-            if(users.try_read_forever) {
-                Ptr rbn = users.ribbon(guestid);
-                Ptr locked_ptr = rbn["locked"];
-                votes_locked = !votes_locked;
-                *locked_ptr = votes_locked;
-                users.unlock;
+            });
+            ColCol users = user;
+            users.try_read_forever_then {
+                user.locked = !(user.locked);
             }
         }
     }
@@ -279,10 +249,400 @@ inlined skeleton_pulse {
     }       
 ##
 
+
+
+
+##
+    register login;
+    "login" {
+        in htmlemiting {
+            subemit("body",false,"","");
+        }
+    }
+##
+
+login {
+    div {
+        style "
+            td:hover {
+                background-color:rgb(234, 234, 234);
+            }
+            input:focus {
+                outline: none;
+            }
+            textarea:focus {
+                outline: none;
+            }
+
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+        ";
+
+        script read_file("web/webcorn.js");
+        background_theme;
+
+        response.append("HTTP/1.1 200 OK\r\n");
+        response.append("Content-Type: text/html\r\n");
+        response.append("Cache-Control: no-store\r\n");
+        sync_user;
+        bool user_registered = false;
+        if(is_live(user)) {
+            user.as(ColCol).try_read_forever_then {
+                user_registered = user.?password;
+            }   
+        }
+        
+        div {
+            "display" : "flex";
+            "min-height" : "100vh";
+                div {
+                    "flex" : "1";
+                    "display" : "flex";
+                    "flex-direction" : "column";
+                    "justify-content" : "center";
+                    "align-items" : "center";
+                        if(!is_live(user)) {
+                            div {
+                                "id" : "login_title";
+                                "opacity" : "1";
+                                "transition" : "opacity 0.6s ease, transform 0.8s ease";
+                                "transform-origin" : "center bottom";
+                                text "Election Madness" {"font-size" : "80px"; "font-weight" : "800"; text_theme;}
+                                text "Made with TwigSnap" {"text-align" : "center"; "font-size" : "12px"; "font-weight" : "600"; text_theme;}
+                                script "
+                                    setTimeout(() => {
+                                        const title = getel('login_title');
+                                        const body = getel('login_body');
+                                        title.style.opacity = '0';
+                                        title.style.transform = 'scale(4)';
+                                        setTimeout(() => {
+                                            title.style.display = 'none';
+                                            body.style.opacity = '1';
+                                        }, 400);
+                                        body.style.transition = 'opacity 0.4s ease';
+                                    }, 800);
+                                ";
+                            }
+                        }
+                        div {
+                            "id" : "login_body";
+                            "opacity" : (is_live(user)?"100":"0");
+                            "transition" : "opacity 0.4s ease";
+                            "display" : "flex";
+                            "justify-content" : "center";
+                            "align-items" : "center";
+                            "flex-direction" : "column";
+                            "width" : "min(480px, 90vw)";
+                            "height" : "auto";
+                            "min-height" : "120px";
+                            "padding" : "40px";
+                            "gap" : "12px";
+                            card_theme;
+                            "border-radius" : "12px";
+                            "box-shadow" : "0 4px 24px rgba(0,0,0,0.08)";
+
+                            div login_buttons {
+                                "display" : "flex";
+                                "justify-content" : "center";
+                                "align-items" : "center";
+                                "flex-direction" : "column";
+                                "width" : "100%";
+                                "height" : "100%";
+                                
+                                
+                                div {
+                                    "display" : "flex";
+                                    "width" : "100%";
+                                    "padding" : "10px";
+                                    "gap" : "12px";
+
+                                    if(!user_registered) {
+                                        string login_behaviour = capture(
+                                            string given_username ; "getel('username').value",
+                                            string given_password ; "getel('password').value"
+                                        ) {
+                                            Ptr sessions = database[0]["sessions"];
+                                            string result = "";
+                                            sessions.try_read_forever_then {
+                                                if(sessions.has(given_username)) {
+                                                    user = sessions[given_username];
+                                                    if(user.password==secure_hash(given_password)) {
+                                                        response.append("HTTP/1.1 200 OK\r\n");
+                                                        response.append("Content-Type: text/html\r\n");
+                                                        response.append("Set-Cookie: guestid="+(user.label)+"; path=/; SameSite=Lax\r\n");
+                                                        emit_js("
+                                                            window.location.href = "+(redirected_from.length==0?"'/'":js_lit(redirected_from))+";
+                                                        ");
+                                                    } else {
+                                                        result = "Wrong password";
+                                                    }
+                                                } else {
+                                                    result = "Username not found";
+                                                }
+                                            }
+                                            if(result.length>0) {
+                                                emit_js("
+                                                    const btn = getel('login');
+                                                    btn.children[0].innerText='"+result+"';
+                                                    setTimeout(() => {
+                                                        btn.children[0].innerText = 'Login';
+                                                    }, 600);
+                                                "); 
+                                            }
+                                        };
+
+                                        string register_behaviour = capture(
+                                            string given_username ; "getel('username').value",
+                                            string given_password ; "getel('password').value"
+                                        ) {
+                                            Ptr sessions = database[0]["sessions"];
+                                            bool username_avaliable = true;
+                                            string result = "";
+                                            sessions.try_read_forever_then {
+                                                if(sessions.has(given_username)) {
+                                                    username_avaliable = false;
+                                                    result = "Username not avaliable";
+                                                }
+                                            }
+                                            if(username_avaliable) {
+                                                sync_with_database;
+                                                ColCol userlock = user;
+                                                string hashed_password = secure_hash(given_password);
+                                                sessions.try_lock_forever_then {
+                                                    if(sessions.has(given_username)) {
+                                                        result = "Username not avaliable";
+                                                    } else {
+                                                        userlock.try_lock_forever_then {
+                                                            if(user.?password) {
+                                                                result = "Already registered";
+                                                            } else {
+                                                                user.password = hashed_password;
+                                                                sessions.put(given_username, user);
+                                                                result = "Registered";
+                                                                emit_js("
+                                                                    window.location.href = "+(redirected_from.length==0?"'/'":js_lit(redirected_from))+";
+                                                                ");
+                                                                database.save;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            emit_js("
+                                                const btn = getel('login');
+                                                btn.children[0].innerText='"+result+"';
+                                                setTimeout(() => {
+                                                    btn.children[0].innerText = 'Register';
+                                                }, 600);
+                                            "); 
+                                        };
+                                        
+                                        script "
+                                            function expand_login_card(card) {
+                                                if(card.style.height === '0px') {
+                                                    card.style.height = 'auto';
+                                                    const h = card.scrollHeight;
+                                                    card.style.height = '0px';
+                                                    requestAnimationFrame(() => {
+                                                        card.style.height = h + 'px';
+                                                    });
+                                                }
+                                            }
+                                            function toggle_login_card(new_label, is_login) {
+                                                const card = getel('login_card');
+                                                const btn = getel('login');
+                                                btn.onclick = is_login ? function() { "+login_behaviour+" } : function() { "+register_behaviour+" };
+                                                if(btn.children[0].innerText !== new_label) {
+                                                    btn.children[0].innerText = new_label;
+                                                    expand_login_card(card);
+                                                } else {
+                                                    if(card.style.height === '0px') {
+                                                        expand_login_card(card);
+                                                    } else {
+                                                        card.style.height = '0px';
+                                                    }
+                                                }
+                                            }
+                                        ";
+                                    }
+
+                                    stateless template div loginbtn(string label, string behaviour) {
+                                        button {
+                                            "border" : "none";
+                                            "border-radius" : "8px";
+                                            "width" : "50%";
+                                            "height" : "35px";
+                                            "background-color" : "rgb(60,100,200)";
+                                            text label {"margin" : "5px"; "color" : "white"; text_theme;}
+                                            "onclick" : behaviour;
+                                        }
+                                    }
+                                    
+                                    if(user_registered) {
+                                        loginbtn("Back",capture{
+                                            emit_js("
+                                                window.location.href = "+(redirected_from.length==0?"'/'":js_lit(redirected_from))+";
+                                            ");
+                                        });
+                                        loginbtn("Logout",capture{
+                                            response.append("HTTP/1.1 200 OK\r\n");
+                                            response.append("Content-Type: text/html\r\n");
+                                            response.append("Set-Cookie: guestid=; path=/; SameSite=Lax; Max-Age=0\r\n");
+                                            user_registered = false;
+                                            login_buttons.reload;
+                                        });
+                                    } else {
+                                        loginbtn("Guest",capture{
+                                            emit_js("
+                                                window.location.href = "+(redirected_from.length==0?"'/'":js_lit(redirected_from))+";
+                                            ");
+                                        });
+                                        loginbtn("Log In","toggle_login_card('Login',true);");
+                                        loginbtn("Register","toggle_login_card('Register',false);");
+                                    }
+                                }
+                                div {
+                                    "width" : "100%";
+                                    "display" : "flex";
+                                    "flex-direction" : "column";
+                                    "align-items" : "center";
+                                    "gap" : "8px";
+                                    div {
+                                        "id" : "login_card";
+                                        "display" : "flex";
+                                        "justify-content" : "center";
+                                        "align-items" : "end";
+                                        "flex-direction" : "column";
+                                        "height" : "0px";
+                                        "overflow" : "hidden";
+                                        "transition" : "height 0.5s ease";
+                                        "gap" : "12px";
+                                        
+                                        inlined login_input_theme {
+                                            "border-top" : "none";
+                                            "border-left" : "none";
+                                            "border-right" : "none";
+                                            "border-bottom" : "2px solid rgb(200,200,200)";
+                                            "border-radius" : "0px";
+                                            "background-color" : "transparent";
+                                            "padding" : "8px 0px";
+                                            input_theme;
+                                        }
+        
+                                        div {
+                                            "display" : "flex";
+                                            "align-items" : "center";
+                                            "width" : "100%";
+                                            "gap" : "7px";
+                                                text "Username:" {
+                                                    "width" : "70px";
+                                                    "font-size" : "14px";
+                                                    "flex-shrink" : "0";
+                                                    text_theme;
+                                                }
+                                                input {
+                                                    "id" : "username";
+                                                    "flex" : "1";
+                                                    login_input_theme;
+                                                }
+                                        }
+
+                                        div {
+                                            "display" : "flex";
+                                            "align-items" : "center";
+                                            "width" : "100%";
+                                            "gap" : "8px";
+                                                text "Password:" {
+                                                    "width" : "70px";
+                                                    "font-size" : "14px";
+                                                    "flex-shrink" : "0";
+                                                    text_theme;
+                                                }
+                                                input {
+                                                    "id" : "password";
+                                                    "type" : "password";
+                                                    "flex" : "1";
+                                                    login_input_theme;
+                                                }
+                                        }
+
+                                        button {
+                                            "id" : "login";
+                                            text "Login" {
+                                                "margin" : "5px";
+                                                "font-size" : "14px";
+                                                text_theme;
+                                            }
+                                            "width" : "75%";
+                                            "border" : "none";
+                                            "border-radius" : "4px";
+                                            "background-color" : "rgb(230, 230, 230)";
+                                        }
+                                    }
+                                }
+                                if(!user_registered) {
+                                    if(is_live(user)) {
+                                        script "toggle_login_card('Register',false)";
+                                    }
+                                }
+                            }
+                        }
+                }
+        }
+    }
+    script "
+
+        function type_into(el, text, callback) {
+            let i = 0;
+            function type_next() {
+                if(i < text.length) {
+                    el.value += text[i];
+                    i++;
+                    setTimeout(type_next, 40 + Math.random() * 80);
+                } else {
+                    callback && callback();
+                }
+            }
+            type_next();
+        }
+
+        function simulate_user() {
+            const buttons = getel('login_body').querySelectorAll('button');
+            const logout_btn = Array.from(buttons).find(b => b.innerText.trim() === 'Logout');
+            if(logout_btn) {
+                setTimeout(() => {
+                    logout_btn.click();
+                    simulate_user();
+                }, 600);
+            } else {
+                const username = 'bot_' + Math.random().toString(36).substr(2, 9);
+                const password = Math.random().toString(36).substr(2, 12);
+                setTimeout(() => {
+                    if(getel('login_card').style.height === '0px') {
+                        toggle_login_card('Register', false);
+                    }
+                    type_into(getel('username'), username, () => {
+                        setTimeout(() => {
+                            type_into(getel('password'), password, () => {
+                                setTimeout(() => {
+                                    getel('login').click();
+                                }, 300);
+                            });
+                        }, 200);
+                    });
+                }, 600);
+            }
+        }
+    ";
+}
+
 stateless template div render_race(Header& race, bool is_visible) { 
     div {
         "class" : "race_display";
-        "id" : race.label;           
+        "id" : race.label;     
         Ptr rbns = race.ribbons;
         "display" : (is_visible?"flex":"none");
         "flex-direction" : "row";
@@ -318,6 +678,8 @@ stateless template div render_race(Header& race, bool is_visible) {
                         "width" : "100px";
                         "height" : "150px";
                         "border-radius" : "4px";
+                        "object-fit" : "cover";
+                        "object-position" : "top";
                         "display" : "flex";
                         "align-items" : "center";
                         "justify-content" : "center";
@@ -459,7 +821,9 @@ stateless template div render_race(Header& race, bool is_visible) {
                         "),
                         string frbn ; js_lit(capture_ptr(rbn))
                     ){
-                        cast_vote(retrive_ptr(frbn));
+                        Ptr candidate_ptr = retrive_ptr(frbn);
+                        database.adopt(candidate_ptr);
+                        cast_vote(candidate_ptr);
                     }
                 }
             }
@@ -484,7 +848,7 @@ stateless template div render_races(Ptr& races) {
             for(int s=0;s<races.length;s++) {
                 setsidx(races,s);
                 Header& race = races[s];
-                if(!voted_in(race.label)&&first_viable_race<0) {
+                if((!voted_in(race.label))&&first_viable_race<0) {
                     first_viable_race = s;
                 }
             }
@@ -682,7 +1046,7 @@ root_path {
     standard_header;
     sync_with_database;
     script sync_with_client();
-    top_bar("/root");
+    top_bar("/");
     div {
         "display" : "flex";
         "justify-content" : "center";
@@ -775,6 +1139,8 @@ root_path {
             script "
                 const svg = getel("+js_lit(capture_node(map_viewport))+").children[0];
                 let isPanning = false;
+                let isExpanding = false;
+                let nudge_interval = null;
                 let startX, startY, offsetX = 0, offsetY = 0;
 
                 let scale = 1.0;
@@ -797,12 +1163,12 @@ root_path {
                     let zoomStartY;
 
                     el.addEventListener('mousedown', e => {
-                        if(e.button === 0) {
+                        if(e.button === 0 && !isExpanding) {
                             isPanning = true;
                             el.style.cursor = 'grabbing';
                             startX = e.clientX - offsetX;
                             startY = e.clientY - offsetY;
-                        } else if(e.button === 1) {
+                        } else if(e.button === 1 && !isExpanding) {
                             e.preventDefault();
                             isZooming = true;
                             zoomStartY = e.clientY;
@@ -814,11 +1180,11 @@ root_path {
                         el.style.cursor = 'grab'; 
                     });
                     el.addEventListener('mousemove', e => {
-                        if(isPanning) {
+                        if(isPanning && !isExpanding) {
                             offsetX = e.clientX - startX;
                             offsetY = e.clientY - startY;
                             updateViewBox();
-                        } else if(isZooming) {
+                        } else if(isZooming && !isExpanding) {
                             const dy = zoomStartY - e.clientY;
                             zoomStartY = e.clientY;
                             const delta = dy > 0 ? 1.02 : 0.98;
@@ -840,11 +1206,11 @@ root_path {
                     let touchStartX, touchStartY;
 
                     el.addEventListener('touchstart', e => {
-                        if(e.touches.length === 1) {
+                        if(e.touches.length === 1 && !isExpanding) {
                             isPanning = true;
                             startX = e.touches[0].clientX - offsetX;
                             startY = e.touches[0].clientY - offsetY;
-                        } else if(e.touches.length === 2) {
+                        } else if(e.touches.length === 2 && !isExpanding) {
                             isPanning = false;
                             lastTouchDist = Math.hypot(
                                 e.touches[0].clientX - e.touches[1].clientX,
@@ -854,11 +1220,11 @@ root_path {
                     });
                     el.addEventListener('touchmove', e => {
                         e.preventDefault();
-                        if(e.touches.length === 1 && isPanning) {
+                        if(e.touches.length === 1 && isPanning && !isExpanding) {
                             offsetX = e.touches[0].clientX - startX;
                             offsetY = e.touches[0].clientY - startY;
                             updateViewBox();
-                        } else if(e.touches.length === 2) {
+                        } else if(e.touches.length === 2 && !isExpanding) {
                             const dist = Math.hypot(
                                 e.touches[0].clientX - e.touches[1].clientX,
                                 e.touches[0].clientY - e.touches[1].clientY
@@ -891,6 +1257,7 @@ root_path {
                             badgeview.style.display = 'flex';
                             badgeview.style.transform = 'scale(4)';
                             badgeview.style.opacity = '1';
+                            if(nudge_interval) { clearInterval(nudge_interval); nudge_interval = null; isExpanding = false; }
                             this.parentElement.style.zIndex = '1';
                             setTimeout(() => {
                                 badgeview.style.transform = 'scale(1)';
@@ -906,6 +1273,7 @@ root_path {
                         "height" : "40px";
                         "border-radius" : "8px";
                         "background" : "rgb(255, 255, 255)";
+                        "border" : "2px solid black";
                         "align-items" : "center";
                         "justify-content" : "center";
                         "transition" : "opacity 0.3s ease, transform 0.5s ease";
@@ -930,7 +1298,8 @@ root_path {
                                 expandedview.style.transform = 'scale(1)';
                                 expandedview.style.opacity = '1';
                             }, 10);
-                            const nudge_interval = setInterval(() => {
+                            isExpanding = true;
+                            nudge_interval = setInterval(() => {
                                 const mrect = getel("+js_lit(capture_node(map_viewport))+").getBoundingClientRect();
                                 const erect = expandedview.getBoundingClientRect();
                                 let dx = 0, dy = 0;
@@ -944,20 +1313,25 @@ root_path {
                                     updateViewBox();
                                 }
                             }, 1);
-                            setTimeout(() => clearInterval(nudge_interval), 500);
+                            setTimeout(() => { clearInterval(nudge_interval); isExpanding = false; }, 300);
                             update_all_transforms();
                         ";
                     }
                     string badgescript = "
                         make_snap_root(getel("+js_lit(stateid)+"));
-                        getel("+js_lit(stateid)+").addSnapChild(getel("+js_lit(badgeid)+"));
+                        getel("+js_lit(stateid)+").addSnapChild(getel("+js_lit(badgeid)+"));                        
                         getel("+js_lit(badgeid)+").joint = function() {
                             const prect = this.snap_parent.getBoundingClientRect();
                             const badge = getel("+js_lit(badgeid)+");
-                            getel("+js_lit(badgeid)+").style.left = (prect.left + prect.width/2 - badge.offsetWidth/2) + 'px';
-                            getel("+js_lit(badgeid)+").style.top  = (prect.top  + prect.height/2 - badge.offsetHeight/2) + 'px';
+                            badge.style.left = (prect.left + prect.width/2 - badge.offsetWidth/2) + 'px';
+                            badge.style.top  = (prect.top  + prect.height/2 - badge.offsetHeight/2) + 'px';
+                            const mrect = getel("+js_lit(capture_node(map_viewport))+").getBoundingClientRect();
+                            const cx = prect.left + prect.width/2;
+                            const cy = prect.top + prect.height/2;
+                            const inside = cx >= mrect.left && cx <= mrect.right && cy >= mrect.top && cy <= mrect.bottom;
+                            badge.style.visibility = inside ? 'visible' : 'hidden';
                             return true;
-                        };
+                        };       
                         update_all_transforms();
                         setTimeout(() => {
                             getel("+js_lit(badgeid)+").style.opacity = '1';
@@ -986,9 +1360,10 @@ root_path {
                     Array.from(root.children).forEach(holder => {
                         const h_expanded = holder.children[0];
                         const h_badge = holder.children[1];
+                        if(nudge_interval) { clearInterval(nudge_interval); nudge_interval = null; isExpanding = false; }
                         if(h_expanded.style.display==='flex') {
                             h_expanded.style.display='none';
-
+                            holder.style.zIndex = '1';
                             h_badge.style.display='flex';
                             h_badge.style.transform = 'scale(4)';
                             h_badge.style.opacity = '1';
@@ -1021,7 +1396,6 @@ root_path {
                 "height" : "5vh";
                 "flex-shrink" : "0";
                 "background-color" : "rgb(60,100,200)";
-                "border-radius" : "12px 12px 0 0";
                 "cursor" : "pointer";
                 text "All Races ^" {"color" : "white"; "font-size" : "26px"; text_theme;}
                 "onclick" : "
@@ -1044,7 +1418,7 @@ root_path {
                 Ptr& all_races = database[0]["races"];
                 div scrollable_races {
                     for(int i=0;i<all_races.length;i++) {
-                        Header& race = all_races[i];
+                        Header race = all_races[i];
                         text race.label {
                             "color" : "white";
                             "font-size" : "18px";
@@ -1061,8 +1435,8 @@ root_path {
         }
     }
 
-    div {
-        "height" : "100vh";
+    div tally_board_holder {
+        "min-height" : "100vh";
         "scroll-snap-align" : "start";
         "display" : "flex";
         "justify-content" : "center";
@@ -1071,10 +1445,11 @@ root_path {
 
         div {
             "id" : "tally_board";
+            "position" : "relative"
             "width" : "100%";
-            "max-width" : "600px";
+            "max-width" : "800px";
             "height" : "100%";
-            "max-height" : "90vh";
+            "max-height" : "120vh";
             "display" : "flex";
             "flex-direction" : "column";
             "align-items" : "center";
@@ -1083,10 +1458,9 @@ root_path {
             "border-radius" : "16px";
             "overflow-y" : "auto";
             "padding" : "24px";
-
             text "Votes" {
                 "color" : "white";
-                "font-size" : "32x";
+                "font-size" : "32px";
                 "font-weight" : "800";
                 "text-align" : "center";
                 "width" : "100%";
@@ -1106,17 +1480,17 @@ root_path {
                     Header& race = all_races[s];
                     div {
                         "id" : race.label+"_tally";
-                        "height" : "30px";
-                        "width" : "75%";
+                        "height" : "55px";
+                        "width" : "90%";
                         "border-radius" : "10px";
                         "display" : "flex";
                         "align-items" : "center";
                         "justify-content" : "center";
                         "overflow" : "hidden";
 
-                        script "votes_locked = "+to_string(votes_locked)+";";
+                        script "votes_locked = "+to_string(user.locked)+";";
 
-                        if(votes_locked) {
+                        if(user.locked) {
                             Ptr& candidates = race.ribbons;
                             int vote_total = 0;
                             for(int i=0;i<candidates.length;i++) {
@@ -1151,7 +1525,8 @@ root_path {
                                         text candidate {
                                             "flex" : "1";
                                             "color" : "white";
-                                            "font-size" : "14px";
+                                            "font-size" : "0.6rem";
+                                            "whitespace" : "nowrap";
                                             "font-weight" : "600";
                                             "padding-left" : (i==0?"12px":"0px");
                                             "padding-right" : (i==1?"12px":"0px");
@@ -1181,7 +1556,8 @@ root_path {
                             text candidate {
                                 "flex" : "1";
                                 "color" : "white";
-                                "font-size" : "14px";
+                                "font-size" : "0.6rem";
+
                                 "font-weight" : "600";
                                 "padding-left" : "12px";
                                 text_theme;
@@ -1189,7 +1565,7 @@ root_path {
 
                             text points {
                                 "color" : "white";
-                                "font-size" : "14px";
+                                "font-size" : "0.6rem";
                                 "font-weight" : "700";
                                 "background-color" : "rgba(0,0,0,0.25)";
                                 "height" : "100%";
@@ -1201,7 +1577,7 @@ root_path {
                         }
                     }
                 }
-                if(votes_locked) {
+                if(user.locked) {
                     string animate_tallies_script = "
                         if(true) {
                             const tallies = getel("+js_lit(capture_node(tally_display))+");
@@ -1217,6 +1593,14 @@ root_path {
                     script animate_tallies_script;
                 }
             }
+
+            bool user_registered = false;
+            if(is_live(user)) {
+                user.as(ColCol).try_read_forever_then {
+                    user_registered = user.?password;
+                }   
+            }
+
             button {
                 text "Lock in" {"color" : "white"; text_theme};
                 "id" : "vote_lock_btn";
@@ -1224,16 +1608,82 @@ root_path {
                 "background-color" : "gray";
                 "padding" : "12px";
                 "border-radius" : "8px";
-                "onclick" : capture(
-                    js_do("
+                if(user_registered) {
+                    "onclick" : capture(
+                        js_do("
+                            const tallies = getel("+js_lit(capture_node(tally_display))+");
+                            Array.from(tallies.children).forEach(tally => {
+                                apply_theme(tally,"+js_lit(skeleton_pulse.emit)+");
+                            });
+                        ");
+                    ) {
+                        lock_in_votes;
+                        tally_display.reload;
+                    }
+                } else {
+                    "onclick" : "
                         const tallies = getel("+js_lit(capture_node(tally_display))+");
                         Array.from(tallies.children).forEach(tally => {
                             apply_theme(tally,"+js_lit(skeleton_pulse.emit)+");
                         });
-                    ");
-                ) {
-                    lock_in_votes;
-                    tally_display.reload;
+                        getel('register_prompt').style.display = 'flex';
+                    ";
+                }
+            }
+
+
+            div {
+                "id" : "register_prompt";
+                "display" : "none";
+                "position" : "absolute";
+                "inset" : "0";
+                "background" : "rgba(0,0,0,0.7)";
+                "border-radius" : "16px";
+                "display" : "flex";
+                "flex-direction" : "column";
+                "align-items" : "center";
+                "justify-content" : "center";
+                "gap" : "16px";
+                "z-index" : "10";
+
+                text "Want to save your picks?" {
+                    "color" : "white";
+                    "font-size" : "18px";
+                    "font-weight" : "700";
+                    "text-align" : "center";
+                    "padding" : "0 24px";
+                    text_theme;
+                }
+                text "Create an account to lock in your votes and compete on the leaderboard." {
+                    "color" : "rgb(180,180,180)";
+                    "font-size" : "14px";
+                    "text-align" : "center";
+                    "padding" : "0 24px";
+                    text_theme;
+                }
+                div {
+                    "display" : "flex";
+                    "gap" : "12px";
+                    button {
+                        "border" : "none";
+                        "border-radius" : "8px";
+                        "padding" : "10px 20px";
+                        "background-color" : "rgb(60,100,200)";
+                        "cursor" : "pointer";
+                        "onclick" : "window.location.href='/login';";
+                        text "Sign Up" {"color" : "white"; "font-weight" : "700"; text_theme;}
+                    }
+                    button {
+                        "border" : "none";
+                        "border-radius" : "8px";
+                        "padding" : "10px 20px";
+                        "background-color" : "rgb(80,80,80)";
+                        "cursor" : "pointer";
+                        "onclick" : capture {
+                            tally_board_holder.reload;
+                        }
+                        text "Maybe Later" {"color" : "white"; "font-weight" : "700"; text_theme;}
+                    }
                 }
             }
         }
@@ -1311,10 +1761,18 @@ root_path {
         function simulate_user() {
             const states = Object.keys(vote_tally).filter(s => vote_tally[s] > 0);
             if(states.length === 0) {
+                getel('tally_board').scrollIntoView({ behavior: 'smooth', block: 'end' });
                 setTimeout(() => {
-                    getel('tally_board').scrollIntoView({ behavior: 'smooth', block: 'end' });
                     getel('vote_lock_btn').click();
-                    setTimeout(() => window.bot_done && window.bot_done(), 1000);
+                    if(getel('register_prompt').style.display==='flex') {
+                        setTimeout(() => {
+                            window.location.href = '/login';
+                        },600);
+                    } else {
+                        setTimeout(() => {
+                            window.location.href = '/login';
+                        },1200);
+                    }
                 }, 500);
                 return;
             }
@@ -1401,7 +1859,68 @@ root_path {
 faqs {
     standard_header;
     top_bar("/faqs");
-    text "The FAQ";
+    div {
+        "display" : "flex";
+        "justify-content" : "center";
+        "padding" : "32px 16px";
+        div {
+            "display" : "flex";
+            "flex-direction" : "column";
+            "gap" : "24px";
+            "width" : "min(720px, 95%)";
+
+            text "frequently asked questions" {
+                "font-size" : "2rem";
+                "font-weight" : "800";
+                text_theme;
+            }
+
+            stateless template div faq(string q, string a) {
+                div {
+                    "display" : "flex";
+                    "flex-direction" : "column";
+                    "gap" : "6px";
+                    text q {
+                        "font-weight" : "800";
+                        "font-size" : "1rem";
+                        text_theme;
+                    }
+                    text a {
+                        "font-size" : "0.9rem";
+                        text_theme;
+                    }
+                }
+            }
+
+            faq("how do I play this game and use this website?",
+                "Watch the short video below to understand the game and this website.");
+            iframe {
+                "src" : "https://www.youtube.com/embed/wIyYvk0Ltvo";
+                "width" : "100%";
+                "height" : "360px";
+                "frameborder" : "0";
+                "allowfullscreen" : "true";
+            }
+            faq("who chose the elections and points?",
+                "We did! We picked some of the most competitive elections in the country and assigned points based off of how a number of political experts see the candidates' odds of winning and losing. Candidates with fewer points are slight to moderate favorites. For example, a 4/6 point spread translates roughly to a 40%/60% race, where the favored candidate (40% chance of LOSING) is assigned 4 points and the underdog candidate (60% chance of LOSING) is assigned 6 points. A 7/3 spread translates roughly to a 70%/30% race, respectively. But political forecasters (both quantitative and qualitative) disagree about these odds, which is why players get more points for correctly picking upsets. We also picked elections with interesting candidate and district dynamics that make the selections more difficult than they first appear.");
+            faq("why did you make this site?",
+                "We made this site for our students but thought it would be fun to share. People want to learn when they are interested in a topic. We hope people will learn more about elections if it's a little more fun.");
+            faq("who are you?",
+                "Eric Gonzalez Juenke is an Associate Professor of Political Science at Michigan State University. He made this game during the COVID pandemic because it made him happy. He had help and support from his incredibly patient wife Emily Katz (MSU). Matt Grossmann is a Professor of Political Science at MSU and he was crucial to outreach and development. Eric also received invaluable feedback from the following colleagues, although all mistakes and errors are his own: Kjerstin Thorsen (MSU), Ezra Brooks (MSU), Danielle Barnes (MSU), Ryan Black (MSU), David Peterson (Iowa State), Nate Birkhead (Kansas State), Josh McCrain (University of Utah), Ana Bracic (MSU), Jennifer Wolak (MSU), Robert Lupton (UConn), and Andrew Katz (Dawson College).");
+            faq("wait, are you studying us?",
+                "No, this is a teaching site. We are not collecting anything from you without express consent (some students may take a short survey to see if the game makes them more interested in politics). We are serious about getting people interested in elections. We are not making any money from this site or you.");
+            faq("does this game make light of real world politics?",
+                "No. Politics is serious business. People's lives and livelihoods are at stake. However, many people are not interested in, or do not have the time to follow, politics and elections. We do not think a little fun should prevent more civic education. FDR wrote: 'Democracy cannot succeed unless those who express their choice are prepared to choose wisely. The real safeguard of democracy, therefore, is education.' We believe that when you like something, you will make time for it. We hope you like playing this political game.");
+            faq("are there prizes for the winning players?",
+                "No, but outsmarting other students is a kind of prize. Will you beat our experts? Your friends? Your co-workers? Nothing is stopping you from making your own prizes and your own pools! We are using runyourpool.com (not an endorsement) in our classes to manage our student picks, but you can use any outlet you like.");
+            faq("can I use these scoresheets to make an office or friendly pool with others?",
+                "Heck yeah. Millions of people play March Madness every year. That game forces you to choose 63 (or 67) contests. This game only asks you to pick 24 winners. That's 39 fewer choices to make! We encourage you to have fun.");
+            faq("who decides the winners?",
+                "We do. We will base our choices on the official declared winner within a state. For the presidential race we will go off of electoral college vote. If there are any weird legal discrepancies, we make the final call on this website.");
+            faq("i am a teacher or instructor and I want my students to participate. how do I do that?",
+                "See our instructor resources page.");
+        }
+    }
 }
 
 ##
@@ -1414,17 +1933,83 @@ faqs {
 ##
 
 student_resources {
-    style "
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        @keyframes skeleton_pulse { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-    ";
-    script read_file("web/webcorn.js");
+    standard_header;
     top_bar("/student_resources");
-    text "The student_resources";
+    div {
+        "display" : "flex";
+        "justify-content" : "center";
+        "padding" : "32px 16px";
+        div {
+            "display" : "flex";
+            "flex-direction" : "column";
+            "gap" : "20px";
+            "width" : "min(720px, 95%)";
+
+            text "resources and help sheets" {
+                "font-size" : "2rem";
+                "font-weight" : "800";
+                text_theme;
+            }
+            text "election resources, models, and forecasts" {
+                "font-weight" : "800";
+                "font-size" : "1rem";
+                text_theme;
+            }
+
+            stateless template div reslink(string label, string url) {
+                text label {
+                    "font-weight" : "700";
+                    "font-size" : "0.95rem";
+                    "cursor" : "pointer";
+                    "color" : "rgb(18,121,190)";
+                    "text-decoration" : "underline";
+                    "onclick" : "window.open("+js_lit(url)+",'_blank')";
+                    text_theme;
+                }
+            }
+
+            div {
+                "display" : "flex";
+                "flex-direction" : "column";
+                "gap" : "10px";
+                text "forecasters and models" {
+                    "font-weight" : "700";
+                    text_theme;
+                }
+                reslink("Ballotpedia","https://ballotpedia.org/Main_Page");
+                reslink("Cook Political Report","https://cookpolitical.com/ratings");
+                reslink("Decision Desk HQ","https://decisiondeskhq.com/");
+                reslink("The Economist election model","https://www.economist.com/interactive/us-2024-election/trump-harris-polls/");
+                reslink("Split Ticket","https://split-ticket.org");
+                reslink("JHK Forecasts","https://jhkforecasts.com/");
+                reslink("NYT Election Needle","https://www.nytimes.com/news-event/2024-election");
+                reslink("RealClearPolitics","http://realclearpolitics.com");
+                reslink("Sabato's Crystal Ball","http://centerforpolitics.org/crystalball/");
+                reslink("270toWin","https://www.270towin.com/news/");
+                reslink("Inside Elections","https://insideelections.com/ratings/");
+                reslink("Nate Silver","https://www.natesilver.net");
+                reslink("VoteHub","https://votehub.com");
+                reslink("G. Elliott Morris","https://www.gelliottmorris.com");
+                reslink("StateNavigate","https://statenavigate.org");
+            }
+
+            div {
+                "display" : "flex";
+                "flex-direction" : "column";
+                "gap" : "10px";
+                text "essential reading" {
+                    "font-weight" : "700";
+                    text_theme;
+                }
+                reslink("The basics of reading polls - essential reading for understanding polling basics","https://www.pewresearch.org/course/public-opinion-polling-basics/");
+                reslink("Statistical roundup from Andrew Gelman (modeling consultant for the Economist)","https://statmodeling.stat.columbia.edu/2024/09/19/instability-of-win-probability-in-election-forecasts-with-a-little-bit-of-r/");
+                reslink("Is there a way to evaluate forecasts BEFORE the election? Maybe!","https://rajivsethi.substack.com/p/a-forecasting-competition");
+                reslink("Are presidential forecasts any good?","https://www.politico.com/news/magazine/2024/09/03/election-forecasts-data-00176905");
+                reslink("You Be the Campaign Manager (Split-Ticket and Politico)","https://www.politico.com/interactives/2023/2024-election-campaign-manager-game/");
+                reslink("You Be the Campaign Manager (Financial Times)","https://ig.ft.com/us-election-game/");
+            }
+        }
+    }
 }
 
 ##
@@ -1437,17 +2022,85 @@ student_resources {
 ##
 
 instructor_resources {
-    style "
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        @keyframes skeleton_pulse { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-    ";
-    script read_file("web/webcorn.js");
+    standard_header;
     top_bar("/instructor_resources");
-    text "The instructor_resources";
+    div {
+        "display" : "flex";
+        "justify-content" : "center";
+        "padding" : "32px 16px";
+        div {
+            "display" : "flex";
+            "flex-direction" : "column";
+            "gap" : "20px";
+            "width" : "min(720px, 95%)";
+
+            text "instructor resources" {
+                "font-size" : "2rem";
+                "font-weight" : "800";
+                text_theme;
+            }
+            text "How can you use this game in your class? The website and game can be used minimally or maximally. Some instructors are using it as a point of discussion for the election or for extra credit. Other instructors are using it as a shared experience for their class. Their students are working in groups to research the elections (3-4 races each) with each student making their own picks in October based on the group's research. Others have students doing an in-depth background on particularly interesting candidates, making campaign ads to highlight their biography, or producing fact-sheets for the class to reference. See example assignments and worksheets below for more detailed ideas. Regardless of how instructors use the site, student players are able to compete against others from around the country. That is fun. Fun can lead to interest and learning." {
+                "font-size" : "0.9rem";
+                text_theme;
+            }
+
+            stateless template div doclink(string label, string url) {
+                text label {
+                    "font-weight" : "700";
+                    "font-size" : "0.95rem";
+                    "cursor" : "pointer";
+                    "color" : "rgb(18,121,190)";
+                    "text-decoration" : "underline";
+                    "onclick" : "window.open("+js_lit(url)+",'_blank')";
+                    text_theme;
+                }
+            }
+
+            div {
+                "display" : "flex";
+                "flex-direction" : "column";
+                "gap" : "10px";
+                doclink("instructions and ideas","https://election-madness.org/wp-content/uploads/2024/08/instructions-and-ideas.pdf");
+                doclink("example assignments","https://election-madness.org/wp-content/uploads/2024/08/example-assignments-for-high-school-or-college-teachers.pdf");
+                doclink("example student worksheets","https://election-madness.org/wp-content/uploads/2024/08/student-worksheets.docx");
+                doclink("example lecture slides (ppt)","https://election-madness.org/wp-content/uploads/2024/08/slides-for-instructors-to-use.pptx");
+                doclink("example lecture slides (pdf)","https://election-madness.org/wp-content/uploads/2024/08/slides-for-instructors-to-use.pdf");
+            }
+
+            text "goals for student engagement" {
+                "font-weight" : "800";
+                "font-size" : "1rem";
+                text_theme;
+            }
+
+            div {
+                "display" : "flex";
+                "flex-direction" : "column";
+                "gap" : "12px";
+
+                stateless template div goal(string label) {
+                    div {
+                        "display" : "flex";
+                        "flex-direction" : "row";
+                        "gap" : "10px";
+                        text "-" { "flex-shrink" : "0"; text_theme; }
+                        text label { "font-size" : "0.9rem"; text_theme; }
+                    }
+                }
+
+                goal("Students will hopefully have fun with something they do not consider fun. In doing so, they will get acquainted with how experts think and talk about elections in the United States. Students will learn ways in which elections in different states are tied to one another, and how they are independent of one another.");
+                goal("Students will learn how to consume higher-order information about elections. Not simply the quantitative forecasts and models, which can sometimes feed into a horse-race understanding of American politics, but also with the qualitative information students will get by reading about the different elections in the news. The goal is to get students to want to be surrounded by higher quality information about elections, and give them the tools to understand this information.");
+                goal("Students will learn about candidates they may have never heard of. They will focus on places they never think about. They will see how our system of government comes together geographically, and how different places produce different candidates and officeholders and, hopefully, they will see how all of these different people will come together to serve in congress in the coming years.");
+                goal("We want students to understand why we (political scientists and government teachers) love elections. We want to give them a little taste of what it's like to study our electoral system.");
+            }
+
+            text "coming soon: expert picks, student breakdowns of individual elections, and more." {
+                "font-size" : "0.9rem";
+                "font-style" : "italic";
+                text_theme;
+            }
+        }
+    }
 }
 
 ##
@@ -1460,311 +2113,34 @@ instructor_resources {
 ##
 
 contacts {
-    style "
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        @keyframes skeleton_pulse { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-    ";
-    script read_file("web/webcorn.js");
+    standard_header;
     top_bar("/contacts");
-    text "The contacts";
-}
-
-##
-    register login;
-    "login" {
-        in htmlemiting {
-            subemit("body",false,"","");
-        }
-    }
-##
-
-login {
     div {
-        style "
-            td:hover {
-                background-color:rgb(234, 234, 234);
-            }
-            input:focus {
-                outline: none;
-            }
-            textarea:focus {
-                outline: none;
-            }
-
-            * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }
-        ";
-
-        script read_file("web/webcorn.js");
-        background_theme;
+        "display" : "flex";
+        "justify-content" : "center";
+        "padding" : "32px 16px";
         div {
             "display" : "flex";
-            "min-height" : "100vh";
-                div {
-                    "flex" : "1";
-                    "display" : "flex";
-                    "flex-direction" : "column";
-                    "justify-content" : "center";
-                    "align-items" : "center";
-                        div {
-                            "id" : "login_title";
-                            "opacity" : "1";
-                            "transition" : "opacity 0.6s ease, transform 0.8s ease";
-                            "transform-origin" : "center bottom";
-                            text "Election Madness" {"font-size" : "80px"; "font-weight" : "800"; text_theme;}
-                            text "Made with TwigSnap" {"text-align" : "center"; "font-size" : "12px"; "font-weight" : "600"; text_theme;}
-                            script "
-                                setTimeout(() => {
-                                    const title = getel('login_title');
-                                    const body = getel('login_body');
-                                    title.style.opacity = '0';
-                                    title.style.transform = 'scale(4)';
-                                    setTimeout(() => {
-                                        title.style.display = 'none';
-                                        body.style.opacity = '1';
-                                    }, 400);
-                                    body.style.transition = 'opacity 0.4s ease';
-                                }, 800);
-                            ";
-                        }
-                        div {
-                            "id" : "login_body";
-                            "opacity" : "0";
-                            "transition" : "opacity 0.4s ease";
-                            "display" : "flex";
-                            "justify-content" : "center";
-                            "align-items" : "center";
-                            "flex-direction" : "column";
-                            "width" : "min(480px, 90vw)";
-                            "height" : "auto";
-                            "min-height" : "120px";
-                            "padding" : "40px";
-                            "gap" : "12px";
-                            card_theme;
-                            "border-radius" : "12px";
-                            "box-shadow" : "0 4px 24px rgba(0,0,0,0.08)";
+            "flex-direction" : "column";
+            "gap" : "12px";
+            "width" : "min(720px, 95%)";
 
-                            string login_behaviour = capture(
-                                string given_username ; "getel('username').value",
-                                string given_password ; "getel('password').value"
-                            ) {
-                                string new_path = project_path+"users/"+given_username;
-                                if(file_exists(new_path)) {
-                                    string userinfo = read_file(new_path+"/userinfo");
-                                    string userpass = userinfo.substr(userinfo.find("\n",0,2)+1);
-                                    if(secure_hash(given_password)==userpass) {
-                                        cry("SESSION:"+given_username);
-                                        string session_token = unit_label;
-                                        session.role = userinfo.slice(0,userinfo.find("\n"));
-                                        session.org = userinfo.slice("\n",1,2);
-                                        emit_js("
-                                            document.cookie = 'session="+session_token+"; path=/';
-                                            window.location.href = "+(redirected_from.length==0?"'/'":js_lit(redirected_from))+";
-                                        ");
-                                    } else {
-                                        emit_js(" 
-                                            const btn = getel('login');
-                                            btn.children[0].innerText='Wrong password';
-                                            setTimeout(() => {
-                                                btn.children[0].innerText = 'Login';
-                                            }, 600);
-                                        ");
-                                    }
-                                } else {
-                                    emit_js(" 
-                                        const btn = getel('login');
-                                        btn.children[0].innerText='Username not found';
-                                        setTimeout(() => {
-                                            btn.children[0].innerText = 'Login';
-                                        }, 600);
-                                    ");
-                                }
-                            };
-                            string register_behaviour =  capture(
-                                string given_username ; "getel('username').value",
-                                string given_password ; "getel('password').value"
-                            ) {
-                                string new_path = project_path+"users/"+given_username;
-                                if(given_username.length>0) {
-                                    if(file_exists(new_path)) {
-                                        emit_js(" 
-                                            const btn = getel('login');
-                                            btn.children[0].innerText='Username taken';
-                                            setTimeout(() => {
-                                                btn.children[0].innerText = 'Register';
-                                            }, 600);
-                                        ");
-                                    } else {
-                                        create_directory(new_path);
-                                        if(given_password.length>0) {
-                                            write_file(new_path+"/userinfo","guest\npublic\n"+secure_hash(given_password));
-                                        }
-                                        cry("SESSION:"+given_username);
-                                        string session_token = unit_label;
-                                        session.role = "guest";
-                                        session.org = "public";
-                                        emit_js("
-                                            document.cookie = 'session="+session_token+"; path=/';
-                                            window.location.href = "+(redirected_from.length==0?"'/'":js_lit(redirected_from))+";
-                                        ");
-                                    }
-                                }
-                            };
-
-                            div {
-                                "display" : "flex";
-                                "width" : "100%";
-                                "padding" : "10px";
-                                "gap" : "12px";
-
-                                script "
-                                    function expand_login_card(card) {
-                                        if(card.style.height === '0px') {
-                                            card.style.height = 'auto';
-                                            const h = card.scrollHeight;
-                                            card.style.height = '0px';
-                                            requestAnimationFrame(() => {
-                                                card.style.height = h + 'px';
-                                            });
-                                        }
-                                    }
-                                    function toggle_login_card(new_label, is_login) {
-                                        const card = getel('login_card');
-                                        const btn = getel('login');
-                                        btn.onclick = is_login ? function() { "+login_behaviour+" } : function() { "+register_behaviour+" };
-                                        if(btn.children[0].innerText !== new_label) {
-                                            btn.children[0].innerText = new_label;
-                                            expand_login_card(card);
-                                        } else {
-                                            if(card.style.height === '0px') {
-                                                expand_login_card(card);
-                                            } else {
-                                                card.style.height = '0px';
-                                            }
-                                        }
-                                    }
-                                ";
-
-                                stateless template div loginbtn(string label, string behaviour) {
-                                    button {
-                                        "border" : "none";
-                                        "border-radius" : "8px";
-                                        "width" : "50%";
-                                        "height" : "35px";
-                                        "background-color" : "rgb(60,100,200)";
-                                        text label {"margin" : "5px"; "color" : "white"; text_theme;}
-                                        "onclick" : behaviour;
-                                    }
-                                }
-                                
-                                loginbtn("Guest",capture{
-                                    string new_guest_id = "guest_"+to_string(unit_uid)+"-"+to_string(guest_counter++);
-                                    cry("SESSION:"+new_guest_id);
-                                    string session_token = unit_label;
-
-                                    response.append("HTTP/1.1 200 OK\r\n");
-                                    response.append("Content-Type: text/html\r\n");
-                                    response.append("Set-Cookie: session="+session_token+"; path=/; SameSite=Lax\r\n");
-                                    print("Response: ",response);
-
-                                    emit_js("
-                                        window.location.href = "+(redirected_from.length==0?"'/'":js_lit(redirected_from))+";
-                                    ");
-
-                                    print("Response: ",response);
-                                });
-                                loginbtn("Log In","toggle_login_card('Login',true);");
-                                loginbtn("Register","toggle_login_card('Register',false);");
-                            }
-                            div {
-                                "width" : "100%";
-                                "display" : "flex";
-                                "flex-direction" : "column";
-                                "align-items" : "center";
-                                "gap" : "8px";
-                                div {
-                                    "id" : "login_card";
-                                    "display" : "flex";
-                                    "justify-content" : "center";
-                                    "align-items" : "end";
-                                    "flex-direction" : "column";
-                                    "height" : "0px";
-                                    "overflow" : "hidden";
-                                    "transition" : "height 0.5s ease";
-                                    "gap" : "12px";
-                                    
-                                    inlined login_input_theme {
-                                        "border-top" : "none";
-                                        "border-left" : "none";
-                                        "border-right" : "none";
-                                        "border-bottom" : "2px solid rgb(200,200,200)";
-                                        "border-radius" : "0px";
-                                        "background-color" : "transparent";
-                                        "padding" : "8px 0px";
-                                        input_theme;
-                                    }
-    
-                                    div {
-                                        "display" : "flex";
-                                        "align-items" : "center";
-                                        "width" : "100%";
-                                        "gap" : "7px";
-                                            text "Username:" {
-                                                "width" : "70px";
-                                                "font-size" : "14px";
-                                                "flex-shrink" : "0";
-                                                text_theme;
-                                            }
-                                            input {
-                                                "id" : "username";
-                                                "flex" : "1";
-                                                login_input_theme;
-                                            }
-                                    }
-
-                                    div {
-                                        "display" : "flex";
-                                        "align-items" : "center";
-                                        "width" : "100%";
-                                        "gap" : "8px";
-                                            text "Password:" {
-                                                "width" : "70px";
-                                                "font-size" : "14px";
-                                                "flex-shrink" : "0";
-                                                text_theme;
-                                            }
-                                            input {
-                                                "id" : "password";
-                                                "type" : "password";
-                                                "flex" : "1";
-                                                login_input_theme;
-                                            }
-                                    }
-
-                                    button {
-                                        "id" : "login";
-                                        "onclick" : login_behaviour;
-                                        text "Login" {
-                                            "margin" : "5px";
-                                            "font-size" : "14px";
-                                            text_theme;
-                                        }
-                                        "width" : "75%";
-                                        "border" : "none";
-                                        "border-radius" : "4px";
-                                        "background-color" : "rgb(230, 230, 230)";
-                                    }
-                                }
-                            }
-                        }
-                }
+            text "contact" {
+                "font-size" : "2rem";
+                "font-weight" : "800";
+                text_theme;
+            }
+            text "if you have comments, send them here (we cannot promise a prompt response but we will do our best):" {
+                text_theme;
+            }
+            text "electionmadness2020@gmail.com" {
+                "font-weight" : "700";
+                "cursor" : "pointer";
+                "color" : "rgb(18,121,190)";
+                "text-decoration" : "underline";
+                "onclick" : "window.location.href='mailto:electionmadness2020@gmail.com'";
+                text_theme;
+            }
         }
     }
 }

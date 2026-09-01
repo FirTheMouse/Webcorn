@@ -144,6 +144,28 @@
         }
     }
 
+    register span;
+    "span" {
+        in naming {
+            ctx.node.children.push(ctx.result.take(ctx.index+1));
+        }
+        in htmlemiting {
+            execut(ctx.node.children.get(0));
+            subemit("span",false,"",ctx.node.children.get(0).value.getStr);
+        }
+    }
+
+    register link;
+    "link" {
+        in naming {
+            ctx.node.children.push(ctx.result.take(ctx.index+1));
+        }
+        in htmlemiting {
+            execut(ctx.node.children.get(0));
+            subemit("a",false,"",ctx.node.children.get(0).value.getStr);
+        }
+    }
+
     register input;
     "input" {
         in htmlemiting {
