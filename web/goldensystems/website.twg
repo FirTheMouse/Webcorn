@@ -103,6 +103,28 @@ stateless template div section_header_behaviour(string title, string behavior) {
 }
 
 
+stateless template div section_header_link(string title, string link_to) {
+    div {
+        "border" : "none";
+        "background-color" : pine_color_L1;
+        "border-radius" : "12px";
+        "margin" : "8px";
+        "width" : "100%";
+        "cursor" : "pointer";
+        "display" : "flex";
+        "justify-content" : "center";
+        link title {
+            "href" : link_to;
+            "margin" : "5px"; 
+            "font-weight" : "900"; 
+            "font-size" : "1.2rem"; 
+            "color" : golden_color; 
+            main_font;
+        }
+    }
+}
+
+
 stateless template div collapse_section(string label, string section, string behaviour_expand, string behaviour_hide) {
     button {
         "border" : "none";
@@ -184,13 +206,13 @@ div top_bar(string on_route) {
             "transition" : "height 0.6s ease";
 
             stateless template div nav_link(string label, string route) {
-                text label {
+                link label {
                     "font-size" : "1rem";
                     "font-weight" : (on_route==route?"700":"500");
                     "color" : (on_route==route?golden_color_L1:golden_color_D1);
                     "cursor" : "pointer";
                     "text-decoration" : (on_route==route?"underline":"none");
-                    "onclick" : "window.location.href="+js_lit(route);
+                    "href" : route;
                     main_font;
                 }
             }
@@ -244,7 +266,7 @@ div top_bar(string on_route) {
 
 void standard_header {
     html '<meta name="viewport" content="width=device-width, initial-scale=1">';
-    html "<link rel='icon' type='image/png' href='web/goldensystems/files/favicon.png'>";
+    html "<link rel='icon' type='image/png' href='/web/goldensystems/files/favicon.png'>";
     style "
         * {
             margin: 0;
@@ -265,6 +287,8 @@ void standard_header {
     "root_path" {
         in htmlemiting {
             subemit("body",false,"","");
+            string old_src = ctx.source;
+            ctx.source = "<link rel='icon' type='image/png' href='/web/goldensystems/files/favicon.png'>"+old_src;
         }
     }
 ##
@@ -303,6 +327,8 @@ root_path {
     "about" {
         in htmlemiting {
             subemit("body",false,"","");
+            string old_src = ctx.source;
+            ctx.source = "<link rel='icon' type='image/png' href='/web/goldensystems/files/favicon.png'>"+old_src;
         }
     }
 ##
@@ -372,6 +398,8 @@ about {
     "contact" {
         in htmlemiting {
             subemit("body",false,"","");
+            string old_src = ctx.source;
+            ctx.source = "<link rel='icon' type='image/png' href='/web/goldensystems/files/favicon.png'>"+old_src;
         }
     }
 ##
@@ -452,6 +480,8 @@ contact {
     "blog" {
         in htmlemiting {
             subemit("body",false,"","");
+            string old_src = ctx.source;
+            ctx.source = "<link rel='icon' type='image/png' href='/web/goldensystems/files/favicon.png'>"+old_src;
         }
     }
 ##
@@ -577,6 +607,8 @@ inlined inner_page_theme {
     "GDSL" {
         in htmlemiting {
             subemit("body",false,"","");
+            string old_src = ctx.source;
+            ctx.source = "<link rel='icon' type='image/png' href='/web/goldensystems/files/favicon.png'>"+old_src;
         }
     }
 ##
@@ -610,12 +642,12 @@ GDSL {
             text "If you want to know more or collaborate, please reach out to me!" {"onclick" : "goTo('/contact')"; "text-decoration" : "underline"; "cursor" : "pointer"; post_text_theme;}
             text "Click on the headers to go to the page for it." {post_text_theme;}
 
-            section_header_behaviour("Acorn","goTo('/GDSL_acorn')");
-            section_header_behaviour("Core","goTo('/GDSL_core')");
-            section_header_behaviour("Compiler","goTo('/GDSL_compiler')");
-            section_header_behaviour("Language","goTo('/GDSL_language')");
-            section_header_behaviour("Webcorn","goTo('/GDSL_webcorn')");
-            section_header_behaviour("TwigSnap","goTo('/GDSL_twigsnap')");
+            section_header_link("Acorn","/GDSL_acorn");
+            section_header_link("Core","/GDSL_core");
+            section_header_link("Compiler","/GDSL_compiler");
+            section_header_link("Language","/GDSL_language");
+            section_header_link("Webcorn","/GDSL_webcorn");
+            section_header_link("TwigSnap","/GDSL_twigsnap");
         }
         
     }
@@ -626,6 +658,8 @@ GDSL {
     "GDSL_acorn" {
         in htmlemiting {
             subemit("body",false,"","");
+            string old_src = ctx.source;
+            ctx.source = "<link rel='icon' type='image/png' href='/web/goldensystems/files/favicon.png'>"+old_src;
         }
     }
 ##
@@ -634,6 +668,7 @@ GDSL {
 inlined nav_arrow_theme {
     "color" : golden_color;
     "margin-top" : "-40px";
+    "text-decoration" : "none";
     main_font;
 }
 
@@ -651,8 +686,8 @@ GDSL_acorn {
                 "justify-content" : "space-between";
                 "width" : "100%";
 
-                text "<- GDSL" {"onclick" : "goTo('/GDSL')"; nav_arrow_theme;}
-                text "Core ->" {"onclick" : "goTo('/GDSL_core')"; nav_arrow_theme;}
+                link "<- GDSL" {"href" : "/GDSL"; nav_arrow_theme;}
+                link "Core ->" {"href" : "/GDSL_core"; nav_arrow_theme;}
             }
 
             section_header("Acorn");
@@ -704,6 +739,8 @@ GDSL_acorn {
     "GDSL_core" {
         in htmlemiting {
             subemit("body",false,"","");
+            string old_src = ctx.source;
+            ctx.source = "<link rel='icon' type='image/png' href='/web/goldensystems/files/favicon.png'>"+old_src;
         }
     }
 ##
@@ -722,8 +759,8 @@ GDSL_core {
                 "justify-content" : "space-between";
                 "width" : "100%";
 
-                text "<- Acorn" {"onclick" : "goTo('/GDSL_acorn')"; nav_arrow_theme;}
-                text "Compiler ->" {"onclick" : "goTo('/GDSL_compiler')"; nav_arrow_theme;}
+                link "<- Acorn" {"href" : "/GDSL_acorn"; nav_arrow_theme;}
+                link "Compiler ->" {"href" : "/GDSL_compiler"; nav_arrow_theme;}
             }
 
             section_header("Core");
@@ -815,6 +852,8 @@ GDSL_core {
     "GDSL_compiler" {
         in htmlemiting {
             subemit("body",false,"","");
+            string old_src = ctx.source;
+            ctx.source = "<link rel='icon' type='image/png' href='/web/goldensystems/files/favicon.png'>"+old_src;
         }
     }
 ##
@@ -833,8 +872,8 @@ GDSL_compiler {
                 "justify-content" : "space-between";
                 "width" : "100%";
 
-                text "<- Core" {"onclick" : "goTo('/GDSL_core')"; nav_arrow_theme;}
-                text "Language ->" {"onclick" : "goTo('/GDSL_language')"; nav_arrow_theme;}
+                link "<- Core" {"href" : "/GDSL_core"; nav_arrow_theme;}
+                link "Language ->" {"href" : "/GDSL_language"; nav_arrow_theme;}
             }
 
             section_header("Compiler");
@@ -884,6 +923,8 @@ GDSL_compiler {
     "GDSL_language" {
         in htmlemiting {
             subemit("body",false,"","");
+            string old_src = ctx.source;
+            ctx.source = "<link rel='icon' type='image/png' href='/web/goldensystems/files/favicon.png'>"+old_src;
         }
     }
 ##
@@ -902,13 +943,14 @@ GDSL_language {
                 "justify-content" : "space-between";
                 "width" : "100%";
 
-                text "<- Compiler" {"onclick" : "goTo('/GDSL_compiler')"; nav_arrow_theme;}
-                text "Webcorn ->" {"onclick" : "goTo('/GDSL_webcorn')"; nav_arrow_theme;}
+                link "<- Compiler" {"href" : "/GDSL_compiler"; nav_arrow_theme;}
+                link "Webcorn ->" {"href" : "/GDSL_webcorn"; nav_arrow_theme;}
             }
 
             section_header("Language");
             text "The language can be called GDSL, Acorn_script, or Q-Script, I often refer to it as Acorn_script to remove confusion with GDSL the project."  {post_text_theme;}
             text "It is really just the registration of handlers to the compiler, and the boundary between the two is quite fuzzy, don't take the way I arrange my code as gospel if you read it."  {post_text_theme;}
+            link "tests" {"href" : "https://github.com/FirTheMouse/GDSL/blob/main/mixos-acorn/tests/acorntestbackup.gld"; "cursor" : "pointer"; post_text_theme;}
             link "source" {"href" : "https://github.com/FirTheMouse/GDSL/blob/main/mixos-acorn/Acorn-Script.hpp"; "cursor" : "pointer"; post_text_theme;}
 
             section_header("Basics");
@@ -944,6 +986,8 @@ GDSL_language {
     "GDSL_webcorn" {
         in htmlemiting {
             subemit("body",false,"","");
+            string old_src = ctx.source;
+            ctx.source = "<link rel='icon' type='image/png' href='/web/goldensystems/files/favicon.png'>"+old_src;
         }
     }
 ##
@@ -962,8 +1006,8 @@ GDSL_webcorn {
                 "justify-content" : "space-between";
                 "width" : "100%";
 
-                text "<- Language" {"onclick" : "goTo('/GDSL_language')"; nav_arrow_theme;}
-                text "TwigSnap ->" {"onclick" : "goTo('/GDSL_twigsnap')"; nav_arrow_theme;}
+                link "<- Language" {"href" : "/GDSL_language"; nav_arrow_theme;}
+                link "TwigSnap ->" {"href" : "/GDSL_twigsnap"; nav_arrow_theme;}
             }
 
             section_header("Webcorn");
@@ -989,6 +1033,8 @@ GDSL_webcorn {
     "GDSL_twigsnap" {
         in htmlemiting {
             subemit("body",false,"","");
+            string old_src = ctx.source;
+            ctx.source = "<link rel='icon' type='image/png' href='/web/goldensystems/files/favicon.png'>"+old_src;
         }
     }
 ##
@@ -1007,8 +1053,8 @@ GDSL_twigsnap {
                 "justify-content" : "space-between";
                 "width" : "100%";
 
-                text "<- Webcorn" {"onclick" : "goTo('/GDSL_webcorn')"; nav_arrow_theme;}
-                text "GDSL ->" {"onclick" : "goTo('/GDSL')"; nav_arrow_theme;}
+                link "<- Webcorn" {"href" : "/GDSL_webcorn"; nav_arrow_theme;}
+                link "GDSL ->" {"href" : "/GDSL"; nav_arrow_theme;}
             }
 
 
@@ -1054,6 +1100,8 @@ GDSL_twigsnap {
     "8_29_setting_up_my_website" {
         in htmlemiting {
             subemit("body",false,"","");
+            string old_src = ctx.source;
+            ctx.source = "<link rel='icon' type='image/png' href='/web/goldensystems/files/favicon.png'>"+old_src;
         }
     }
 ##

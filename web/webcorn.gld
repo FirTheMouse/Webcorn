@@ -44,6 +44,17 @@ if(arg_scriptcode.length!=0) {
     }
 }
 
+string arg_tickcode = unit_get_arg("--tick=");
+Node tickroot = deadnode;
+if(arg_tickcode.length!=0) {
+    tickroot = compile(read_file(arg_tickcode));
+} else if(project_path.length>0) {
+    string potential_tickpath = project_path+"tick.gld";
+    if(file_exists(potential_tickpath)) {
+        tickroot = compile(read_file(potential_tickpath));
+    }
+}
+
 
 string unitcode_path = "web/webrunner.gld";
 string arg_unitcode = unit_get_arg("--unitcode=");
@@ -91,12 +102,16 @@ if(units>0) {
         setup_unit(fd,unitcode);
     }
     print("Setup complete");
-    while(!unit_shutdown_flag) {
-        catch {
-            print("Caught some error, terminating all servers");
-            terminate_all_servers; 
-            print("Finished terminating servers");
-            break;
+    if(is_live(tickroot)) {
+        execut tickroot;
+    } else {
+        while(!unit_shutdown_flag) {
+            catch {
+                print("Caught some error, terminating all servers");
+                terminate_all_servers; 
+                print("Finished terminating servers");
+                break;
+            }
         }
     }
 } else {

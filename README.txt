@@ -56,7 +56,11 @@ cmake --build build && ./hazel ./webcorn --port=443 --project=web/electionmadnes
 Standard production launch:
 ulimit -n 65536 && cmake --build build && ./hazel ./webcorn --port=443 --project=web/electionmadness/ --tls=cert --verbosity=0 --units=8
 
-cmake --build build && ./webcorn --port=443 --project=web/electionmadness/ --units=3 --verbosity=3
+cmake --build build && ./webcorn --port=443 --project=web/electionmadness/ --units=2 --verbosity=3
+
+./hazel ./webcorn --port=8080 --project=web/electionmadness/ --tls=cert --verbosity=3 --units=2
+
+ulimit -n 65536 && cmake --build build && ./hazel ./webcorn --port=443 --project=web/goldensystems/ --tls=cert  --track --tickint=5 --units=4
 
 If you don't
 

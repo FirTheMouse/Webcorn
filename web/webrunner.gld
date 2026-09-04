@@ -391,6 +391,7 @@ if(!has_state) {
 
 global int guest_counter = 0;
 bool allow_guests = !unit_has_arg("--private");
+bool tracking_enabled = unit_has_arg("--track");
 bool debug_mode = unit_has_arg("--debug");
 global string redirected_from = "";
 global bool auto_log; auto_log = debug_mode;
@@ -472,7 +473,7 @@ while(0<1) {
         current_request = req;
         response = "";
 
-        string current_session_token = get_cookie(req,"session");
+        string current_session_token = get_cookie(req,"session");        
 
         //print("Req:\n",req);
 
@@ -513,37 +514,82 @@ while(0<1) {
         //     cfd = 0;
         //     continue;
         // }
+        
+        if(has_state) {
+            if(method=="SERVE") {
+                string to_serve = first_line.slice(first_line.find(" ")+1, first_line.length);
 
-        if(method=="SERVE") {
-            string to_serve = first_line.slice(first_line.find(" ")+1, first_line.length);
+                string mime = "application/octet-stream";
+                if(to_serve.find(".png") > 0)  {mime = "image/png";}
+                if(to_serve.find(".jpg") > 0)  {mime = "image/jpeg";}
+                if(to_serve.find(".webp") > 0) {mime = "image/webp";}
+                if(to_serve.find(".js") > 0)   {mime = "application/javascript";}
+                if(to_serve.find(".css") > 0)  {mime = "text/css";}
 
-            string mime = "application/octet-stream";
-            if(to_serve.find(".png") > 0)  {mime = "image/png";}
-            if(to_serve.find(".jpg") > 0)  {mime = "image/jpeg";}
-            if(to_serve.find(".webp") > 0) {mime = "image/webp";}
-            if(to_serve.find(".js") > 0)   {mime = "application/javascript";}
-            if(to_serve.find(".css") > 0)  {mime = "text/css";}
-
-            print("Serving file ",to_serve);
-            string info = read_file(to_serve);
-            response = "HTTP/1.1 200 OK\r\n"
-                            + "Content-Type: " + mime + "\r\n"
-                            + "Content-Length: " + to_string(info.length) + "\r\n"
-                            + "\r\n";
-            response += info;
-            write(cfd, response);
-            close(cfd);
-            if(log_verbosity>1) {tstop("request_timer");}
-            print("Unit ", unit_uid, " completed file request ", cfd, " in ", tstop("request_timer"));
-            unit_setindex(0);
-            cfd = 0;
-            continue;
+                print("Serving file ",to_serve);
+                string info = read_file(to_serve);
+                response = "HTTP/1.1 200 OK\r\n"
+                                + "Content-Type: " + mime + "\r\n"
+                                + "Content-Length: " + to_string(info.length) + "\r\n"
+                                + "\r\n";
+                response += info;
+                write(cfd, response);
+                close(cfd);
+                if(log_verbosity>1) {tstop("request_timer");}
+                print("Unit ", unit_uid, " completed file request ", cfd, " in ", tstop("request_timer"));
+                unit_setindex(0);
+                cfd = 0;
+                continue;
+            }
         }
 
         string slashpath = first_line.slice(" ", 1, 2);
         string unslashpath = slashpath.substr(1,slashpath.length-1); //Strip the slash
         if(log_verbosity>1) {print("Method: ",method);}
         if(log_verbosity>1) {print("Path: ",slashpath);}
+
+        if(tracking_enabled) {
+            string cip = ip_of(cfd);
+            ColCol tracking = database["Tracking"];
+            string current_trid_token = get_cookie(req,"trid");
+            Ptr trail = deadptr;
+            tracking.try_read_forever_then {
+                if(tracking.has(cip)) {
+                    trail = tracking.get(cip);
+                }
+            }
+            if(!is_live(trail)) {
+                tracking.try_lock_forever_then {
+                    if(tracking.has(cip)) {
+                        trail = tracking.get(cip); 
+                    } else {
+                        trail = tracking.add(cip,string);
+                        trail.clear_lock;
+                    }
+                }
+            }
+            if(current_trid_token.length==0) {
+                int tr_index = 0;
+                trail.try_lock_forever_then {
+                    trail.index(trail.index+1);
+                    tr_index = trail.index;
+                }
+                response.append("HTTP/1.1 200 OK\r\n");
+                response.append("Content-Type: text/html\r\n");
+                current_trid_token = to_string(tr_index);
+                response.append("Set-Cookie: trid="+current_trid_token+"; path=/; SameSite=Lax; Max-Age=86400\r\n");
+            }
+            ColCol TrackingStore = database["TrackingStore"];
+            Ptr store_ptr = deadptr;
+            TrackingStore.try_lock_forever_then {
+                store_ptr = database["TrackingStore"].add(char);
+                cast_to(#string,store_ptr) =  method+" "+slashpath;
+            }
+            trail.try_lock_forever_then {
+                trail[current_trid_token+": "+unit_precise_timestamp] = store_ptr;
+            }
+        }
+
 
         if(unslashpath.find(".")>0) {
             string strip_to_directory = "";
@@ -574,6 +620,12 @@ while(0<1) {
                 cfd = 0;
                 continue;
             }
+            if(log_verbosity>1) {tstop("request_timer");}
+            response = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
+            write(cfd, response);
+            unit_setindex(0);
+            cfd = 0;
+            continue;
         }
 
         string response_body = "";
@@ -643,11 +695,19 @@ while(0<1) {
                 method="GET";
             }   
 
+            page = deadnode;
             for(int i=0;i<twig.children.length;i++) {
                 Node child = twig.children.get(i);
                 if(labels(child.type)==unslashpath) {
                     page = child; //Because I haven't added break yet
                 }
+            }
+            if(!is_live(page)) {
+                response = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
+                write(cfd, response);
+                unit_setindex(0);
+                cfd = 0;
+                continue;
             }
 
             if(method=="GET") {
@@ -763,6 +823,7 @@ while(0<1) {
         response.append(response_body);
         if(log_verbosity>1) {print("Responding to ",cfd," with: ",response.length," chars");}
         write(cfd,response); 
+        //print("RESPONSE\n",response);
         close(cfd);
 
         if(log_verbosity>0) {print("Unit ",unit_uid," completed request ",cfd," in ",tstop("request_timer"));}

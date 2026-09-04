@@ -6,8 +6,12 @@ if(reset) {
 
     ColCol common = sub.add("Common");
     ColCol users = sub.add("Users");
+    sub.add("Tracking").clear_lock;
+    sub.add("TrackingStore").clear_lock;
 
     sub.save;
 } else {
     ColColCol sub = load_subunit("web/goldensystems/data.gsu");
+    sub.get("Tracking").clear_lock;
+    sub.get("TrackingStore").clear_lock;
 }

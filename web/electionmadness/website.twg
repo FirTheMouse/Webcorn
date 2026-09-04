@@ -166,6 +166,16 @@ inlined skeleton_pulse {
             var vote_tally = {};
             var voted_for = {};
             var votes_locked = "+to_string(user.locked)+";
+            var tb1 = "+to_string(user.?tb1)+";
+            var tb2 = "+to_string(user.?tb2)+";
+
+            function check_vote_finished() {
+                if(tb1&&tb2) {
+                    if(Object.values(vote_tally).every(t => t <= 0)) {
+                        getel('lock_pane').style.display = 'none';
+                    }
+                }
+            }
         ";
         user.votes.cells((race_label,candidate) => {
             js+="voted_for['"+js_lit(race_label)+"'] = "+js_lit(candidate.label)+"; ";
@@ -175,6 +185,19 @@ inlined skeleton_pulse {
         });
         return js;
     }
+    global bool is_voting_finished() {
+        if(!user.?tb1) {
+            return false;
+        }
+        if(!user.?tb2) {
+            return false;
+        }
+        for(int n=0;n<tally_by_state.length;n++) {
+            if(tally_by_state[n]>0) {return false;}
+        }   
+        return true;
+    }
+
     global int get_tally(string stateid) {
         if(tally_by_state.has(stateid)) {
             return tally_by_state[stateid];
@@ -703,7 +726,7 @@ stateless template div render_race(Header& race, bool is_visible) {
                     }
                 }
                 string points_str = value_as_string(rbn["points"])
-                text candidate+" ("+points_str+")" {
+                link candidate+" ("+points_str+")" {
                     "font-size" : "13px";
                     "font-weight" : "800";
                     "text-align" : "center";
@@ -711,6 +734,9 @@ stateless template div render_race(Header& race, bool is_visible) {
                     "overflow" : "hidden";
                     "text-overflow" : "ellipsis";
                     "width" : "100%";
+                    "cursour" : "pointer";
+                    "href" : value_as_string(rbn["link"]);
+                    "target" : "_blank";
                     text_theme;
                 }
                 div {
@@ -782,10 +808,16 @@ stateless template div render_race(Header& race, bool is_visible) {
                                         vote_tally[race_state] = t;
                                         if(t<=0) {
                                             getel(race_state).style.fill = 'white';
+                                            check_vote_finished();
                                         }
                                         const mybadge = race.closest('.badge_expanded_view');
                                         if(mybadge) {
-                                            mybadge.parentElement.children[1].children[0].innerText = t;
+                                            if(t==0) {
+                                                close_open_badge();
+                                                mybadge.parentElement.style.display = 'none';
+                                            } else {
+                                                mybadge.parentElement.children[1].children[0].innerText = t;
+                                            }
                                         } else {
                                             getel(race_state+'_badge').parentElement.children[1].children[0].innerText = t;
                                         }
@@ -807,12 +839,15 @@ stateless template div render_race(Header& race, bool is_visible) {
                                                     next_race_idx = i;
                                                 }
                                             }
+                                            console.log('Next active race ',next_race_idx);
                                             if(next_race_idx!==-1) { //then this switches to the next active race
                                                 const race_displays = races.children[1].children;
                                                 for(let i=0; i<race_displays.length; i++) {
                                                     race_displays[i].style.display = (i===next_race_idx) ? 'flex' : 'none';
                                                 }
                                             }
+                                        } else {
+                                            console.log('No races found');
                                         }
                                     }
                                     voted_for[racelabel] = candidate;
@@ -839,7 +874,7 @@ stateless template div render_races(Ptr& races) {
         "box-shadow" : "0 4px 16px rgba(0,0,0,0.12)";
         card_theme;
 
-        int first_viable_race = 0; first_viable_race = first_viable_race-1; //Because just -1 is broken for some reason
+        int first_viable_race = -1;
         div {
             "display" : "flex";
             "flex-direction" : "row";
@@ -960,21 +995,23 @@ div top_bar(string on_route) {
             "transition" : "height 0.6s ease";
 
             stateless template div nav_link(string label, string route) {
-                text label {
+                link label {
                     "font-size" : "1rem";
                     "font-weight" : (on_route==route?"700":"500");
                     "color" : (on_route==route?"rgb(18,121,190)":"rgb(48,48,48)");
                     "cursor" : "pointer";
                     "text-decoration" : (on_route==route?"underline":"none");
-                    "onclick" : "window.location.href="+js_lit(route);
+                    "href" : route;
                     text_theme;
                 }
             }
 
+            nav_link("home","/");
             nav_link("faqs","/faqs");
             nav_link("student resources","/student_resources");
             nav_link("instructor resources","/instructor_resources");
             nav_link("contact","/contacts");
+            nav_link("login","/login");
         }
 
         button {
@@ -1050,6 +1087,7 @@ root_path {
     div {
         "display" : "flex";
         "justify-content" : "center";
+        "id" : "instructions";
         div {
             "display" : "flex";
             "flex-direction" : "column";
@@ -1093,355 +1131,513 @@ root_path {
         }
     }
 
+
     div {
-        "height" : "60vh";
-        "overflow-y" : "scroll";
-        "scroll-snap-type" : "y mandatory";
+        "id" : "all_races_view";
+        "background-color" : "rgb(40, 40, 40)";
+        "position" : "fixed";
+        "bottom" : "0";
+        "left" : "0";
+        "width" : "100%";
+        "z-index" : "50";
         "display" : "flex";
-        "justify-content" : "center";
-        div map_viewport {
+        "flex-direction" : "column";
+
+        div {
             "display" : "flex";
-            "width" : "85%";
-            "border-radius" : "12px";
-            "min-height" : "60vh";
-            "background-color" : "rgb(40, 40, 40)";
-            "overflow" : "hidden";
-            "position" : "relative";
-            "cursor" : "grab";
-            
-            stateless template div clickable_state(string myid) {
-                if(get_tally(myid)>0) {
-                    "fill" : "rgb(190, 109, 236)";
+            "justify-content" : "center";
+            "align-items" : "center";
+            "height" : "5vh";
+            "flex-shrink" : "0";
+            "background-color" : "rgb(60,100,200)";
+            "cursor" : "pointer";
+            text "Map ^" {"color" : "white"; "font-size" : "26px"; text_theme;}
+            "onclick" : "
+                const drawer = this.parentElement.children[1];
+                if(drawer.style.height === '0px') {
+                    drawer.style.height = '90vh';
+                    this.children[0].innerText = 'Map v';
                 } else {
-                    "fill" : "white";
+                    drawer.style.height = '0px';
+                    this.children[0].innerText = 'Map ^';
                 }
-            }
 
-            svg {
-                "viewBox" : "0 0 1000 589";
-                "id" : "mapsvg";
-                "style" : "position:absolute;top:0;left:0;width:100%;height:100%;stroke-linejoin:round;stroke:#000;fill:none;";
-
-                ColCol& map_data = database["Map"];
-                for(int i=0;i<map_data.length;i++) {
-                    string mapel = map_data[i];
-                    g {
-                        clickable_state(mapel.label);
-                        path {
-                            "id" : mapel.label;
-                            "d" : mapel;
-                            "stroke-width" : "0.97063118000000004";
-                        }
-                    }
-                }
-            }
-
-            script "
-                const svg = getel("+js_lit(capture_node(map_viewport))+").children[0];
-                let isPanning = false;
-                let isExpanding = false;
-                let nudge_interval = null;
-                let startX, startY, offsetX = 0, offsetY = 0;
-
-                let scale = 1.0;
-                const BASE_W = 1000, BASE_H = 589;
-
-                function updateViewBox() {
-                    const w = BASE_W / scale;
-                    const h = BASE_H / scale;
-                    svg.setAttribute('viewBox', `${-offsetX} ${-offsetY} ${w} ${h}`);
+                drawer_interval = setInterval(() => {
                     update_all_transforms();
-                }
-                
-                (function() {
-                    const el = getel("+js_lit(capture_node(map_viewport))+");
-
-                    el.addEventListener('mouseleave', () => { isPanning = false; el.style.cursor = 'grab'; });
-
-
-                    let isZooming = false;
-                    let zoomStartY;
-
-                    el.addEventListener('mousedown', e => {
-                        if(e.button === 0 && !isExpanding) {
-                            isPanning = true;
-                            el.style.cursor = 'grabbing';
-                            startX = e.clientX - offsetX;
-                            startY = e.clientY - offsetY;
-                        } else if(e.button === 1 && !isExpanding) {
-                            e.preventDefault();
-                            isZooming = true;
-                            zoomStartY = e.clientY;
-                        }
-                    });
-                    el.addEventListener('mouseup', e => { 
-                        isPanning = false; 
-                        isZooming = false;
-                        el.style.cursor = 'grab'; 
-                    });
-                    el.addEventListener('mousemove', e => {
-                        if(isPanning && !isExpanding) {
-                            offsetX = e.clientX - startX;
-                            offsetY = e.clientY - startY;
-                            updateViewBox();
-                        } else if(isZooming && !isExpanding) {
-                            const dy = zoomStartY - e.clientY;
-                            zoomStartY = e.clientY;
-                            const delta = dy > 0 ? 1.02 : 0.98;
-                            const newScale = Math.max(1.0, Math.min(8.0, scale * delta));
-                            const oldW = BASE_W / scale;
-                            const oldH = BASE_H / scale;
-                            const newW = BASE_W / newScale;
-                            const newH = BASE_H / newScale;
-                            const centerX = -offsetX + oldW / 2;
-                            const centerY = -offsetY + oldH / 2;
-                            offsetX = -(centerX - newW / 2);
-                            offsetY = -(centerY - newH / 2);
-                            scale = newScale;
-                            updateViewBox();
-                        }
-                    });
-
-                    let lastTouchDist = null;
-                    let touchStartX, touchStartY;
-
-                    el.addEventListener('touchstart', e => {
-                        if(e.touches.length === 1 && !isExpanding) {
-                            isPanning = true;
-                            startX = e.touches[0].clientX - offsetX;
-                            startY = e.touches[0].clientY - offsetY;
-                        } else if(e.touches.length === 2 && !isExpanding) {
-                            isPanning = false;
-                            lastTouchDist = Math.hypot(
-                                e.touches[0].clientX - e.touches[1].clientX,
-                                e.touches[0].clientY - e.touches[1].clientY
-                            );
-                        }
-                    });
-                    el.addEventListener('touchmove', e => {
-                        e.preventDefault();
-                        if(e.touches.length === 1 && isPanning && !isExpanding) {
-                            offsetX = e.touches[0].clientX - startX;
-                            offsetY = e.touches[0].clientY - startY;
-                            updateViewBox();
-                        } else if(e.touches.length === 2 && !isExpanding) {
-                            const dist = Math.hypot(
-                                e.touches[0].clientX - e.touches[1].clientX,
-                                e.touches[0].clientY - e.touches[1].clientY
-                            );
-                            if(lastTouchDist) {
-                                scale = Math.max(1.0, Math.min(8.0, scale * (dist / lastTouchDist)));
-                            }
-                            lastTouchDist = dist;
-                            updateViewBox();
-                        }
-                    }, { passive: false });
-                    el.addEventListener('touchend', () => { isPanning = false; lastTouchDist = null; });
-                })();
-            ";
-
-            stateless template div make_badge(string stateid, Ptr races) {
-                div {
-                    string badgeid = stateid+"_badge";
-                    "id" : badgeid;
-                    "position" : "fixed";
-                    "z-index" : "1";
-                    div expanded_view {
-                        "display" : "none";
-                        "class" : "badge_expanded_view";
-                        render_races(races);
-                        "transition" : "opacity 0.3s ease, transform 0.5s ease";
-                        "onclick" : "
-                            this.style.display = 'none';
-                            const badgeview = this.parentElement.children[1];
-                            badgeview.style.display = 'flex';
-                            badgeview.style.transform = 'scale(4)';
-                            badgeview.style.opacity = '1';
-                            if(nudge_interval) { clearInterval(nudge_interval); nudge_interval = null; isExpanding = false; }
-                            this.parentElement.style.zIndex = '1';
-                            setTimeout(() => {
-                                badgeview.style.transform = 'scale(1)';
-                                badgeview.style.opacity = '1';
-                            }, 10);
-                            update_all_transforms();
-                        ";
-                    } 
-                    
-                    div badge_view {
-                        "display" : "flex";
-                        "width" : "40px";
-                        "height" : "40px";
-                        "border-radius" : "8px";
-                        "background" : "rgb(255, 255, 255)";
-                        "border" : "2px solid black";
-                        "align-items" : "center";
-                        "justify-content" : "center";
-                        "transition" : "opacity 0.3s ease, transform 0.5s ease";
-                        string tally = to_string(get_tally(stateid));
-                        text tally {
-                            "id" : badgeid+"_text";
-                            "color" : "black";
-                            "font-size" : "11px";
-                            "font-weight" : "700";
-                            text_theme;
-                        }
-                        "onclick" : "
-                            close_open_badge();
-                            this.style.display = 'none';
-
-                            const expandedview = this.parentElement.children[0];
-                            expandedview.style.display = 'flex';
-                            expandedview.style.transform = 'scale(0)';
-                            expandedview.style.opacity = '0';
-                            this.parentElement.style.zIndex = '100';
-                            setTimeout(() => {
-                                expandedview.style.transform = 'scale(1)';
-                                expandedview.style.opacity = '1';
-                            }, 10);
-                            isExpanding = true;
-                            nudge_interval = setInterval(() => {
-                                const mrect = getel("+js_lit(capture_node(map_viewport))+").getBoundingClientRect();
-                                const erect = expandedview.getBoundingClientRect();
-                                let dx = 0, dy = 0;
-                                if(erect.right > mrect.right) dx = -(erect.right - mrect.right + 16);
-                                if(erect.bottom > mrect.bottom) dy = -(erect.bottom - mrect.bottom + 16);
-                                if(erect.left < mrect.left) dx = -(erect.left - mrect.left - 16);
-                                if(erect.top < mrect.top) dy = -(erect.top - mrect.top - 16);
-                                if(dx !== 0 || dy !== 0) {
-                                    offsetX += dx / scale;
-                                    offsetY += dy / scale;
-                                    updateViewBox();
-                                }
-                            }, 1);
-                            setTimeout(() => { clearInterval(nudge_interval); isExpanding = false; }, 300);
-                            update_all_transforms();
-                        ";
-                    }
-                    string badgescript = "
-                        make_snap_root(getel("+js_lit(stateid)+"));
-                        getel("+js_lit(stateid)+").addSnapChild(getel("+js_lit(badgeid)+"));                        
-                        getel("+js_lit(badgeid)+").joint = function() {
-                            const prect = this.snap_parent.getBoundingClientRect();
-                            const badge = getel("+js_lit(badgeid)+");
-                            badge.style.left = (prect.left + prect.width/2 - badge.offsetWidth/2) + 'px';
-                            badge.style.top  = (prect.top  + prect.height/2 - badge.offsetHeight/2) + 'px';
-                            const mrect = getel("+js_lit(capture_node(map_viewport))+").getBoundingClientRect();
-                            const cx = prect.left + prect.width/2;
-                            const cy = prect.top + prect.height/2;
-                            const inside = cx >= mrect.left && cx <= mrect.right && cy >= mrect.top && cy <= mrect.bottom;
-                            badge.style.visibility = inside ? 'visible' : 'hidden';
-                            return true;
-                        };       
-                        update_all_transforms();
-                        setTimeout(() => {
-                            getel("+js_lit(badgeid)+").style.opacity = '1';
-                            getel("+js_lit(badgeid)+").style.transform = 'scale(1)';
-                        }, 80);
-                    ";
-                    script badgescript;
-                }
-            }
-
-            div {
-                "id" : "badges";
-                Ptr& bystate = database[0]["bystate"];                 
-                bystate = database[0]["bystate"];
-                for(int i=0;i<bystate.length;i++) {
-                    setsidx(bystate,i);
-                    string stateid = bystate.celllabel;
-                    if(get_tally(stateid)>0) {
-                        make_badge(stateid,bystate[i]);
-                    }
-                }
-            }
-            script "
-                function close_open_badge() {
-                    const root = getel('badges');
-                    Array.from(root.children).forEach(holder => {
-                        const h_expanded = holder.children[0];
-                        const h_badge = holder.children[1];
-                        if(nudge_interval) { clearInterval(nudge_interval); nudge_interval = null; isExpanding = false; }
-                        if(h_expanded.style.display==='flex') {
-                            h_expanded.style.display='none';
-                            holder.style.zIndex = '1';
-                            h_badge.style.display='flex';
-                            h_badge.style.transform = 'scale(4)';
-                            h_badge.style.opacity = '1';
-                            setTimeout(() => {
-                                h_badge.style.transform = 'scale(1)';
-                                h_badge.style.opacity = '1';
-                            }, 10);
-                        }
-                    });
-                }
+                }, 1);
+                setTimeout(() => { clearInterval(drawer_interval);}, 500);
             ";
         }
 
-
         div {
-            "id" : "all_races_view";
-            "background-color" : "rgb(40, 40, 40)";
-            "position" : "fixed";
-            "bottom" : "0";
-            "left" : "0";
+            "height" : "0px";
             "width" : "100%";
-            "z-index" : "50";
-            "display" : "flex";
-            "flex-direction" : "column";
-
-            div {
+            "overflow-y" : "auto";
+            "transition" : "height 0.5s ease";
+            "background-color" : "rgb(40, 40, 40)";
+            div map_viewport {
                 "display" : "flex";
-                "justify-content" : "center";
-                "align-items" : "center";
-                "height" : "5vh";
-                "flex-shrink" : "0";
-                "background-color" : "rgb(60,100,200)";
-                "cursor" : "pointer";
-                text "All Races ^" {"color" : "white"; "font-size" : "26px"; text_theme;}
-                "onclick" : "
-                    const drawer = this.parentElement.children[1];
-                    if(drawer.style.height === '0px') {
-                        drawer.style.height = '90vh';
-                        this.children[0].innerText = 'All Races v';
+                "width" : "100%";
+                "height" : "100%";
+                "overflow" : "hidden";
+                "position" : "relative";
+                "cursor" : "grab";
+                
+                stateless template div clickable_state(string myid) {
+                    if(get_tally(myid)>0) {
+                        "fill" : "rgb(190, 109, 236)";
                     } else {
-                        drawer.style.height = '0px';
-                        this.children[0].innerText = 'All Races ^';
+                        "fill" : "white";
+                    }
+                }
+
+                svg {
+                    "viewBox" : "0 0 1000 589";
+                    "id" : "mapsvg";
+                    "style" : "position:absolute;top:0;left:0;width:100%;height:100%;stroke-linejoin:round;stroke:#000;fill:none;";
+
+                    ColCol& map_data = database["Map"];
+                    for(int i=0;i<map_data.length;i++) {
+                        string mapel = map_data[i];
+                        g {
+                            clickable_state(mapel.label);
+                            path {
+                                "id" : mapel.label;
+                                "d" : mapel;
+                                "stroke-width" : "0.97063118000000004";
+                            }
+                        }
+                    }
+                }
+
+                script "
+                    const svg = getel("+js_lit(capture_node(map_viewport))+").children[0];
+                    let isPanning = false;
+                    let isExpanding = false;
+                    let nudge_interval = null;
+                    let startX, startY, offsetX = 0, offsetY = 0;
+
+                    let scale = 1.0;
+                    const BASE_W = 1000, BASE_H = 589;
+
+                    function updateViewBox() {
+                        const w = BASE_W / scale;
+                        const h = BASE_H / scale;
+                        svg.setAttribute('viewBox', `${-offsetX} ${-offsetY} ${w} ${h}`);
+                        update_all_transforms();
+                    }
+                    
+                    (function() {
+                        const el = getel("+js_lit(capture_node(map_viewport))+");
+
+                        el.addEventListener('mouseleave', () => { isPanning = false; el.style.cursor = 'grab'; });
+
+
+                        let isZooming = false;
+                        let zoomStartY;
+
+                        el.addEventListener('mousedown', e => {
+                            if(e.button === 0 && !isExpanding) {
+                                isPanning = true;
+                                el.style.cursor = 'grabbing';
+                                startX = e.clientX - offsetX;
+                                startY = e.clientY - offsetY;
+                            } else if(e.button === 1 && !isExpanding) {
+                                e.preventDefault();
+                                isZooming = true;
+                                zoomStartY = e.clientY;
+                            }
+                        });
+                        el.addEventListener('mouseup', e => { 
+                            isPanning = false; 
+                            isZooming = false;
+                            el.style.cursor = 'grab'; 
+                        });
+                        el.addEventListener('mousemove', e => {
+                            if(isPanning && !isExpanding) {
+                                offsetX = e.clientX - startX;
+                                offsetY = e.clientY - startY;
+                                updateViewBox();
+                            } else if(isZooming && !isExpanding) {
+                                const dy = zoomStartY - e.clientY;
+                                zoomStartY = e.clientY;
+                                const delta = dy > 0 ? 1.02 : 0.98;
+                                const newScale = Math.max(1.0, Math.min(8.0, scale * delta));
+                                const oldW = BASE_W / scale;
+                                const oldH = BASE_H / scale;
+                                const newW = BASE_W / newScale;
+                                const newH = BASE_H / newScale;
+                                const centerX = -offsetX + oldW / 2;
+                                const centerY = -offsetY + oldH / 2;
+                                offsetX = -(centerX - newW / 2);
+                                offsetY = -(centerY - newH / 2);
+                                scale = newScale;
+                                updateViewBox();
+                            }
+                        });
+
+                        let lastTouchDist = null;
+                        let touchStartX, touchStartY;
+
+                        el.addEventListener('touchstart', e => {
+                            if(e.touches.length === 1 && !isExpanding) {
+                                isPanning = true;
+                                startX = e.touches[0].clientX - offsetX;
+                                startY = e.touches[0].clientY - offsetY;
+                            } else if(e.touches.length === 2 && !isExpanding) {
+                                isPanning = false;
+                                lastTouchDist = Math.hypot(
+                                    e.touches[0].clientX - e.touches[1].clientX,
+                                    e.touches[0].clientY - e.touches[1].clientY
+                                );
+                            }
+                        });
+                        el.addEventListener('touchmove', e => {
+                            e.preventDefault();
+                            if(e.touches.length === 1 && isPanning && !isExpanding) {
+                                offsetX = e.touches[0].clientX - startX;
+                                offsetY = e.touches[0].clientY - startY;
+                                updateViewBox();
+                            } else if(e.touches.length === 2 && !isExpanding) {
+                                const dist = Math.hypot(
+                                    e.touches[0].clientX - e.touches[1].clientX,
+                                    e.touches[0].clientY - e.touches[1].clientY
+                                );
+                                if(lastTouchDist) {
+                                    scale = Math.max(1.0, Math.min(8.0, scale * (dist / lastTouchDist)));
+                                }
+                                lastTouchDist = dist;
+                                updateViewBox();
+                            }
+                        }, { passive: false });
+                        el.addEventListener('touchend', () => { isPanning = false; lastTouchDist = null; });
+                    })();
+                ";
+
+                stateless template div make_badge(string stateid, Ptr races) {
+                    div {
+                        string badgeid = stateid+"_badge";
+                        "id" : badgeid;
+                        "position" : "fixed";
+                        "z-index" : "1";
+                        div expanded_view {
+                            "display" : "none";
+                            "class" : "badge_expanded_view";
+                            render_races(races);
+                            "transition" : "opacity 0.3s ease, transform 0.5s ease";
+                            "position" : "relative";
+                            button {
+                                "position" : "absolute";
+                                "top" : "8px";
+                                "right" : "8px";
+                                "border" : "none";
+                                "background" : "none";
+                                "cursor" : "pointer";
+                                text "x" {
+                                    "font-size" : "0.8rem";
+                                    "font-weight" : "500";
+                                    "color" : "rgb(80,80,80)";
+                                    text_theme;
+                                }
+                                "onclick" : "
+                                    event.stopPropagation();
+                                    const expanded = this.parentElement;
+                                    expanded.style.display = 'none';
+                                    const badgeview = expanded.parentElement.children[1];
+                                    badgeview.style.display = 'flex';
+                                    badgeview.style.transform = 'scale(4)';
+                                    badgeview.style.opacity = '1';
+                                    if(nudge_interval) { clearInterval(nudge_interval); nudge_interval = null; isExpanding = false; }
+                                    expanded.parentElement.style.zIndex = '1';
+                                    setTimeout(() => {
+                                        badgeview.style.transform = 'scale(1)';
+                                        badgeview.style.opacity = '1';
+                                    }, 10);
+                                    update_all_transforms();
+                                ";
+                            }
+                        } 
+                        
+                        div badge_view {
+                            "display" : "flex";
+                            "width" : "40px";
+                            "height" : "40px";
+                            "border-radius" : "8px";
+                            "background" : "rgb(255, 255, 255)";
+                            "border" : "2px solid black";
+                            "align-items" : "center";
+                            "justify-content" : "center";
+                            "transition" : "opacity 0.3s ease, transform 0.5s ease";
+                            string tally = to_string(get_tally(stateid));
+                            text tally {
+                                "id" : badgeid+"_text";
+                                "color" : "black";
+                                "font-size" : "11px";
+                                "font-weight" : "700";
+                                text_theme;
+                            }
+                            "onclick" : "
+                                close_open_badge();
+                                this.style.display = 'none';
+
+                                const expandedview = this.parentElement.children[0];
+                                expandedview.style.display = 'flex';
+                                expandedview.style.transform = 'scale(0)';
+                                expandedview.style.opacity = '0';
+                                this.parentElement.style.zIndex = '100';
+                                setTimeout(() => {
+                                    expandedview.style.transform = 'scale(1)';
+                                    expandedview.style.opacity = '1';
+                                }, 10);
+                                isExpanding = true;
+                                nudge_interval = setInterval(() => {
+                                    const mrect = getel("+js_lit(capture_node(map_viewport))+").getBoundingClientRect();
+                                    const erect = expandedview.getBoundingClientRect();
+                                    let dx = 0, dy = 0;
+                                    if(erect.right > mrect.right) dx = -(erect.right - mrect.right + 16);
+                                    if(erect.bottom > mrect.bottom) dy = -(erect.bottom - mrect.bottom + 16);
+                                    if(erect.left < mrect.left) dx = -(erect.left - mrect.left - 16);
+                                    if(erect.top < mrect.top) dy = -(erect.top - mrect.top - 16);
+                                    if(dx !== 0 || dy !== 0) {
+                                        offsetX += dx / scale;
+                                        offsetY += dy / scale;
+                                        updateViewBox();
+                                    }
+                                }, 1);
+                                setTimeout(() => { clearInterval(nudge_interval); isExpanding = false; }, 300);
+                                update_all_transforms();
+                            ";
+                        }
+                        string badgescript = "
+                            make_snap_root(getel("+js_lit(stateid)+"));
+                            getel("+js_lit(stateid)+").addSnapChild(getel("+js_lit(badgeid)+"));                        
+                            getel("+js_lit(badgeid)+").joint = function() {
+                                const prect = this.snap_parent.getBoundingClientRect();
+                                const badge = getel("+js_lit(badgeid)+");
+                                badge.style.left = (prect.left + prect.width/2 - badge.offsetWidth/2) + 'px';
+                                badge.style.top  = (prect.top  + prect.height/2 - badge.offsetHeight/2) + 'px';
+                                const mrect = getel("+js_lit(capture_node(map_viewport))+").getBoundingClientRect();
+                                const cx = prect.left + prect.width/2;
+                                const cy = prect.top + prect.height/2;
+                                const inside = cx >= mrect.left && cx <= mrect.right && cy >= mrect.top && cy <= mrect.bottom;
+                                badge.style.visibility = inside ? 'visible' : 'hidden';
+                                return true;
+                            };       
+                            update_all_transforms();
+                            setTimeout(() => {
+                                getel("+js_lit(badgeid)+").style.opacity = '1';
+                                getel("+js_lit(badgeid)+").style.transform = 'scale(1)';
+                            }, 80);
+                        ";
+                        script badgescript;
+                    }
+                }
+
+                div {
+                    "id" : "badges";
+                    Ptr& bystate = database[0]["bystate"];                 
+                    bystate = database[0]["bystate"];
+                    for(int i=0;i<bystate.length;i++) {
+                        setsidx(bystate,i);
+                        string stateid = bystate.celllabel;
+                        if(get_tally(stateid)>0) {
+                            make_badge(stateid,bystate[i]);
+                        }
+                    }
+                }
+                script "
+                    function close_open_badge() {
+                        const root = getel('badges');
+                        Array.from(root.children).forEach(holder => {
+                            const h_expanded = holder.children[0];
+                            const h_badge = holder.children[1];
+                            if(nudge_interval) { clearInterval(nudge_interval); nudge_interval = null; isExpanding = false; }
+                            if(h_expanded.style.display==='flex') {
+                                h_expanded.style.display='none';
+                                holder.style.zIndex = '1';
+                                h_badge.style.display='flex';
+                                h_badge.style.transform = 'scale(4)';
+                                h_badge.style.opacity = '1';
+                                setTimeout(() => {
+                                    h_badge.style.transform = 'scale(1)';
+                                    h_badge.style.opacity = '1';
+                                }, 10);
+                            }
+                        });
                     }
                 ";
             }
+        }
+    }
 
+
+
+    div {
+        "display" : "flex";
+        "flex-direction" : "column";
+        "align-items" : "center";
+        "justify-content" : "center";
+        "width" : "100%";
+        button {
+            text " v " {"font-size" : "1rem"; text_theme;}
+            "border" : "none";
+            "background-color" : "light gray";
+            "border-radius" : "12px";
+            "width" : "20%";
+            "height" : "30px";
+            "cursor" : "pointer";
+            "onclick" : "getel('tally_board').scrollIntoView({ behavior: 'smooth', block: 'center' });";
+        }
+        Ptr& all_races = database[0]["races"];
+        div {
+            inlined race_header_theme {
+                "color" : "rgb(52, 52, 52)";
+                "font-size" : "1rem";
+                "font-weight" : "800";
+                "text-align" : "center";
+                "width" : "100%";
+                "padding" : "16px 0px 8px 0px";
+                text_theme;
+            }
+
+            "id" : "scrollable_races";
+            //"background-color" : "rgb(40, 40, 40)";
+            "width" : "100%";
+            "max-width" : "900px";
+            for(int i=0;i<all_races.length;i++) {
+                Header race = all_races[i];
+                text race.label {
+                    "id" : (race.label)+"_scroll_label";
+                    "onclick" : "
+                        const el = getel("+js_lit(race.label+"_tally")+");
+                        if(el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    ";
+                    "cursor" : "pointer";
+                    race_header_theme;
+                }
+                render_race(race,true);
+            }
+
+            text "Tiebreaker 1" {
+                race_header_theme;
+            }
             div {
-                "height" : "0px";
-                "overflow-y" : "auto";
-                "transition" : "height 0.5s ease";
-                "background-color" : "rgb(40, 40, 40)";
-                Ptr& all_races = database[0]["races"];
-                div scrollable_races {
+                "display" : "flex";
+                "flex-direction" : "column";
+                "justify-content" : "center";
+                "align-items" : "center";
+                "border-radius" : "12px";
+                "box-shadow" : "0 2px 8px rgba(0,0,0,0.08)";
+                "padding" : "12px";
+                component_theme;
+                text "Pick the election with the LARGEST margin between the 1st and 2nd place finishers from the 24 contests in the game." {text_theme;}
+                select {
+                    "width" : "80%";
+                    "margin" : "8px";
+                    "background-color" : "white";
+                    "text-align" : "center";
+                    form_select_theme;
+                    string current = "";
+                    database["Users"].try_read_forever_then {
+                        if(user.?tb1) {
+                            current = user.tb1;
+                        }
+                    }
                     for(int i=0;i<all_races.length;i++) {
                         Header race = all_races[i];
-                        text race.label {
-                            "color" : "white";
-                            "font-size" : "18px";
-                            "font-weight" : "800";
-                            "text-align" : "center";
-                            "width" : "100%";
-                            "padding" : "16px 0px 8px 0px";
+                        option race.label {
+                            "value" : race.label;
+                            if((race.label)==current) {
+                                "selected" : "true";
+                            }
+                        }
+                    }
+                    "onchange" : capture(js_do("tb1 = true; check_vote_finished();"), string myval ; "this.value") {
+                        sync_with_database;
+                        database["Users"].try_lock_forever_then {
+                            user.tb1 = myval;
+                        }
+                        database.save;
+                    }
+                }
+            }
+
+            text "Tiebreaker 2" {
+                race_header_theme;
+            }
+            div {
+                "display" : "flex";
+                "flex-direction" : "column";
+                "justify-content" : "center";
+                "align-items" : "center";
+                "border-radius" : "12px";
+                "box-shadow" : "0 2px 8px rgba(0,0,0,0.08)";
+                "padding" : "12px";
+                component_theme;
+                string current = "50";
+                database["Users"].try_read_forever_then {
+                    if(user.?tb2) {
+                        current = user.tb2;
+                    }
+                }
+                div {
+                    "display" : "flex";
+                    "align-items" : "center";
+                    "gap" : "8px";
+                    text "What % will the Republican candidate in the Texas Senate race receive?" {text_theme;}
+                    div {
+                        "background-color" : "rgb(220,220,220)";
+                        "border-radius" : "6px";
+                        "padding" : "2px 8px";
+                        text current+"%" {
+                            "id" : "tb2_display";
+                            "font-size" : "13px";
+                            "font-weight" : "700";
                             text_theme;
                         }
-                        render_race(race,true);
                     }
+                }
+                input {
+                    "margin" : "8px";
+                    "type" : "range";
+                    "min" : "0";
+                    "max" : "100";
+                    "step" : "1";
+                    "value" : current;
+                    "onchange" : capture(js_do("tb2 = true; check_vote_finished();"), string myval ; "this.value") {
+                        sync_with_database;
+                        database["Users"].try_lock_forever_then {
+                            user.tb2 = myval;
+                        }
+                        database.save;
+                    }
+                    "oninput" : "getel('tb2_display').innerText = this.value + '%'";
                 }
             }
         }
     }
 
+
     div tally_board_holder {
         "min-height" : "100vh";
         "scroll-snap-align" : "start";
         "display" : "flex";
+        "flex-direction" : "column";
         "justify-content" : "center";
         "align-items" : "center";
         "padding" : "24px";
+
+        button {
+            text " ^ " {"font-size" : "1rem"; text_theme;}
+            "border" : "none";
+            "background-color" : "light gray";
+            "border-radius" : "12px 12px 0 0";
+            "width" : "20%";
+            "height" : "30px";
+            "cursor" : "pointer";
+            "onclick" : "getel('instructions').scrollIntoView({ behavior: 'smooth', block: 'center' });";
+        }
+        
 
         div {
             "id" : "tally_board";
@@ -1487,6 +1683,12 @@ root_path {
                         "align-items" : "center";
                         "justify-content" : "center";
                         "overflow" : "hidden";
+
+                        "cursor" : "pointer";
+                        "onclick" : "
+                            const el = getel("+js_lit(race.label)+"+'_scroll_label');
+                            if(el) {el.scrollIntoView({ behavior: 'smooth', block: 'start' });}
+                        ";
 
                         script "votes_locked = "+to_string(user.locked)+";";
 
@@ -1601,26 +1803,21 @@ root_path {
                 }   
             }
 
-            button {
-                text "Lock in" {"color" : "white"; text_theme};
-                "id" : "vote_lock_btn";
-                "border" : "none";
-                "background-color" : "gray";
-                "padding" : "12px";
-                "border-radius" : "8px";
-                if(user_registered) {
-                    "onclick" : capture(
-                        js_do("
-                            const tallies = getel("+js_lit(capture_node(tally_display))+");
-                            Array.from(tallies.children).forEach(tally => {
-                                apply_theme(tally,"+js_lit(skeleton_pulse.emit)+");
-                            });
-                        ");
-                    ) {
-                        lock_in_votes;
-                        tally_display.reload;
-                    }
-                } else {
+            div {
+                "id" : "lock_button_panel";
+                "display" : (user.locked?"none":"flex");
+                "position" : "relative";
+                "width" : "100%";
+                "max-width" : "400px";
+                "justify-content" : "center";
+                button {
+                    text "Lock in" {"color" : "white"; text_theme};
+                    "id" : "vote_lock_btn";
+                    "border" : "none";
+                    "background-color" : "gray";
+                    "padding" : "12px";
+                    "border-radius" : "8px";
+                    "width" : "50%";
                     "onclick" : "
                         const tallies = getel("+js_lit(capture_node(tally_display))+");
                         Array.from(tallies.children).forEach(tally => {
@@ -1628,6 +1825,25 @@ root_path {
                         });
                         getel('register_prompt').style.display = 'flex';
                     ";
+                }
+                div {
+                    "id" : "lock_pane";
+                    "position" : "absolute";
+                    "inset" : "0";
+                    "background" : "rgba(0,0,0,0.6)";
+                    "border-radius" : "8px";
+
+                    bool voting_finished = is_voting_finished;
+
+                    "display" : (voting_finished?"none":"flex");
+                    "align-items" : "center";
+                    "justify-content" : "center";
+                    text "vote in all races to unlock" {
+                        "color" : "white";
+                        "font-size" : "0.7rem";
+                        "font-weight" : "700";
+                        text_theme;
+                    }
                 }
             }
 
@@ -1646,48 +1862,104 @@ root_path {
                 "gap" : "16px";
                 "z-index" : "10";
 
-                text "Want to save your picks?" {
-                    "color" : "white";
-                    "font-size" : "18px";
-                    "font-weight" : "700";
-                    "text-align" : "center";
-                    "padding" : "0 24px";
-                    text_theme;
-                }
-                text "Create an account to lock in your votes and compete on the leaderboard." {
-                    "color" : "rgb(180,180,180)";
-                    "font-size" : "14px";
-                    "text-align" : "center";
-                    "padding" : "0 24px";
-                    text_theme;
-                }
-                div {
-                    "display" : "flex";
-                    "gap" : "12px";
-                    button {
-                        "border" : "none";
-                        "border-radius" : "8px";
-                        "padding" : "10px 20px";
-                        "background-color" : "rgb(60,100,200)";
-                        "cursor" : "pointer";
-                        "onclick" : "window.location.href='/login';";
-                        text "Sign Up" {"color" : "white"; "font-weight" : "700"; text_theme;}
+                if(user_registered) {
+                   text "Are you sure?" {
+                        "color" : "white";
+                        "font-size" : "18px";
+                        "font-weight" : "700";
+                        "text-align" : "center";
+                        "padding" : "0 24px";
+                        text_theme;
                     }
-                    button {
-                        "border" : "none";
-                        "border-radius" : "8px";
-                        "padding" : "10px 20px";
-                        "background-color" : "rgb(80,80,80)";
-                        "cursor" : "pointer";
-                        "onclick" : capture {
-                            tally_board_holder.reload;
+                    text "Locking in your votes is permanent. This action can not be undone." {
+                        "color" : "rgb(180,180,180)";
+                        "font-size" : "14px";
+                        "text-align" : "center";
+                        "padding" : "0 24px";
+                        text_theme;
+                    }
+                    div {
+                        "display" : "flex";
+                        "gap" : "12px";
+                        button {
+                            text "I'm Sure" {"color" : "white"; "font-weight" : "700"; text_theme;}
+                            "border" : "none";
+                            "border-radius" : "8px";
+                            "padding" : "10px 20px";
+                            "background-color" : "rgb(80,80,80)";
+                            "cursor" : "pointer";
+                            "onclick" : capture(
+                                js_do("
+                                    getel('lock_button_panel').style.display = 'none';
+                                    const tallies = getel("+js_lit(capture_node(tally_display))+");
+                                    Array.from(tallies.children).forEach(tally => {
+                                        apply_theme(tally,"+js_lit(skeleton_pulse.emit)+");
+                                    });
+                                ");
+                            ) {
+                                lock_in_votes;
+                                tally_board_holder.reload;
+                            }
                         }
-                        text "Maybe Later" {"color" : "white"; "font-weight" : "700"; text_theme;}
+                        button {
+                            text "No" {"color" : "white"; "font-weight" : "700"; text_theme;}
+                            "border" : "none";
+                            "border-radius" : "8px";
+                            "padding" : "10px 20px";
+                            "background-color" : "rgb(115, 115, 115)";
+                            "cursor" : "pointer";
+                            "onclick" : capture {
+                                sync_with_database;
+                                tally_board_holder.reload;
+                            }
+                        }
+                    }
+                } else {
+                    text "Want to save your picks?" {
+                        "color" : "white";
+                        "font-size" : "18px";
+                        "font-weight" : "700";
+                        "text-align" : "center";
+                        "padding" : "0 24px";
+                        text_theme;
+                    }
+                    text "Create an account to lock in your votes and compete on the leaderboard." {
+                        "color" : "rgb(180,180,180)";
+                        "font-size" : "14px";
+                        "text-align" : "center";
+                        "padding" : "0 24px";
+                        text_theme;
+                    }
+                    div {
+                        "display" : "flex";
+                        "gap" : "12px";
+                        button {
+                            "border" : "none";
+                            "border-radius" : "8px";
+                            "padding" : "10px 20px";
+                            "background-color" : "rgb(60,100,200)";
+                            "cursor" : "pointer";
+                            "onclick" : "window.location.href='/login';";
+                            text "Sign Up" {"color" : "white"; "font-weight" : "700"; text_theme;}
+                        }
+                        button {
+                            "border" : "none";
+                            "border-radius" : "8px";
+                            "padding" : "10px 20px";
+                            "background-color" : "rgb(80,80,80)";
+                            "cursor" : "pointer";
+                            "onclick" : capture {
+                                sync_with_database;
+                                tally_board_holder.reload;
+                            }
+                            text "Maybe Later" {"color" : "white"; "font-weight" : "700"; text_theme;}
+                        }
                     }
                 }
             }
         }
     }
+
 
 
     string capstr = capture{
@@ -1957,13 +2229,12 @@ student_resources {
             }
 
             stateless template div reslink(string label, string url) {
-                text label {
+                link label {
                     "font-weight" : "700";
                     "font-size" : "0.95rem";
                     "cursor" : "pointer";
                     "color" : "rgb(18,121,190)";
-                    "text-decoration" : "underline";
-                    "onclick" : "window.open("+js_lit(url)+",'_blank')";
+                    "href" : url;
                     text_theme;
                 }
             }

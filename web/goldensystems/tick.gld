@@ -1,0 +1,84 @@
+string tick_interval_arg = unit_get_arg("--tickint=");
+int tick_interval = 1;
+if(tick_interval_arg.length>0) {
+    tick_interval = stoi(tick_interval_arg);
+}
+if(!unit_has_arg("--track")) {
+    tick_interval = 0;
+}
+ColColCol database = usubunits.get("web/goldensystems/data.gsu");
+ColCol tracking_mem = database.add("tracking_mem");
+ColCol tracking = database.get("Tracking");
+tstart("tick");
+tstart("time_between_tick");
+while(!unit_shutdown_flag) {
+    if(tick_interval>0) {
+        if(ttime_s("tick")>tick_interval) {
+            bool has_printed = false;
+            tracking.iter((e,i) => {
+                Ptr trail = &e;
+                Ptr mem_trail = deadptr;
+                if(i>=tracking_mem.length) {
+                    mem_trail = tracking_mem.add(trail.label,int);
+                    if(!has_printed) {
+                        print(unit_time+" (",tstop("time_between_tick"),"):");
+                        tstart("time_between_tick");
+                        has_printed = true;
+                    }
+                    print("     New IP: ",to_color_string(trail.label));
+                } else {
+                    mem_trail = tracking_mem[i];
+                }
+                Ptr string seen_trids;
+                seen_trids.do(s => {s = "";});
+
+                if(trail.length>mem_trail.length) {
+                    if(!has_printed) {
+                        print(unit_time+" (",tstop("time_between_tick"),"):");
+                        tstart("time_between_tick");
+                        has_printed = true;
+                    }
+                    //print("     "+to_string(trail.length-mem_trail.length)," new requests at ",to_color_string(trail.label));
+                    for(int ti=mem_trail.length;ti<trail.length;ti++) { 
+                        setsidx(trail,ti);
+                        string ti_label = trail.celllabel;
+                        string trid_str = ti_label.substr(0,ti_label.find(":"));
+                        int trid = stoi(trid_str);
+                        int space_at = trail[ti].find(" ");
+                        string method = trail[ti].substr(0,space_at);
+                        string tistr = slashpath;
+                        if(method=="GET") {
+                            string slashpath = trail[ti].substr(space_at+1);
+                            for(int n=slashpath.length-1;n>0;n=n-1)  {
+                                if(slashpath.slice(n-1,n)=="/") {tistr = slashpath.substr(n); n=0;}
+                            }
+                        } else {
+                            tistr=trail[ti];
+                        }
+                        if(seen_trids.has(trid_str)) {
+                            seen_trids.get(trid_str)+=tistr+" | ";
+                        } else {
+                            string slocal = utypes["names"].add(char);
+                            slocal = tistr+" | ";
+                            seen_trids.put(trid_str,slocal);
+                        }
+                        mem_trail.push(trid);
+                    }
+                    seen_trids.cells((tk,te) => {
+                        if(te.length>0) {
+                            print("       ",to_color_string(trail.label)+" "+to_color_string("["+to_string(tk)+"]"),": ",te);
+                        }
+                    });
+                }
+            });
+            tstart("tick");
+        }
+    }
+    catch {
+        print("Caught some error, terminating all servers");
+        terminate_all_servers; 
+        print("Finished terminating servers");
+        break;
+    }
+    thread_sleep;
+}

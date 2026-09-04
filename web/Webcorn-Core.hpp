@@ -732,6 +732,25 @@ namespace Acorn {
             int client_fd = webcorn_accept(fd);
             ctx.node().value().set((void*)&client_fd);
         },4,int_id);
+
+        uint32_t ip_of_id = add_function("ip_of",[this](Context& ctx){
+            string output = resolve_string_ticket(ctx.node());
+            #ifdef _WIN32
+                output = "";
+            #else
+                standard_sub_process(ctx);
+                int fd = ctx.node().getInt(0);
+                struct sockaddr_in addr;
+                socklen_t len = sizeof(addr);
+                if(getpeername(fd, (struct sockaddr*)&addr, &len) == -1) {
+                    output = "";
+                    return;
+                }
+                char ip[INET_ADDRSTRLEN];
+                inet_ntop(AF_INET, &addr.sin_addr, ip, sizeof(ip));
+                output = std::string(ip);
+            #endif
+        },sizeof(Ptr),string_id);
         
         uint32_t read_id =  add_function("read",[this](Context& ctx){
             standard_sub_process(ctx);
