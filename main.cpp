@@ -6,6 +6,7 @@
         #include "GDSL/mixos-acorn/Acorn-Compiler.hpp"
     #else
         #include "GDSL/mixos-acorn/Acorn-Core.hpp"
+        //#include "GDSL/mixos-acorn/util/Acorn-Type.hpp"
     #endif
 #else
     #if TESTING_LANGUGE_ONLY
@@ -409,6 +410,7 @@ int main(int argc, char* argv[]) {
             // }
             // print("Growth over ",iters," iterations, RSS: ",fmem(current_rss()-start_rss)," VSZ: ",fmem(current_vsz()-start_vsz));
 
+            // Acorn::test_acorn();
     
             g_ptr<Acorn::Unit> u =  Acorn::make_unit<Acorn::Unit>();
             u->test_pool_groups();

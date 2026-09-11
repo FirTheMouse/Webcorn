@@ -1,0 +1,26 @@
+route testing {
+    div {
+        "background-color" : "black";
+        text "Hello testing";
+    }
+    route a {
+        route a {
+            script read_file("web/webcorn.js");
+            text "Text in here:" {"id":"txt_box";}
+            input {
+                "onchange" : capture(
+                    string myval ; "this.value"
+                ) {
+                    if(params.?lastVal) {
+                        print("Inner test setting");
+                    }
+                    params.lastVal = myval;
+                    print("Myval: ",myval," Lastval: ",params.lastVal);
+                }
+            }
+        }
+    }
+    route b {
+        text "Hello testing/b";
+    }
+}

@@ -1,0 +1,154 @@
+##
+    global string golden_color = " #dea426";
+    global string golden_color_L1 = "rgb(235, 175, 47)";
+    global string golden_color_D1 = "rgb(201, 150, 39)";
+
+    global string pebble_color = "rgb(67, 67, 67)";
+    global string pebble_color_L2 = "rgb(110, 110, 110)";
+    global string pebble_color_L1 = "rgb(83, 83, 83)";
+    global string pebble_color_D1 = "rgb(52, 51, 51)";
+    global string pebble_color_D2 = "rgb(30, 30, 30)";
+
+    global string pine_color = "rgb(31, 60, 27)";
+    global string pine_color_L1 = "rgb(39, 76, 34)";
+##
+
+
+inlined card_theme {
+    "border-radius" : "8px";
+    "background-color" : "rgb(67, 67, 67)";
+}
+inlined main_font {
+    "font-family" : "system-ui, sans-serif";
+}
+inlined text_one_theme {
+    "font-size" : "0.7rem";
+    "font-weight" : "800";
+    "color" : " rgb(251, 251, 251)";
+    main_font;
+}
+inlined text_two_theme {
+    "font-size" : "12px";
+    "font-weight" : "400";
+    "color" : " rgb(207, 207, 207)";
+    main_font;
+}
+inlined text_three_theme {
+    "font-size" : "10px";
+    "font-weight" : "400";
+    "color" : " rgb(210, 210, 210)";
+    main_font;
+}
+
+inlined hoverable_theme {
+    "background-color" : transparent;
+    "transition" : "background-color 0.15s ease";
+    "onmouseenter" : "if(this.style.backgroundColor==='transparent')this.style.backgroundColor='rgba(0,0,0,0.04)'";
+    "onmouseleave" : "if(this.style.backgroundColor==='rgba(0, 0, 0, 0.04)')this.style.backgroundColor='transparent'";
+}
+inlined skeleton_pulse {
+    "background" : "linear-gradient(90deg, rgb(60,60,60) 25%, rgb(80,80,80) 50%, rgb(60,60,60) 75%)";
+    "background-size" : "200% 100%";
+    "animation" : "skeleton_pulse 1.5s infinite";
+}
+
+void standard_header {
+    html '<meta name="viewport" content="width=device-width, initial-scale=1">';
+    style "
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html { font-size: 17px; }
+        @media (min-width: 560px) {
+            html { font-size: 20px; }
+        }
+        @keyframes skeleton_pulse { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    ";
+    script read_file("web/webcorn.js");
+}
+
+##
+    global string fragment_behaviour = "";
+    fragment_behaviour = capture(
+        string mynode ; "",
+        string myDOMid ; "",
+        string mytext ; "",
+        "";
+    ){
+        if(mynode.length>0) {
+            //Node node = retrive_ptr(mynode); 
+            ctx.source = "@FRAG "+myDOMid+" "+pebble_refragment(fragment_behaviour,js_lit(mynode),myDOMid,unescape_html(mytext));
+            print(ctx.source);
+        }
+    };
+##
+
+
+
+route "" {
+    standard_header;
+    div {
+        style "
+            span { color : rgb(200, 200, 200); }
+            .text { color:rgb(255, 152, 0); }
+            .style { color:rgb(255, 152, 0); }
+            .inlined { color: rgb(155, 155, 155); }
+            .component { color: rgb(57, 123, 222); }
+            .FUNC_DECL { color:rgb(33, 150, 243); }
+            .LBRACE, .RBRACE { color:rgb(134, 135, 135); }
+            .VAR_DECL { color: rgb(152, 171, 239); }
+            .LITERAL { color:rgb(255, 112, 60); }
+            .QUOTE { color:rgb(255, 112, 60); }
+            .IDENTIFIER { color:rgb(106, 106, 152); }
+            .COLON { color: #ffffff; }
+
+            input:focus {outline: none;}
+            div {outline: none;}
+        ";
+
+        string save_behaviour = capture(){
+            print("Saving!");
+        }
+        string shift_save_behaviour = capture(){
+            print("Shift saving!");
+        }
+
+        script "
+            window.addEventListener('keydown', (event) => {
+            if (!(event.ctrlKey || event.metaKey)) return;
+            if(event.key.toLowerCase() === 's') {
+                event.preventDefault();
+                if(event.shiftKey) {
+                    "+shift_save_behaviour+";
+                } else {
+                    "+save_behaviour+";
+                }
+            }
+            });
+        ";
+
+        div the_test_div {
+            "contenteditable" : "true";
+            text "for(int i=0;i<6;i++){print(i);}";
+        }
+
+        script " 
+            const fragment = \""+fragment_behaviour+"\";
+            const nodeID = "+js_lit(capture_ptr(~&the_test_div))+";
+            const domID = "+js_lit(capture_node(the_test_div))+";
+            const behaviour = fill_capture(
+                fragment,
+                JSON.stringify(nodeID),
+                JSON.stringify(domID),
+                'this.innerText'
+            );
+            document.getElementById(domID).setAttribute('oninput', behaviour);
+        ";
+
+
+        "min-height" : "100vh";
+        "background-color" : pebble_color_D1;
+    }
+}

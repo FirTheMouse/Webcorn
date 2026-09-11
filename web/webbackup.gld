@@ -3931,3 +3931,1142 @@ obj.votes.cells([](race_label,candidate){
     print(race_label,": ",candidate.label);
 });
 dump_subunit(sub,true);
+
+
+
+
+
+
+   if(has_state) {
+            if(method=="SERVE") {
+                string to_serve = first_line.slice(first_line.find(" ")+1, first_line.length);
+
+                string mime = "application/octet-stream";
+                if(to_serve.find(".png") > 0)  {mime = "image/png";}
+                if(to_serve.find(".jpg") > 0)  {mime = "image/jpeg";}
+                if(to_serve.find(".webp") > 0) {mime = "image/webp";}
+                if(to_serve.find(".js") > 0)   {mime = "application/javascript";}
+                if(to_serve.find(".css") > 0)  {mime = "text/css";}
+
+                print("Serving file ",to_serve);
+                string info = read_file(to_serve);
+                response = "HTTP/1.1 200 OK\r\n"
+                                + "Content-Type: " + mime + "\r\n"
+                                + "Content-Length: " + to_string(info.length) + "\r\n"
+                                + "\r\n";
+                response += info;
+                write(cfd, response);
+                close(cfd);
+                if(log_verbosity>1) {tstop("request_timer");}
+                print("Unit ", unit_uid, " completed file request ", cfd, " in ", tstop("request_timer"));
+                unit_setindex(0);
+                cfd = 0;
+                continue;
+            }
+        }
+
+        window.ws.send(\"RUN console.log('Dragged to ',\"+offsetX+\",' ',\"+offsetY+\")\");
+
+
+
+
+        div sidebar {
+
+            "margin" : "18px";
+            "height" : "100%";
+            "width" : "120px";
+            "background-color" : wood_color_L1;
+            "position" : "relative";
+            "z-index" : "10";
+            "display" : "flex";
+            "flex-direction" : "column";
+            "padding" : "2px";
+            "align-items" : "center";
+            "justify-content" : "start";
+            "border-radius" : "8px";
+
+            div {
+                "gap" : "24px";
+                "height" : "0px";
+                "overflow-y" : "hidden";
+                "transition" : "height 0.6s ease";
+                button {
+                    "width" : "90%";
+                    wood_button_theme;
+                    text "Walls";
+                    "onclick" : "toggleWallDrawing();";
+                }   
+            }
+            button {
+                "background-color" : pebble_color;
+                "border-radius" : "12px";
+                "border" : "none";
+                "width" : "20%";
+                text "v" {"margin" : "5px"; "color" : golden_color_L1; main_font;}
+                "onclick" : "
+                    const nav = this.parentElement.children[0];
+                    if(nav.style.height === '0px') {
+                        nav.style.height = '100%';
+                        this.children[0].innerText = '^';
+                    } else {
+                        nav.style.height = '0px';
+                        this.children[0].innerText = 'v';
+                    }
+                ";
+            }
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+##
+    global string golden_color = " #dea426";
+    global string golden_color_L1 = "rgb(235, 175, 47)";
+    global string golden_color_D1 = "rgb(201, 150, 39)";
+
+    global string pebble_color = "rgb(67, 67, 67)";
+    global string pebble_color_L2 = "rgb(110, 110, 110)";
+    global string pebble_color_L1 = "rgb(83, 83, 83)";
+    global string pebble_color_D1 = "rgb(52, 51, 51)";
+    global string pebble_color_D2 = "rgb(30, 30, 30)";
+
+    global string pine_color = "rgb(31, 60, 27)";
+    global string pine_color_L1 = "rgb(39, 76, 34)";
+
+    global string wood_color = "rgb(64, 26, 13)";
+    global string wood_color_L1 = "rgb(89, 51, 38)";
+    global string wood_color_D1 = "rgb(38, 13, 6)";
+
+    global string selected_color = "rgb(128, 128, 179)";
+##
+
+inlined card_theme {
+    "border-radius" : "8px";
+    "background-color" : "rgb(67, 67, 67)";
+}
+inlined main_font {
+    "font-family" : "system-ui, sans-serif";
+}
+inlined golden_font {
+    "font-family" : "'Short Stack', system-ui, sans-serif";
+}
+inlined text_theme {
+    "white-space" : "pre-wrap";
+    "color" : " rgb(238, 238, 238)";
+    "margin" : "4 8 4 8px";
+    "font-size" : "0.9rem";
+    "font-weight" : "400";
+    "line-height" : "1.5";
+    main_font;
+}
+
+inlined wood_theme {
+    "background-color" : wood_color;
+    "color" : "rgb(238, 238, 238)";
+}
+
+inlined wood_bright_theme {
+    "background-color" : wood_color_L1;
+    "color" : "rgb(238, 238, 238)";
+}
+
+inlined wood_dark_theme {
+    "background-color" : wood_color_D1;
+    "color" : "rgb(238, 238, 238)";
+}
+
+inlined panel_theme {
+    wood_theme;
+    main_font;
+    "border-radius" : "8px";
+    "padding" : "6px";
+}
+
+inlined panel_header_theme {
+    wood_bright_theme;
+    main_font;
+    "padding" : "6px 10px";
+    "font-weight" : "600";
+}
+
+inlined panel_footer_theme {
+    wood_dark_theme;
+    main_font;
+    "padding" : "5px 10px";
+}
+
+inlined pebble_button_theme {
+    golden_font;
+
+    "background-color" : pebble_color;
+    "color" : "rgb(238, 238, 238)";
+    "border" : "none";
+    "border-radius" : "5px";
+    "padding" : "6px 10px";
+    "cursor" : "pointer";
+
+    "transition" : "background-color 0.08s ease, transform 0.06s ease";
+
+    "onmouseenter" : "
+        this.style.backgroundColor='"+pebble_color_L1+"';
+    ";
+
+    "onmouseleave" : "
+        this.style.backgroundColor='"+pebble_color+"';
+        this.style.transform='scale(1)';
+    ";
+
+    "onmousedown" : "
+        this.style.backgroundColor='"+pebble_color_D1+"';
+        this.style.transform='scale(0.97)';
+    ";
+
+    "onmouseup" : "
+        this.style.backgroundColor='"+pebble_color_L1+"';
+        this.style.transform='scale(1)';
+    ";
+}
+
+inlined wood_button_theme {
+    golden_font;
+
+    "background-color" : "rgb(104, 74, 61)";
+    "color" : "rgb(238, 238, 238)";
+
+    "class" : "wood_button";
+
+    "border-top" : "7px solid rgb(149, 109, 89)";
+    "border-left" : "7px solid rgb(124, 89, 73)";
+    "border-right" : "7px solid rgb(52, 32, 26)";
+    "border-bottom" : "7px solid rgb(52, 32, 26)";
+
+    "font-size" : "16px";
+    "text-align" : "center";
+    "padding" : "2px";
+
+    "cursor" : "pointer";
+    "user-select" : "none";
+    "transform-origin" : "top left";
+    "transition" : "transform 0.15s steps(2, end)";
+    "filter" : "brightness(0.85)";
+
+    "onmouseenter" : "
+        this.style.filter='brightness(1.0)';
+    ";
+
+    "onmousedown" : "
+        clearTimeout(this._clunkTimer);
+
+        this._clunkStart = performance.now();
+
+        this.style.filter='brightness(1.1)';
+        this.style.transform='scale(0.990)';
+    ";
+
+    "onmouseup" : "
+        releaseClunk(this, 1.0);
+    ";
+
+    "onmouseleave" : "
+        releaseClunk(this, 0.85);
+    ";
+}
+
+inlined hoverable_theme {
+    "background-color" : transparent;
+    "transition" : "background-color 0.15s ease";
+    "onmouseenter" : "if(this.style.backgroundColor==='transparent')this.style.backgroundColor='rgba(0,0,0,0.04)'";
+    "onmouseleave" : "if(this.style.backgroundColor==='rgba(0, 0, 0, 0.04)')this.style.backgroundColor='transparent'";
+}
+inlined skeleton_pulse {
+    "background" : "linear-gradient(90deg, rgb(60,60,60) 25%, rgb(80,80,80) 50%, rgb(60,60,60) 75%)";
+    "background-size" : "200% 100%";
+    "animation" : "skeleton_pulse 1.5s infinite";
+}
+
+void standard_header {
+    html '<meta name="viewport" content="width=device-width, initial-scale=1">';
+    style "
+        @import url('https://fonts.googleapis.com/css2?family=Short+Stack&display=swap');
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html { font-size: 17px; }
+        @media (min-width: 560px) {
+            html { font-size: 20px; }
+        }
+        @keyframes skeleton_pulse { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+        .wood_button:focus-visible {
+            outline: none;
+            filter: brightness(1.08);
+        }
+    ";
+    script read_file("web/webcorn.js");
+    script "
+    function releaseClunk(el, brightness) {
+            const elapsed =
+                performance.now() - (el._clunkStart || 0);
+
+            const wait =
+                Math.max(0, 150 - elapsed);
+
+            clearTimeout(el._clunkTimer);
+
+            el._clunkTimer = setTimeout(() => {
+                el.style.filter =
+                    'brightness(' + brightness + ')';
+
+                el.style.transform = 'scale(1)';
+            }, wait);
+        }
+    ";
+}
+
+route "" {
+
+    script "
+        const wsURL = new URL(window.location.href);
+        wsURL.protocol =
+        wsURL.protocol === 'https:' ? 'wss:' : 'ws:';
+        wsURL.hash = '';
+        const ws = new WebSocket(wsURL.href);
+        window.ws = ws;
+
+        ws.onopen = () => {
+            console.log('WebSocket connected');
+        };
+        ws.onmessage = (event) => {
+            read_run_response(event.data);
+        };
+        ws.onclose = () => {
+            console.log('WebSocket closed');
+        };
+        ws.onerror = (error) => {
+            console.log('WebSocket error', error);
+        };
+    ";
+
+
+    standard_header;
+
+    string basic_behaviour = capture(
+        string msg ; "",
+        string blank ""
+    ){
+        msg = unescape_html(msg);            
+        database[0]["CFDs"].do(ofd => {
+            websocket_write(ofd,msg);
+        });
+    }
+    script "
+        const basicBehaviour = "+js_lit(basic_behaviour)+";
+        function broadcast(msg) {
+            eval(fill_capture(
+                basicBehaviour,
+                JSON.stringify(msg)
+            ));
+        }
+    ";
+
+    div viewport {
+        "display" : "flex";
+        "width" : "100%";
+        "height" : "100%";
+        "overflow" : "hidden";
+        "position" : "relative";
+        "cursor" : "grab";
+        "touch-action" : "none";
+        "background-color" : "black";
+
+        div world {
+            "position" : "absolute";
+            "left" : "0";
+            "top" : "0";
+            "transform-origin" : "0 0";
+            "z-index" : "0";
+
+            img {
+                "src" : (project_path+"files/Neuin1.png");
+                "draggable" : "false";
+                "display" : "block";
+                "isolation" : "isolate";
+                "z-index" : "0";
+            }
+
+            div grid {
+                "position" : "absolute";
+                "left" : "0";
+                "top" : "0";
+                "width" : "100%";
+                "height" : "100%";
+                "pointer-events" : "none";
+                "z-index" : "1";
+            }
+
+            svg {
+                "id" : "fog_svg";
+                "style" : "position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;";
+                
+                html "
+                    <defs>
+                        <mask id='fog_mask'>
+                            <rect
+                                x='0'
+                                y='0'
+                                width='100%'
+                                height='100%'
+                                fill='white'
+                            />
+
+                            <polygon
+                                id='visibility_polygon'
+                                points=''
+                                fill='black'
+                            />
+                        </mask>
+                    </defs>
+
+                    <rect
+                        x='0'
+                        y='0'
+                        width='100%'
+                        height='100%'
+                        fill='black'
+                        mask='url(#fog_mask)'
+                    />
+                ";
+            }
+
+            svg {
+                "id" : "wall_svg";
+                "position" : "absolute";
+                "left" : "0";
+                "top" : "0";
+                "width" : "100%";
+                "height" : "100%";
+                "pointer-events" : "none";
+            }
+
+            img {
+                "class" : "ab_token";
+                "id" : "fir_token";
+                "position" : "absolute";
+                "left" : "100px";
+                "top" : "100px";
+                "width" : "40px";
+                "height" : "40px";
+                "src" : (project_path+"files/FirTheStudent.png");
+                "draggable" : "false";
+            }
+            img {
+                "class" : "ab_token";
+                "id" : "ruben_token";
+                "position" : "absolute";
+                "left" : "100px";
+                "top" : "100px";
+                "width" : "60px";
+                "height" : "60px";
+                "src" : (project_path+"files/RubenToken.png");
+                "draggable" : "false";
+            }
+
+
+            script "
+                const grid = getel("+js_lit(capture_node(grid))+");
+                let gridSize = 50;
+                let gridOffsetX = 0;
+                let gridOffsetY = 0;
+                function updateGrid() {
+                    grid.style.backgroundImage = `
+                        linear-gradient(
+                            to right,
+                            rgba(255,255,255,0.35) 1px,
+                            transparent 1px
+                        ),
+                        linear-gradient(
+                            to bottom,
+                            rgba(255,255,255,0.35) 1px,
+                            transparent 1px
+                        )
+                    `;
+                    grid.style.backgroundSize =
+                        `${gridSize}px ${gridSize}px`;
+
+                    grid.style.backgroundPosition =
+                        `${gridOffsetX}px ${gridOffsetY}px`;
+                }
+                updateGrid();
+            ";
+
+            script "
+                const walls = [];
+
+                let wallDrawing = false;
+                let wallStart = null;
+                let wallPreview = null;
+
+                const Tworld = getel("+js_lit(capture_node(world))+");
+                const Tviewport = getel("+js_lit(capture_node(viewport))+");
+
+                function screenToWorld(clientX, clientY) {
+                    const rect = viewport.getBoundingClientRect();
+
+                    return {
+                        x: (
+                            clientX -
+                            rect.left -
+                            window.boardView.panX
+                        ) / window.boardView.scale,
+
+                        y: (
+                            clientY -
+                            rect.top -
+                            window.boardView.panY
+                        ) / window.boardView.scale
+                    };
+                }
+                
+                function toggleWallDrawing() {
+                    wallDrawing = !wallDrawing;
+                    console.log('Wall drawing: ',wallDrawing);
+                    Tworld.style.cursor =
+                        wallDrawing
+                            ? 'crosshair'
+                            : 'grab';
+                    if(!wallDrawing) finishWallChain();
+                }
+
+
+                const wallSvg = document.getElementById('wall_svg');
+
+                function makeSvg(tag) {
+                    return document.createElementNS(
+                        'http://www.w3.org/2000/svg',
+                        tag
+                    );
+                }
+
+                function drawWall(wall) {
+                    const line = makeSvg('line');
+
+                    line.setAttribute('x1', wall.x1);
+                    line.setAttribute('y1', wall.y1);
+                    line.setAttribute('x2', wall.x2);
+                    line.setAttribute('y2', wall.y2);
+
+                    line.setAttribute('stroke', 'red');
+                    line.setAttribute('stroke-width', '3');
+                    line.setAttribute('class', 'ab_wall');
+
+                    wallSvg.appendChild(line);
+                }
+
+                function drawWallPoint(p) {
+                    const circle = makeSvg('circle');
+
+                    circle.setAttribute('cx', p.x);
+                    circle.setAttribute('cy', p.y);
+                    circle.setAttribute('r', '5');
+                    circle.setAttribute('fill', 'gold');
+                    circle.setAttribute('class', 'wall_trace_mark');
+
+                    wallSvg.appendChild(circle);
+                }
+
+                function updateWallPreview(p) {
+                    if(!wallStart)
+                        return;
+
+                    if(!wallPreview) {
+                        wallPreview = makeSvg('line');
+
+                        wallPreview.setAttribute('stroke', 'gold');
+                        wallPreview.setAttribute('stroke-width', '2');
+                        wallPreview.setAttribute(
+                            'stroke-dasharray',
+                            '6 4'
+                        );
+
+                        wallSvg.appendChild(wallPreview);
+                    }
+
+                    wallPreview.setAttribute('x1', wallStart.x);
+                    wallPreview.setAttribute('y1', wallStart.y);
+                    wallPreview.setAttribute('x2', p.x);
+                    wallPreview.setAttribute('y2', p.y);
+                }
+
+                function finishWallChain() {
+                    wallStart = null;
+
+                    if(wallPreview) {
+                        wallPreview.remove();
+                        wallPreview = null;
+                    }
+
+                    document
+                        .querySelectorAll('.wall_trace_mark')
+                        .forEach(el => el.remove());
+                }
+
+                function handleWallPointerDown(e) {
+                    if(!wallDrawing)
+                        return;
+
+                    if(e.button !== 0)
+                        return;
+
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+
+                    const p = screenToWorld(
+                        e.clientX,
+                        e.clientY
+                    );
+
+                    if(!wallStart) {
+                        wallStart = p;
+                        drawWallPoint(p);
+                        return;
+                    }
+
+                    const wall = {
+                        x1: wallStart.x,
+                        y1: wallStart.y,
+                        x2: p.x,
+                        y2: p.y
+                    };
+
+                    walls.push(wall);
+                    drawWall(wall);
+
+                    wallStart = p;
+                    drawWallPoint(p);
+
+                    //updateVisibilityForEveryone();
+                }
+
+                function handleWallPointerMove(e) {
+                    if(!wallDrawing)
+                        return;
+
+                    if(!wallStart)
+                        return;
+
+                    const p = screenToWorld(
+                        e.clientX,
+                        e.clientY
+                    );
+
+                    updateWallPreview(p);
+                }
+
+                window.addEventListener('keydown', e => {
+                    if(e.key === 'Escape') {
+                        finishWallChain();
+                        toggleWallDrawing();
+                    }
+                });
+
+                Tworld.addEventListener('contextmenu', e => {
+                    if(!wallDrawing)
+                        return;
+                    e.preventDefault();
+                    finishWallChain();
+                });
+                Tworld.addEventListener(
+                    'pointerdown',
+                    handleWallPointerDown,
+                    true
+                );
+
+                Tworld.addEventListener(
+                    'pointermove',
+                    handleWallPointerMove,
+                    true
+                );
+
+                function raySegmentIntersection(ox, oy, dx, dy, wall) {
+                    const x1 = wall.x1;
+                    const y1 = wall.y1;
+                    const x2 = wall.x2;
+                    const y2 = wall.y2;
+
+                    const sx = x2 - x1;
+                    const sy = y2 - y1;
+
+                    const denom = dx * sy - dy * sx;
+
+                    // Parallel
+                    if(Math.abs(denom) < 0.000001)
+                        return null;
+
+                    const wx = x1 - ox;
+                    const wy = y1 - oy;
+
+                    const t = (wx * sy - wy * sx) / denom;
+                    const u = (wx * dy - wy * dx) / denom;
+
+                    // t >= 0 = in front of ray
+                    // u 0..1 = somewhere along wall segment
+                    if(t >= 0 && u >= 0 && u <= 1) {
+                        return {
+                            x: ox + dx * t,
+                            y: oy + dy * t,
+                            distance: t
+                        };
+                    }
+
+                    return null;
+                }
+                function castRay(ox, oy, angle, radius) {
+                    const dx = Math.cos(angle);
+                    const dy = Math.sin(angle);
+
+                    let nearest = {
+                        x: ox + dx * radius,
+                        y: oy + dy * radius,
+                        distance: radius
+                    };
+
+                    for(const wall of walls) {
+                        const hit = raySegmentIntersection(
+                            ox, oy,
+                            dx, dy,
+                            wall
+                        );
+
+                        if(hit && hit.distance < nearest.distance) {
+                            nearest = hit;
+                        }
+                    }
+
+                    return nearest;
+                }
+                function calculateVisibility(ox, oy, radius) {
+                    const points = [];
+                    const rayCount = 360;
+
+                    for(let i = 0; i < rayCount; i++) {
+                        const angle =
+                            (i / rayCount) * Math.PI * 2;
+
+                        points.push(
+                            castRay(ox, oy, angle, radius)
+                        );
+                    }
+
+                    return points;
+                }
+                function updateVisibility(x, y) {
+                    const radius = 500;
+
+                    const points =
+                        calculateVisibility(x, y, radius);
+
+                    const polygon =
+                        document.getElementById('visibility_polygon');
+
+                    polygon.setAttribute(
+                        'points',
+                        points
+                            .map(p => `${p.x},${p.y}`)
+                            .join(' ')
+                    );
+                }
+                function updateTokenVisibility(token) {
+                    const x =
+                        (parseFloat(token.style.left) || 0) +
+                        token.offsetWidth / 2;
+
+                    const y =
+                        (parseFloat(token.style.top) || 0) +
+                        token.offsetHeight / 2;
+
+                    updateVisibility(x, y);
+                }
+            ";
+
+            script "
+                const myColor =
+                    '#' + Math.floor(Math.random() * 0xFFFFFF)
+                        .toString(16)
+                        .padStart(6, '0');
+                        
+                    function snapToGrid(x, y) {
+                        return {
+                            x:
+                                Math.round((x - gridOffsetX) / gridSize)
+                                    * gridSize + gridOffsetX,
+
+                            y:
+                                Math.round((y - gridOffsetY) / gridSize)
+                                    * gridSize + gridOffsetY
+                        };
+                    }
+
+                (() => {
+                    const world = getel("+js_lit(capture_node(world))+");
+                    const viewport = getel("+js_lit(capture_node(viewport))+");
+
+                    let activeToken = null;
+                    let activePointer = null;
+                    let offsetX = 0;
+                    let offsetY = 0;
+
+                
+                    world.addEventListener('pointerdown', e => {
+                        const token = e.target.closest('.ab_token');
+
+                        if(!token) return;
+
+                        e.stopPropagation();
+
+                        activeToken = token;
+                        activePointer = e.pointerId;
+
+                        const p = screenToWorld(e.clientX, e.clientY);
+
+                        const tokenX = parseFloat(token.style.left) || 0;
+                        const tokenY = parseFloat(token.style.top) || 0;
+
+                        offsetX = p.x - tokenX;
+                        offsetY = p.y - tokenY;
+
+                        token.setPointerCapture(e.pointerId);
+                        token.style.cursor = 'grabbing';
+
+                        broadcast(
+                            `RUN const sq=getel(${JSON.stringify(token.id)});
+                            sq.style.border='4px solid ${myColor}';`
+                        );
+                    });
+
+                    world.addEventListener('pointermove', e => {
+                        if(!activeToken) return;
+                        if(e.pointerId !== activePointer) return;
+                        let x = 0;
+                        let y = 0;
+
+                        const p = screenToWorld(e.clientX, e.clientY);
+
+                        if(e.shiftKey) {
+                            x = p.x - offsetX;
+                            y = p.y - offsetY;
+                        } else {
+                            const rawX = p.x - offsetX;
+                            const rawY = p.y - offsetY;
+                            const snapped = snapToGrid(rawX, rawY);
+                            x = snapped.x;
+                            y = snapped.y;
+                        }
+
+                        activeToken.style.left = x + 'px';
+                        activeToken.style.top = y + 'px';
+
+                        updateTokenVisibility(activeToken);
+
+                        broadcast(
+                            `RUN const sq=getel(${JSON.stringify(activeToken.id)});
+                            sq.style.left='${x}px';
+                            sq.style.top='${y}px';`
+                        );
+                    });
+
+                    function releaseToken(e) {
+                        if(!activeToken) return;
+                        if(e.pointerId !== activePointer) return;
+
+                        const token = activeToken;
+
+                        if(token.hasPointerCapture(e.pointerId)) {
+                            token.releasePointerCapture(e.pointerId);
+                        }
+
+                        token.style.cursor = 'grab';
+
+                        broadcast(
+                            `RUN const sq=getel(${JSON.stringify(token.id)});
+                            sq.style.border='';`
+                        );
+
+                        activeToken = null;
+                        activePointer = null;
+                    }
+
+                    world.addEventListener('pointerup', releaseToken);
+                    world.addEventListener('pointercancel', releaseToken);
+                })();
+            "; 
+        }
+
+        script "
+            const viewport = getel("+js_lit(capture_node(viewport))+");
+            const world = getel("+js_lit(capture_node(world))+");
+
+            window.boardView = {
+                panX: 0,
+                panY: 0,
+                scale: 1
+            };
+
+            let panX = 0;
+            let panY = 0;
+            let scale = 1;
+
+            function updateWorld() {
+                world.style.transform =
+                    `translate(${panX}px, ${panY}px) scale(${scale})`;
+
+                window.boardView.panX = panX;
+                window.boardView.panY = panY;
+                window.boardView.scale = scale;
+            }
+
+            let panning = false;
+            let startX = 0;
+            let startY = 0;
+
+            viewport.addEventListener('pointerdown', (e) => {
+                if(e.target.closest('button')) return;
+                if(e.target.closest('.ab_token')) return;
+
+                panning = true;
+                startX = e.clientX - panX;
+                startY = e.clientY - panY;
+
+                viewport.setPointerCapture(e.pointerId);
+                viewport.style.cursor = 'grabbing';
+            });
+
+            viewport.addEventListener('pointermove', (e) => {
+                if(!panning) return;
+
+                panX = e.clientX - startX;
+                panY = e.clientY - startY;
+
+                updateWorld();
+            });
+
+            viewport.addEventListener('pointerup', (e) => {
+                panning = false;
+                viewport.style.cursor = 'grab';
+
+                if(viewport.hasPointerCapture(e.pointerId)) {
+                    viewport.releasePointerCapture(e.pointerId);
+                }
+            });
+
+            viewport.addEventListener('pointercancel', () => {
+                panning = false;
+                viewport.style.cursor = 'grab';
+            });
+
+            viewport.addEventListener('wheel', (e) => {
+                e.preventDefault();
+
+                const oldScale = scale;
+                const factor = e.deltaY < 0 ? 1.1 : 0.9;
+
+                scale = Math.max(0.25, Math.min(8, scale * factor));
+
+                const rect = viewport.getBoundingClientRect();
+
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+
+                const worldX = (mouseX - panX) / oldScale;
+                const worldY = (mouseY - panY) / oldScale;
+
+                panX = mouseX - worldX * scale;
+                panY = mouseY - worldY * scale;
+
+                updateWorld();
+            }, { passive: false });
+
+            updateWorld();
+        ";
+
+        
+
+        div toolbar {
+            "margin" : "18px";
+            "width" : "100%";
+            "height" : "50px";
+            "background-color" : wood_color_L1;
+            "position" : "relative";
+            "z-index" : "10";
+            "display" : "flex";
+            "flex-direction" : "row";
+            "padding" : "8px";
+            "align-items" : "center";
+            "justify-content" : "start";
+
+            button {
+                wood_button_theme;
+                text "Walls";
+                "onclick" : "toggleWallDrawing();";
+            }   
+        }
+    }
+}
+
+
+
+
+
+
+
+script read_file(project_path+"abvtt.js");
+
+    string basic_behaviour = capture(
+        string msg ; "",
+        string blank ""
+    ){
+        msg = unescape_html(msg);            
+        database[0]["CFDs"].do(ofd => {
+            websocket_write(ofd,msg);
+        });
+    }
+
+    div viewport {
+        "display" : "flex";
+        "width" : "100%";
+        "height" : "100%";
+        "overflow" : "hidden";
+        "position" : "relative";
+        "cursor" : "grab";
+        "touch-action" : "none";
+        "background-color" : "black";
+
+        div world {
+            "position" : "absolute";
+            "left" : "0";
+            "top" : "0";
+            "transform-origin" : "0 0";
+            "z-index" : "0";
+
+            img {
+                "src" : (project_path+"files/Neuin1.png");
+                "draggable" : "false";
+                "display" : "block";
+                "isolation" : "isolate";
+                "z-index" : "0";
+            }
+
+            div grid {
+                "position" : "absolute";
+                "left" : "0";
+                "top" : "0";
+                "width" : "100%";
+                "height" : "100%";
+                "pointer-events" : "none";
+                "z-index" : "1";
+            }
+
+            svg {
+                "id" : "fog_svg";
+                "style" : "position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;";
+                
+                html "
+                    <defs>
+                        <mask id='fog_mask'>
+                            <rect
+                                x='0'
+                                y='0'
+                                width='100%'
+                                height='100%'
+                                fill='white'
+                            />
+
+                            <polygon
+                                id='visibility_polygon'
+                                points=''
+                                fill='black'
+                            />
+                        </mask>
+                    </defs>
+
+                    <rect
+                        x='0'
+                        y='0'
+                        width='100%'
+                        height='100%'
+                        fill='black'
+                        mask='url(#fog_mask)'
+                    />
+                ";
+            }
+
+            svg {
+                "id" : "wall_svg";
+                "position" : "absolute";
+                "left" : "0";
+                "top" : "0";
+                "width" : "100%";
+                "height" : "100%";
+                "pointer-events" : "none";
+            }
+
+            img {
+                "class" : "ab_token";
+                "id" : "fir_token";
+                "position" : "absolute";
+                "left" : "100px";
+                "top" : "100px";
+                "width" : "40px";
+                "height" : "40px";
+                "src" : (project_path+"files/FirTheStudent.png");
+                "draggable" : "false";
+            }
+            img {
+                "class" : "ab_token";
+                "id" : "ruben_token";
+                "position" : "absolute";
+                "left" : "100px";
+                "top" : "100px";
+                "width" : "60px";
+                "height" : "60px";
+                "src" : (project_path+"files/RubenToken.png");
+                "draggable" : "false";
+            }
+        }
+        div toolbar {
+            "margin" : "18px";
+            "width" : "100%";
+            "height" : "50px";
+            "background-color" : wood_color_L1;
+            "position" : "relative";
+            "z-index" : "10";
+            "display" : "flex";
+            "flex-direction" : "row";
+            "padding" : "8px";
+            "align-items" : "center";
+            "justify-content" : "start";
+
+            button {
+                wood_button_theme;
+                text "Walls";
+                "onclick" : "toggleWallDrawing();";
+            }   
+        }
+    }

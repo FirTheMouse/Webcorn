@@ -81,6 +81,25 @@ function setCursorOffset(el, offset) {
     }
 }
 
+function offsetToXY(text, offset) {
+    let x = 0, y = 0;
+    for(let i = 0; i < offset; i++) {
+        if(text[i] === '\n') { y++; x = 0; }
+        else x++;
+    }
+    return {x, y};
+}
+
+function xyToOffset(text, tx, ty) {
+    let x = 0, y = 0;
+    for(let i = 0; i < text.length; i++) {
+        if(y === ty && x === tx) return i;
+        if(text[i] === '\n') { y++; x = 0; }
+        else x++;
+    }
+    return text.length;
+}
+
 let debounce_timer = null;
 let sent_length = 0;
 let abort_controller = null;
@@ -142,24 +161,6 @@ el.addEventListener('keydown', function(e) {
     }
 });
 
-function offsetToXY(text, offset) {
-    let x = 0, y = 0;
-    for(let i = 0; i < offset; i++) {
-        if(text[i] === '\n') { y++; x = 0; }
-        else x++;
-    }
-    return {x, y};
-}
-
-function xyToOffset(text, tx, ty) {
-    let x = 0, y = 0;
-    for(let i = 0; i < text.length; i++) {
-        if(y === ty && x === tx) return i;
-        if(text[i] === '\n') { y++; x = 0; }
-        else x++;
-    }
-    return text.length;
-}
 
 el.addEventListener('input', function() {
     const text = el.innerText;

@@ -52,7 +52,7 @@ void add_us_map_data(ColCol emmap) {
 }
 
 
-bool reset = false;
+bool reset = true;
 
 if(reset) {
     print("Election Madness Reseting");
@@ -60,401 +60,165 @@ if(reset) {
 
     ColCol ledger = sub.add("Ledger");
 
-    ledger.add(Ptr,"sessions").unlock;
+    ledger.add(Ptr,"sessions").clear_lock;
 
     ColCol users = sub.add("Users");
-    users.unlock; //<- Since this will be used by multiple people
+    users.clear_lock; //<- Since this will be used by multiple people
+
+    Object user_fir = users.Object(
+        "username": "Fir";
+        "password": secure_hash("fir");
+        "votes": [Ptr];
+        "locked": false;
+        "authourized": true;
+    ).register(generate_token);
+    ledger["sessions"].put("Fir",user_fir);
+
+    ColCol classes = sub.add("Classes");
     ColCol emmap = sub.add("Map");
 
-
-    Header onrace = sub.add("TX-Senate").as(Header);
-        onrace.ribbonT("James Talarico") {
-            "image","web/electionmadness/files/james_talarico.webp" ;
-            "link","https://ballotpedia.org/United_States_Senate_election_in_Texas,_2026" ;
-            "party","Democrat" ;
-            "points","6" ;
-            "votes",[char];
+    void add_candidate(ColCol race, string name, string party, string points, string link) {
+        string img_path = "web/electionmadness/files/"+to_snake_case(name)+".webp" ;
+        if(!file_exists(img_path)){
+            print(red("Missing image for "+name));
         }
-        onrace.ribbonT("Ken Paxton") {
-            "image","web/electionmadness/files/ken_paxton.webp" ;
-            "link","https://ballotpedia.org/United_States_Senate_election_in_Texas,_2026" ;
-            "party","Republican" ;
-            "points","4" ;
-            "votes",[char];
-        }
-
-    onrace = sub.add("TX-15").as(Header);
-        onrace.ribbonT("Bobby Pulido") {
-            "image","web/electionmadness/files/bobby_pulido.webp" ;
-            "link","https://ballotpedia.org/Texas%27_15th_Congressional_District_election,_2026" ;
-            "party","Democrat" ;
-            "points","6" ;
-            "votes",[char];
-        }
-        onrace.ribbonT("Monica De La Cruz") {
-            "image","web/electionmadness/files/monica_de_la_cruz.webp" ;
-            "link","https://ballotpedia.org/Texas%27_15th_Congressional_District_election,_2026" ;
-            "party","Republican" ;
-            "points","4" ;
-            "votes",[char];
-        }
-
-    onrace = sub.add("TX-35").as(Header);
-        onrace.ribbonT("Johnny Garcia") {
-            "image","web/electionmadness/files/johnny_garcia.webp" ;
-            "link","https://ballotpedia.org/Texas%27_35th_Congressional_District_election,_2026" ;
-            "party","Democrat" ;
-            "points","4" ;
-            "votes",[char];
-        }
-        onrace.ribbonT("Carlos De La Cruz") {
-            "image","web/electionmadness/files/carlos_de_la_cruz.webp" ;
-            "link","https://ballotpedia.org/Texas%27_35th_Congressional_District_election,_2026" ;
-            "party","Republican" ;
-            "points","6" ;
-            "votes",[char];
-        }
-
-    onrace = sub.add("GA-Governer").as(Header);
-        onrace.ribbonT("Keisha Bottoms") {
-            "image","web/electionmadness/files/keisha_bottoms.webp" ;
-            "link","https://ballotpedia.org/Georgia_gubernatorial_election,_2026" ;
-            "party","Democrat" ;
-            "points","4" ;
-            "votes",[char];
-        }
-        onrace.ribbonT("Rick Jackson") {
-            "image","web/electionmadness/files/rick_jackson.webp" ;
-            "link","https://ballotpedia.org/Georgia_gubernatorial_election,_2026" ;
-            "party","Republican" ;
-            "points","6" ;
-            "votes",[char];
-        }
-
-        onrace = sub.add("ME-Senate").as(Header);
-            onrace.ribbonT("Troy Jackson") {
-                "image","web/electionmadness/files/troy_jackson.webp" ;
-                "link","https://ballotpedia.org/United_States_Senate_election_in_Maine,_2026" ;
-                "party","Democrat" ;
-                "points","6" ;
-                "votes",[char];
-            }
-            onrace.ribbonT("Susan Collins") {
-                "image","web/electionmadness/files/susan_collins.webp" ;
-                "link","https://ballotpedia.org/United_States_Senate_election_in_Maine,_2026" ;
-                "party","Republican" ;
-                "points","4" ;
-                "votes",[char];
-            }
- 
-
-    onrace = sub.add("IA-Senate").as(Header);
-        onrace.ribbonT("Josh Turek") {
-            "image","web/electionmadness/files/josh_turek.webp" ;
-            "link","https://ballotpedia.org/United_States_Senate_election_in_Iowa,_2026" ;
-            "party","Democrat" ;
-            "points","6" ;
-            "votes",[char];
-        }
-        onrace.ribbonT("Ashley Hinson") {
-            "image","web/electionmadness/files/ashley_hinson.webp" ;
-            "link","https://ballotpedia.org/United_States_Senate_election_in_Iowa,_2026" ;
-            "party","Republican" ;
-            "points","4" ;
-            "votes",[char];
-        }
+        race.Ribbon(
+            "image": img_path ;
+            "link": link;
+            "party": party;
+            "points": points;
+            "votes": [char];
+        ).register(name);
+    }
+    void make_race(string race_name, string link, string name_a, string party_a, string points_a, string name_b, string party_b, string points_b) {
+        ColCol onrace = sub.add(race_name);
+        add_candidate(onrace,name_a,party_a,points_a,link);
+        add_candidate(onrace,name_b,party_b,points_b,link);
+    }
 
 
-    onrace = sub.add("OH-Senate").as(Header);
-         onrace.ribbonT("Sherrod Brown") {
-            "image","web/electionmadness/files/sherrod_brown.webp" ;
-            "link","https://ballotpedia.org/United_States_Senate_special_election_in_Ohio,_2026" ;
-            "party","Democrat" ;
-            "points","6" ;
-            "votes",[char];
-        }
-        onrace.ribbonT("Jon Husted") {
-            "image","web/electionmadness/files/jon_husted.webp" ;
-            "link","https://ballotpedia.org/United_States_Senate_special_election_in_Ohio,_2026" ;
-            "party","Republican" ;
-            "points","4" ;
-            "votes",[char];
-        }
+    make_race("TX-Senate","https://ballotpedia.org/United_States_Senate_election_in_Texas,_2026"
+        , "James Talarico","Democrat","6"
+        , "Ken Paxton","Republican","4"
+    );
 
-    onrace = sub.add("AK-Senate").as(Header);
-        onrace.ribbonT("Mary Peltola") {
-            "image","web/electionmadness/files/mary_peltola.webp" ;
-            "link","https://ballotpedia.org/United_States_Senate_election_in_Alaska,_2026" ;
-            "party","Democrat" ;
-            "points","4" ;
-            "votes",[char];
-        }
-        onrace.ribbonT("Daniel Sullivan") {
-            "image","web/electionmadness/files/daniel_sullivan.webp" ;
-            "link","https://ballotpedia.org/United_States_Senate_election_in_Alaska,_2026" ;
-            "party","Republican" ;
-            "points","6" ;
-            "votes",[char];
-        }
+    make_race("TX-15","https://ballotpedia.org/Texas%27_15th_Congressional_District_election,_2026"
+        , "Bobby Pulido","Democrat","6"
+        , "Monica De La Cruz","Republican","4"
+    );
 
-    onrace = sub.add("MI-Senate").as(Header);
-        onrace.ribbonT("Abdul El-Sayed") {
-            "image","web/electionmadness/files/abdul_el_sayed.webp" ;
-            "link","https://ballotpedia.org/United_States_Senate_election_in_Michigan,_2026" ;
-            "party","Democrat" ;
-            "points","4" ;
-            "votes",[char];
-        }
-        onrace.ribbonT("Mike Rogers") {
-            "image","web/electionmadness/files/mike_rogers.webp" ;
-            "link","https://ballotpedia.org/United_States_Senate_election_in_Michigan,_2026" ;
-            "party","Republican" ;
-            "points","6" ;
-            "votes",[char];
-        }
+    make_race("TX-35","https://ballotpedia.org/Texas%27_35th_Congressional_District_election,_2026"
+        , "Johnny Garcia","Democrat","4"
+        , "Carlos De La Cruz","Republican","6"
+    );
 
-    onrace = sub.add("OH-Governor").as(Header);
-        onrace.ribbonT("Amy Acton") {
-            "image","web/electionmadness/files/amy_acton.webp" ;
-            "link","https://ballotpedia.org/Ohio_gubernatorial_and_lieutenant_gubernatorial_election,_2026" ;
-            "party","Democrat" ;
-            "points","6" ;
-            "votes",[char];
-        }
-        onrace.ribbonT("Vivek Ramaswamy") {
-            "image","web/electionmadness/files/vivek_ramaswamy.webp" ;
-            "link","https://ballotpedia.org/Ohio_gubernatorial_and_lieutenant_gubernatorial_election,_2026" ;
-            "party","Republican" ;
-            "points","4" ;
-            "votes",[char];
-        }
+    make_race("GA-Governor","https://ballotpedia.org/Georgia_gubernatorial_election,_2026"
+        , "Keisha Bottoms","Democrat","4"
+        , "Rick Jackson","Republican","6"
+    );
 
-    onrace = sub.add("FL-Governor").as(Header);
-        onrace.ribbonT("David Jolly") {
-            "image","web/electionmadness/files/david_jolly.webp" ;
-            "link","https://ballotpedia.org/Florida_gubernatorial_and_lieutenant_gubernatorial_election,_2026" ;
-            "party","Democrat" ;
-            "points","8" ;
-            "votes",[char];
-        }
-        onrace.ribbonT("Byron Donalds") {
-            "image","web/electionmadness/files/byron_donalds.webp" ;
-            "link","https://ballotpedia.org/Florida_gubernatorial_and_lieutenant_gubernatorial_election,_2026" ;
-            "party","Republican" ;
-            "points","2" ;
-            "votes",[char];
-        }
+    make_race("ME-Senate","https://ballotpedia.org/United_States_Senate_election_in_Maine,_2026"
+        , "Troy Jackson","Democrat","6"
+        , "Susan Collins","Republican","4"
+    );
 
-    onrace = sub.add("WI-Governor").as(Header);
-        onrace.ribbonT("David Crowley") {
-            "image","web/electionmadness/files/david_crowley.webp" ;
-            "link","https://ballotpedia.org/Wisconsin_gubernatorial_and_lieutenant_gubernatorial_election,_2026" ;
-            "party","Democrat" ;
-            "points","4" ;
-            "votes",[char];
-        }
-        onrace.ribbonT("Tom Tiffany") {
-            "image","web/electionmadness/files/tom_tiffany.webp" ;
-            "link","https://ballotpedia.org/Wisconsin_gubernatorial_and_lieutenant_gubernatorial_election,_2026" ;
-            "party","Republican" ;
-            "points","6" ;
-            "votes",[char];
-        }
+    make_race("IA-Senate","https://ballotpedia.org/United_States_Senate_election_in_Iowa,_2026"
+        , "Josh Turek","Democrat","6"
+        , "Ashley Hinson","Republican","4"
+    );
 
-    onrace = sub.add("CO-8").as(Header);
-        onrace.ribbonT("Manny Rutinel") {
-            "image","web/electionmadness/files/manny_rutinel.webp" ;
-            "link","https://ballotpedia.org/Colorado%27s_8th_Congressional_District_election,_2026" ;
-            "party","Democrat" ;
-            "points","2" ;
-            "votes",[char];
-        }
-        onrace.ribbonT("Gabe Evans") {
-            "image","web/electionmadness/files/gabe_evans.webp" ;
-            "link","https://ballotpedia.org/Colorado%27s_8th_Congressional_District_election,_2026" ;
-            "party","Republican" ;
-            "points","8" ;
-            "votes",[char];
-        }
+    make_race("OH-Senate","https://ballotpedia.org/United_States_Senate_special_election_in_Ohio,_2026"
+        , "Sherrod Brown","Democrat","6"
+        , "Jon Husted","Republican","4"
+    );
 
-    onrace = sub.add("CA-22").as(Header);
-        onrace.ribbonT("Randy Villegas") {
-            "image","web/electionmadness/files/randy_villegas.webp" ;
-            "link","https://ballotpedia.org/California%27s_22nd_Congressional_District_election,_2026" ;
-            "party","Democrat" ;
-            "points","2" ;
-            "votes",[char];
-        }
-        onrace.ribbonT("David Valadao") {
-            "image","web/electionmadness/files/david_valadao.webp" ;
-            "link","https://ballotpedia.org/California%27s_22nd_Congressional_District_election,_2026" ;
-            "party","Republican" ;
-            "points","8" ;
-            "votes",[char];
-        }
+    make_race("AK-Senate","https://ballotpedia.org/United_States_Senate_election_in_Alaska,_2026"
+        , "Mary Peltola","Democrat","4"
+        , "Daniel Sullivan","Republican","6"
+    );
 
-    onrace = sub.add("FL-27").as(Header);
-        onrace.ribbonT("Elliot Rodriguez") {
-            "image","web/electionmadness/files/elliot_rodriguez.webp" ;
-            "link","https://ballotpedia.org/Florida%27s_27th_Congressional_District_election,_2026" ;
-            "party","Democrat" ;
-            "points","6" ;
-            "votes",[char];
-        }
-        onrace.ribbonT("Maria Elvira Salazar") {
-            "image","web/electionmadness/files/maria_elvira_salazar.webp" ;
-            "link","https://ballotpedia.org/Florida%27s_27th_Congressional_District_election,_2026" ;
-            "party","Republican" ;
-            "points","4" ;
-            "votes",[char];
-        }
+    make_race("MI-Senate","https://ballotpedia.org/United_States_Senate_election_in_Michigan,_2026"
+        , "Abdul El-Sayed","Democrat","4"
+        , "Mike Rogers","Republican","6"
+    );
 
-    onrace = sub.add("IA-2").as(Header);
-        onrace.ribbonT("Lindsay James") {
-            "image","web/electionmadness/files/lindsay_james.webp" ;
-            "link","https://ballotpedia.org/Iowa%27s_2nd_Congressional_District_election,_2026" ;
-            "party","Democrat" ;
-            "points","6" ;
-            "votes",[char];
-        }
-        onrace.ribbonT("Joe Mitchell") {
-            "image","web/electionmadness/files/joe_mitchell.webp" ;
-            "link","https://ballotpedia.org/Iowa%27s_2nd_Congressional_District_election,_2026" ;
-            "party","Republican" ;
-            "points","4" ;
-            "votes",[char];
-        }
+    make_race("OH-Governor","https://ballotpedia.org/Ohio_gubernatorial_and_lieutenant_gubernatorial_election,_2026"
+        , "Amy Acton","Democrat","6"
+        , "Vivek Ramaswamy","Republican","4"
+    );
 
-    onrace = sub.add("NC-1").as(Header);
-        onrace.ribbonT("Donald Davis") {
-            "image","web/electionmadness/files/donald_davis.webp" ;
-            "link","https://ballotpedia.org/North_Carolina%27s_1st_Congressional_District_election,_2026" ;
-            "party","Democrat" ;
-            "points","4" ;
-            "votes",[char];
-        }
-        onrace.ribbonT("Laurie Buckhout") {
-            "image","web/electionmadness/files/laurie_buckhout.webp" ;
-            "link","https://ballotpedia.org/North_Carolina%27s_1st_Congressional_District_election,_2026" ;
-            "party","Republican" ;
-            "points","6" ;
-            "votes",[char];
-        }
+    make_race("FL-Governor","https://ballotpedia.org/Florida_gubernatorial_and_lieutenant_gubernatorial_election,_2026"
+        , "David Jolly","Democrat","8"
+        , "Byron Donalds","Republican","2"
+    );
 
-    onrace = sub.add("NY-17").as(Header);
-        onrace.ribbonT("Cait Conley") {
-            "image","web/electionmadness/files/cait_conley.webp" ;
-            "link","https://ballotpedia.org/New_York%27s_17th_Congressional_District_election,_2026" ;
-            "party","Democrat" ;
-            "points","3" ;
-            "votes",[char];
-        }
-        onrace.ribbonT("Mike Lawler") {
-            "image","web/electionmadness/files/mike_lawler.webp" ;
-            "link","https://ballotpedia.org/New_York%27s_17th_Congressional_District_election,_2026" ;
-            "party","Republican" ;
-            "points","7" ;
-            "votes",[char];
-        }
+    make_race("WI-Governor","https://ballotpedia.org/Wisconsin_gubernatorial_and_lieutenant_gubernatorial_election,_2026"
+        , "David Crowley","Democrat","4"
+        , "Tom Tiffany","Republican","6"
+    );
 
-    onrace = sub.add("PA-8").as(Header);
-        onrace.ribbonT("Paige Cognetti") {
-            "image","web/electionmadness/files/paige_cognetti.webp" ;
-            "link","https://ballotpedia.org/Pennsylvania%27s_8th_Congressional_District_election,_2026" ;
-            "party","Democrat" ;
-            "points","6" ;
-            "votes",[char];
-        }
-        onrace.ribbonT("Rob Bresnahan Jr.") {
-            "image","web/electionmadness/files/rob_bresnahan.webp" ;
-            "link","https://ballotpedia.org/Pennsylvania%27s_8th_Congressional_District_election,_2026" ;
-            "party","Republican" ;
-            "points","4" ;
-            "votes",[char];
-        }
+    make_race("CO-4","https://ballotpedia.org/Colorado%27s_4th_Congressional_District_election,_2026"
+        , "Eileen Laubacher","Democrat","7"
+        , "Lauren Boebert","Republican","3"
+    );
 
-    onrace = sub.add("AL-2").as(Header);
-        onrace.ribbonT("Shomari Figures") {
-            "image","web/electionmadness/files/shomari_figures.webp" ;
-            "link","https://ballotpedia.org/Alabama%27s_2nd_Congressional_District_election,_2026" ;
-            "party","Democrat" ;
-            "points","7" ;
-            "votes",[char];
-        }
-        onrace.ribbonT("Rhett Marques") {
-            "image","web/electionmadness/files/rhett_marques.webp" ;
-            "link","https://ballotpedia.org/Alabama%27s_2nd_Congressional_District_election,_2026" ;
-            "party","Republican" ;
-            "points","3" ;
-            "votes",[char];
-        }
+    make_race("CA-LA Mayor","https://ballotpedia.org/Mayoral_election_in_Los_Angeles,_California_(2026)"
+        , "Karen Bass","Non-partisan","3"
+        , "Nithya Raman","Non-partisan","7"
+    );
 
-    onrace = sub.add("FL-22").as(Header);
-        onrace.ribbonT("Pia Dandiya") {
-            "image","web/electionmadness/files/pia_dandiya.webp" ;
-            "link","https://ballotpedia.org/Florida%27s_22nd_Congressional_District_election,_2026" ;
-            "party","Democrat" ;
-            "points","6" ;
-            "votes",[char];
-        }
-        onrace.ribbonT("Michael Carbonara") {
-            "image","web/electionmadness/files/michael_carbonara.webp" ;
-            "link","https://ballotpedia.org/Florida%27s_22nd_Congressional_District_election,_2026" ;
-            "party","Republican" ;
-            "points","4" ;
-            "votes",[char];
-        }
+    make_race("FL-27","https://ballotpedia.org/Florida%27s_27th_Congressional_District_election,_2026"
+        , "Elliot Rodriguez","Democrat","6"
+        , "Maria Elvira Salazar","Republican","4"
+    );
 
-    onrace = sub.add("AZ-2").as(Header);
-        onrace.ribbonT("Jonathan Nez") {
-            "image","web/electionmadness/files/jonathan_nez.webp" ;
-            "link","https://ballotpedia.org/Arizona%27s_2nd_Congressional_District_election,_2026" ;
-            "party","Democrat" ;
-            "points","7" ;
-            "votes",[char];
-        }
-        onrace.ribbonT("Eli Crane") {
-            "image","web/electionmadness/files/eli_crane.webp" ;
-            "link","https://ballotpedia.org/Arizona%27s_2nd_Congressional_District_election,_2026" ;
-            "party","Republican" ;
-            "points","3" ;
-            "votes",[char];
-        }
+    make_race("IA-2","https://ballotpedia.org/Iowa%27s_2nd_Congressional_District_election,_2026"
+        , "Lindsay James","Democrat","6"
+        , "Joe Mitchell","Republican","4"
+    );
 
-    onrace = sub.add("VA-1").as(Header);
-        onrace.ribbonT("Shannon Taylor") {
-            "image","web/electionmadness/files/shannon_taylor.webp" ;
-            "link","https://ballotpedia.org/Virginia%27s_1st_Congressional_District_election,_2026" ;
-            "party","Democrat" ;
-            "points","6" ;
-            "votes",[char];
-        }
-        onrace.ribbonT("Rob Wittman") {
-            "image","web/electionmadness/files/rob_wittman.webp" ;
-            "link","https://ballotpedia.org/Virginia%27s_1st_Congressional_District_election,_2026" ;
-            "party","Republican" ;
-            "points","4" ;
-            "votes",[char];
-        }
+    make_race("NC-1","https://ballotpedia.org/North_Carolina%27s_1st_Congressional_District_election,_2026"
+        , "Donald Davis","Democrat","4"
+        , "Laurie Buckhout","Republican","6"
+    );
 
-    onrace = sub.add("MI-4").as(Header);
-        onrace.ribbonT("Sean McCann") {
-            "image","web/electionmadness/files/sean_mccann.webp" ;
-            "link","https://ballotpedia.org/Michigan%27s_4th_Congressional_District_election,_2026" ;
-            "party","Democrat" ;
-            "points","6" ;
-            "votes",[char];
-        }
-        onrace.ribbonT("Bill Huizenga") {
-            "image","web/electionmadness/files/bill_huizenga.webp" ;
-            "link","https://ballotpedia.org/Michigan%27s_4th_Congressional_District_election,_2026" ;
-            "party","Republican" ;
-            "points","4" ;
-            "votes",[char];
-        }
+    make_race("NY-17","https://ballotpedia.org/New_York%27s_17th_Congressional_District_election,_2026"
+        , "Cait Conley","Democrat","3"
+        , "Mike Lawler","Republican","7"
+    );
 
+    make_race("PA-8","https://ballotpedia.org/Pennsylvania%27s_8th_Congressional_District_election,_2026"
+        , "Paige Cognetti","Democrat","6"
+        , "Rob Bresnahan Jr","Republican","4"
+    );
+
+    make_race("AL-2","https://ballotpedia.org/Alabama%27s_2nd_Congressional_District_election,_2026"
+        , "Shomari Figures","Democrat","7"
+        , "Rhett Marques","Republican","3"
+    );
+
+    make_race("FL-22","https://ballotpedia.org/Florida%27s_22nd_Congressional_District_election,_2026"
+        , "Pia Dandiya","Democrat","6"
+        , "Michael Carbonara","Republican","4"
+    );
+
+    make_race("AZ-2","https://ballotpedia.org/Arizona%27s_2nd_Congressional_District_election,_2026"
+        , "Jonathan Nez","Democrat","7"
+        , "Eli Crane","Republican","3"
+    );
+
+    make_race("VA-1","https://ballotpedia.org/Virginia%27s_1st_Congressional_District_election,_2026"
+        , "Shannon Taylor","Democrat","6"
+        , "Rob Wittman","Republican","4"
+    );
+
+    make_race("MI-4","https://ballotpedia.org/Michigan%27s_4th_Congressional_District_election,_2026"
+        , "Sean McCann","Democrat","6"
+        , "Bill Huizenga","Republican","4"
+    );
+    
     Ptr Header races = ledger.add(Ptr,"races");
-    for(int r=3;r<sub.length;r++) {
+    for(int r=4;r<sub.length;r++) {
         races.push(sub[r]);
         sub[r].unlock;
     }

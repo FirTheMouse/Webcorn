@@ -24,7 +24,6 @@
     newstage fraging;
 
 
-
     //Acorn_script can actually do TwigSnap all on it's own, this is the proof for that.
     //I have the C++ version of subemit for performance.
     //But philosphically speaking TwigSnap can be made just by acorn_script extending itself like this
@@ -128,6 +127,62 @@
                 if(ctx.node.children.length==0) { //Implcit case, for when a div is paramatrized and named but not qualifed as a template, don't emit it!
                     paranoid_qual_kill(ctx);
                     htmlemit(ctx.node,#component);
+                }
+            }
+        }
+    }
+
+
+    global string request_path = "";
+    global string request_arg = "";
+    global Object params = deadptr;
+    global Node page = deadnode;
+    newstage routing;
+    register route;
+
+    global Node route_search(Node n) {
+        Node to_return = deadnode;
+        int first_slash = request_path.find("/");
+        if(first_slash>=0) {
+            request_path = request_path.substr(first_slash+1);
+            int next_slash = request_path.find("/");
+            string looking_for = request_path;
+            if(next_slash>=0) {
+                looking_for = request_path.slice(0,next_slash);
+            }
+            n.children.do(child => {
+                if(labels(child.type)=="route") {
+                    if(child.name==looking_for) {
+                        to_return = child;
+                        break;
+                    }
+                }
+            });
+        } 
+        return to_return;
+    }
+
+    "route" {
+        in naming {
+            ctx.node.name = ctx.result.get(ctx.index+1).name;
+            ctx.node.children.push(ctx.result.take(ctx.index+1));
+        }
+        in htmlemiting {
+            if(page==(ctx.node)) {
+                subemit("body",false,"","");
+            } 
+        }
+        in routing {
+            if(request_path.length>0) {
+                Node to_execute = route_search(ctx.node.scopes.get(0));
+                if(is_live(to_execute)) {
+                    rout(to_execute);
+                } else {
+                    if(request_path==ctx.node.name) {
+                        page = ctx.node;
+                    } else {
+                        page = deadnode;
+                    }
                 }
             }
         }
@@ -431,11 +486,17 @@ if(arg_whitelist.length!=0) {
     }
 }
 
+global int cfd = 0;
+global func ws_disconnect_function = deadptr;
+global func ws_post_function = deadptr;
+
 if(log_verbosity>2) {print("Compiling"); tstart("twig_compile");}
 Node twig = compile(read_file(twigpath));
 if(log_verbosity>2) {print("Compiled in: ",tstop("twig_compile"));}
 
-Node page = twig.children.get(0);
+page = twig.children.get(0);
+
+ColCol param_store = utypes.add("ParamStore");
 
 
 // if(unit_has_arg("--compact")) {
@@ -450,7 +511,6 @@ Node page = twig.children.get(0);
 //print(unit_info);
 
 int fd = unit_index;
-int cfd = 0;
 while(0<1) {
     if(has_state) {
         cfd = unit_index;
@@ -459,7 +519,6 @@ while(0<1) {
     }
     if(cfd>0) {
         if(log_verbosity>0) {tstart("request_timer");}
-        if(log_verbosity>0) {print("Unit ",unit_uid," recived request ",cfd);}
         string req = "";
         if(has_state) {
             req = unit_label;
@@ -470,6 +529,101 @@ while(0<1) {
         } else {
             req = read(cfd);
         }
+
+        string method = "";
+        string response_body = "";
+
+        if(is_websocket(req)) {
+            if(websocket_accept(cfd, req)) {
+                if(log_verbosity>0) {print("Unit ",unit_uid," recived a webcorn request ",cfd);}
+                while(0<1) {
+                    req = websocket_read(cfd);
+                    current_request = req;
+                    if(req.length==0) {
+                        if(is_live(ws_disconnect_function)) {
+                            ws_disconnect_function();
+                            ws_disconnect_function = deadptr;
+                            ws_post_function = deadptr;
+                        }
+                        break;
+                    }
+                    int first_space_at = req.find(" ");
+                    string method = req.substr(0,first_space_at);
+                    string src = req.substr(first_space_at+1);
+
+                    request_path = src;
+                    request_arg = "";
+                    response_body = "";
+                    ctx.source = "";
+
+                    if(method=="POST") {
+                        if(is_live(ws_post_function)) {
+                            ws_post_function();
+                        }
+                    }
+
+                    if(method=="GET") {
+                        int arg_at = request_path.find("?");
+                        if(arg_at>=0) {
+                            request_arg = request_path.substr(arg_at+1);
+                            request_path = request_path.substr(0,arg_at);
+                        }
+                        page = route_search(twig);
+                        if(is_live(page)) {
+                            rout(page);
+                        }   
+                        if(!is_live(page)) {
+                            continue;
+                        }
+                        ctx.source = "";  
+                        htmlemit page;
+                        response_body.append(ctx.source);
+                        websocket_write(cfd,response_body);
+                    }                        
+                    if(method=="RUN") {
+                        if(src.length==0) {
+                            print("Recived a blank run request");
+                        } else {
+                            if(log_verbosity>1) {print("Websocket running:\n",src);}
+                            Ptr string args = split_str(src,"@");
+                            ctx.source = "go";
+                            if(args.length>0) {
+                                string ptrstring = args.get(0);      
+                                Ptr pointer = string_to_Ptr(ptrstring);  
+                                if(is_live(pointer)) {
+                                    Node root = cast_to_Node(pointer);
+                                    if(args.length>1) {
+                                        for(int a=1;(a+1)<args.length;a++) {
+                                            if(args.get(a)=="[VAR]") {
+                                                string escapedarg = escape_html(args.get(a+1));
+                                                root.children.get(a-1).value.getStr = escapedarg;
+                                            }
+                                        }
+                                    }
+                                    ctx.source = "go";
+                                    if(log_verbosity>1) {tstart("executing_run_root");}
+                                    execut root;
+                                    if(log_verbosity>1) {print("Time: ",tstop("executing_run_root"));}
+                                    src = ctx.source;
+                                    if(src=="RELOAD") {
+                                        ctx.source = "";
+                                        htmlemit page;
+                                        response_body = ctx.source;
+                                    } else if(src.length>0) {
+                                        response_body = src;
+                                    }
+                                    websocket_write(cfd, response_body);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            close(cfd);
+            if(log_verbosity>0) {print("Unit ",unit_uid," closed websocket after ",tstop("request_timer"));}
+            continue;
+        }
+
         current_request = req;
         response = "";
 
@@ -478,7 +632,7 @@ while(0<1) {
         //print("Req:\n",req);
 
         string first_line = req.substr(0, req.find("\r\n"));
-        string method = first_line.substr(0, first_line.find(" "));
+        method = first_line.substr(0, first_line.find(" "));
 
         // if(has_state&&method=="SERVE") {
         //     to_serve = first_line.slice(first_line.find(" ")+1, first_line.length);
@@ -515,38 +669,8 @@ while(0<1) {
         //     continue;
         // }
         
-        if(has_state) {
-            if(method=="SERVE") {
-                string to_serve = first_line.slice(first_line.find(" ")+1, first_line.length);
-
-                string mime = "application/octet-stream";
-                if(to_serve.find(".png") > 0)  {mime = "image/png";}
-                if(to_serve.find(".jpg") > 0)  {mime = "image/jpeg";}
-                if(to_serve.find(".webp") > 0) {mime = "image/webp";}
-                if(to_serve.find(".js") > 0)   {mime = "application/javascript";}
-                if(to_serve.find(".css") > 0)  {mime = "text/css";}
-
-                print("Serving file ",to_serve);
-                string info = read_file(to_serve);
-                response = "HTTP/1.1 200 OK\r\n"
-                                + "Content-Type: " + mime + "\r\n"
-                                + "Content-Length: " + to_string(info.length) + "\r\n"
-                                + "\r\n";
-                response += info;
-                write(cfd, response);
-                close(cfd);
-                if(log_verbosity>1) {tstop("request_timer");}
-                print("Unit ", unit_uid, " completed file request ", cfd, " in ", tstop("request_timer"));
-                unit_setindex(0);
-                cfd = 0;
-                continue;
-            }
-        }
-
         string slashpath = first_line.slice(" ", 1, 2);
         string unslashpath = slashpath.substr(1,slashpath.length-1); //Strip the slash
-        if(log_verbosity>1) {print("Method: ",method);}
-        if(log_verbosity>1) {print("Path: ",slashpath);}
 
         if(tracking_enabled) {
             string cip = ip_of(cfd);
@@ -589,7 +713,15 @@ while(0<1) {
                 trail[current_trid_token+": "+unit_precise_timestamp] = store_ptr;
             }
         }
-
+        
+        if(slashpath=="/.well-known/appspecific/com.chrome.devtools.json") {
+            if(log_verbosity>1) {tstop("request_timer");}
+            response = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
+            write(cfd, response);
+            unit_setindex(0);
+            cfd = 0;
+            continue;
+        }
 
         if(unslashpath.find(".")>0) {
             string strip_to_directory = "";
@@ -628,7 +760,10 @@ while(0<1) {
             continue;
         }
 
-        string response_body = "";
+        if(log_verbosity>0) {print("Unit ",unit_uid," recived request ",cfd);}
+        if(log_verbosity>1) {print("Method: ",method);}
+        if(log_verbosity>1) {print("Path: ",slashpath);}
+
         bool should_emit_page = true;
 
         if(has_state&&(session.username.length==0)) {
@@ -649,34 +784,14 @@ while(0<1) {
                 }
                 response_body.append(ctx.source);
             } else {
-                if(auto_log&&current_session_token!="loggedout") { //Auto log in as Fir for debug
-                    print("Auto logging");
-                    if(unit_uid==2) {
-                        cry("SESSION:Fir");
-                    } else {
-                        cry("SESSION:Ash");
-                    }
-                    string session_token = unit_label;
-                        string userinfo = read_file(session.userpath+"/userinfo");
-                        session.role = userinfo.slice(0,userinfo.find("\n"));
-                        session.org = userinfo.slice("\n",1,2);
-                    string do_str = "document.cookie = 'session="+session_token+"; path=/';";
+                if(slashpath!="/login") {
+                    redirected_from = slashpath;
                     ctx.source = "";
                     emit_block {
-                        script js_do(do_str);
+                        script js_do("window.location.href = '/login';");
                     }
                     response_body.append(ctx.source);
-                    //save_sheet(generate_redberry_sheet,"web/thistle/users/Fir/sheets/Blank");
-                } else {
-                    if(slashpath!="/login") {
-                        redirected_from = slashpath;
-                        ctx.source = "";
-                        emit_block {
-                            script js_do("window.location.href = '/login';");
-                        }
-                        response_body.append(ctx.source);
-                        should_emit_page = false;
-                    }
+                    should_emit_page = false;
                 }
             }
         }
@@ -695,17 +810,42 @@ while(0<1) {
                 method="GET";
             }   
 
-            page = deadnode;
-            for(int i=0;i<twig.children.length;i++) {
-                Node child = twig.children.get(i);
-                if(labels(child.type)==unslashpath) {
-                    page = child; //Because I haven't added break yet
-                }
+
+
+            request_path = slashpath;
+            request_arg = "";
+            int arg_at = request_path.find("?");
+            if(arg_at>=0) {
+                request_arg = request_path.substr(arg_at+1);
+                request_path = request_path.substr(0,arg_at);
             }
+            string pure_request_path = request_path;
+            if(is_live(params)) {
+                params.recycle;
+            } else {
+                params = param_store.add(Ptr);
+            }
+            Ptr string req_args = split_str(request_arg,"@");
+            string req_label = "";
+            req_args.do(argy => {
+                if(req_label.length>0) {
+                    params[req_label] = from_string(argy);
+                    req_label = "";
+                } else {
+                    req_label = argy;
+                }
+            });
+
+            page = route_search(twig);
+            if(is_live(page)) {
+                rout(page);
+            }   
+
             if(!is_live(page)) {
                 response = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
                 write(cfd, response);
                 unit_setindex(0);
+                print("Unit ",unit_uid," returned 404 from: ",pure_request_path," took ",tstop("request_timer"));
                 cfd = 0;
                 continue;
             }
@@ -768,7 +908,7 @@ while(0<1) {
                                 bool is_valid_run = false;
                                 Node pnode = cast_to_Node(pointer);
                                 while(is_live(pnode)) {
-                                    if(pnode.type==#login) {is_valid_run = true; break;}
+                                    if(pnode.name=="login") {is_valid_run = true; break;}
                                     pnode = pnode.climb;
                                 }
                                 if(!is_valid_run) {
@@ -806,12 +946,35 @@ while(0<1) {
                                 } else if(src.length>0) {
                                     response_body = src;
                                 }
+
+                                bool should_emit_params = false;
+                                params.cells((k,v,indx) => {
+                                    if(indx==0) {
+                                        should_emit_params = true;
+                                        pure_request_path.append("?"+to_string(k)+"&AT"+to_string(v));
+                                    } else {
+                                        pure_request_path.append("&AT"+to_string(k)+"&AT"+to_string(v));
+                                    }
+                                });
+                                if(should_emit_params) {
+                                    response_body.append("@RUN history.pushState(null,'',"+js_lit(pure_request_path)+");");    
+                                }  
                             }
                         }
                     }
                 }
+            } else {
+                params.cells((k,v,indx) => {
+                    if(indx==0) {
+                        pure_request_path.append("?"+to_string(k)+"@"+to_string(v));
+                    } else {
+                        pure_request_path.append("@"+to_string(k)+"@"+to_string(v));
+                    }
+                });
+                response_body.append("<script>history.replaceState(null,'',"+js_lit(pure_request_path)+");</script>");
             }
         }
+
         if(response.length==0) {
             response.append("HTTP/1.1 200 OK\r\n");
             response.append("Content-Type: text/html\r\n");
@@ -830,23 +993,6 @@ while(0<1) {
         unit_setindex(0);
         cfd = 0;
     } else {
-        Header header;
-        if(check_messages(header)) {
-            tstart("msg_timer");
-            print("Unit ",unit_uid," recived a message");
-            string method = header.getString("Method");
-            print("Method: ",method);
-            if(method=="RUN") {
-                string message = header.getString("Message");
-                discard_message(header);
-                print("Message: ",message);
-                Node msgroot = compile(message);
-                execut msgroot;
-                print("Done");
-            }
-            print("Unit ",unit_uid," completed message in ",tstop("msg_timer"));
-        } else {
-            thread_sleep;
-        }
+        thread_sleep;
     }
 }

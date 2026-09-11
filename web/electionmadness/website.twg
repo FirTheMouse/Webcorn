@@ -266,25 +266,19 @@ inlined skeleton_pulse {
             return "rgb(210,60,60)";
         } else if(party_str=="Democrat") {
             return "rgb(60,100,200)";
+        } else if(party_str=="Libertarian") {
+            return "rgb(230,197,0)";
+        } else if(party_str=="Green") {
+            return "rgb(60,160,80)";
+        } else if(party_str=="Independent" || party_str=="Non-partisan") {
+            return "rgb(145,90,180)";
         } else {
             return "gray";
         }
     }       
 ##
 
-
-
-
-##
-    register login;
-    "login" {
-        in htmlemiting {
-            subemit("body",false,"","");
-        }
-    }
-##
-
-login {
+route login {
     div {
         style "
             td:hover {
@@ -994,15 +988,22 @@ div top_bar(string on_route) {
             "overflow-y" : "hidden";
             "transition" : "height 0.6s ease";
 
-            stateless template div nav_link(string label, string route) {
+            stateless template div nav_link(string label, string this_route) {
                 link label {
                     "font-size" : "1rem";
-                    "font-weight" : (on_route==route?"700":"500");
-                    "color" : (on_route==route?"rgb(18,121,190)":"rgb(48,48,48)");
+                    "font-weight" : (on_route==this_route?"700":"500");
+                    "color" : (on_route==this_route?"rgb(18,121,190)":"rgb(48,48,48)");
                     "cursor" : "pointer";
-                    "text-decoration" : (on_route==route?"underline":"none");
-                    "href" : route;
+                    "text-decoration" : (on_route==this_route?"underline":"none");
+                    "href" : this_route;
                     text_theme;
+                }
+            }
+
+            sync_user;
+            if(is_live(user)) {
+                if(user.?authourized) {
+                    nav_link("admin","/admin");
                 }
             }
 
@@ -1053,15 +1054,6 @@ div top_bar(string on_route) {
     ";
 }
 
-##
-    register root_path;
-    "root_path" {
-        in htmlemiting {
-            subemit("body",false,"","");
-        }
-    }
-##
-
 void standard_header {
     html '<meta name="viewport" content="width=device-width, initial-scale=1">';
     style "
@@ -1079,7 +1071,7 @@ void standard_header {
     script read_file("web/webcorn.js");
 }
 
-root_path {
+route "" {
     standard_header;
     sync_with_database;
     script sync_with_client();
@@ -2118,17 +2110,7 @@ root_path {
     ";
 }
 
-
-##
-    register faqs;
-    "faqs" {
-        in htmlemiting {
-            subemit("body",false,"","");
-        }
-    }
-##
-
-faqs {
+route faqs {
     standard_header;
     top_bar("/faqs");
     div {
@@ -2195,16 +2177,7 @@ faqs {
     }
 }
 
-##
-    register student_resources;
-    "student_resources" {
-        in htmlemiting {
-            subemit("body",false,"","");
-        }
-    }
-##
-
-student_resources {
+route student_resources {
     standard_header;
     top_bar("/student_resources");
     div {
@@ -2283,16 +2256,7 @@ student_resources {
     }
 }
 
-##
-    register instructor_resources;
-    "instructor_resources" {
-        in htmlemiting {
-            subemit("body",false,"","");
-        }
-    }
-##
-
-instructor_resources {
+route instructor_resources {
     standard_header;
     top_bar("/instructor_resources");
     div {
@@ -2374,16 +2338,7 @@ instructor_resources {
     }
 }
 
-##
-    register contacts;
-    "contacts" {
-        in htmlemiting {
-            subemit("body",false,"","");
-        }
-    }
-##
-
-contacts {
+route contacts {
     standard_header;
     top_bar("/contacts");
     div {
@@ -2413,5 +2368,26 @@ contacts {
                 text_theme;
             }
         }
+    }
+}
+
+route admin {
+    sync_user;
+    if(is_live(user)) {
+        if(user.?authourized) {
+            standard_header;
+            top_bar("/admin");
+            text "Welcome to the admin page";
+
+            ColCol classes = database["Classes"];
+            
+
+        } else {
+            print(user.username," attempted unauthorized access to the admin route in unit ",unit_uid," on ",unit_standard_time); 
+            script "window.location.href = '/';";
+        }
+    } else {
+        print("A guest attempted to access the admin route in unit ",unit_uid," on ",unit_standard_time); 
+        script "window.location.href = '/';";
     }
 }

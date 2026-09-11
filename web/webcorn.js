@@ -16,17 +16,86 @@ function apply_theme(el, css) {
     });
 }
 
+function fill_capture(run, ...args) {
+    for (const arg of args) {
+        run = run.replace('[ANY]',arg);
+    }
+    return run;
+}
+
+function getCursorOffset(el) {
+    const sel = window.getSelection();
+    if(!sel.rangeCount) return null;
+
+    const range = sel.getRangeAt(0);
+    const parent = range.startContainer?.parentElement;
+
+    let offset = range.startOffset;
+
+    for(const child of el.children) {
+        if(child === parent)
+            break;
+        offset += child.innerText.length;
+    }
+
+    return offset;
+}
+
+function setCursorOffset(el, offset) {
+    const sel = window.getSelection();
+    const range = document.createRange();
+    let remaining = offset;
+    
+    for(const child of el.children) {
+
+        const len = child.innerText.length;
+        if(remaining-len==1) {
+            remaining-=1;
+        }
+        if(remaining <= len) {
+            const text = child.firstChild;
+            if(text) {
+                range.setStart(text, remaining);
+                range.collapse(true);
+
+                sel.removeAllRanges();
+                sel.addRange(range);
+            }
+            return;
+        }
+        remaining -= len;
+    }
+}
+
+
+
 function read_run_response(response) {
     if(!response) {console.log('no response from run'); return};
     var to_return = '';
     const instructions = response.split('@');
     instructions.forEach(instr => {
+        instr = instr.replace(/&AT/g, '@');
         if(instr.startsWith('FRAG ')) {
             const space = instr.indexOf(' ', 5);
             const target = instr.slice(5, space);
             const content = instr.slice(space + 1);
             document.querySelectorAll('#'+target).forEach(el => {
-                el.outerHTML = content;
+
+                const editable = el.matches('[contenteditable="true"]')
+                    ? el
+                    : el.querySelector('[contenteditable="true"]');
+
+
+                if(editable) {
+                    const offset = getCursorOffset(editable);
+                    editable.innerHTML = content;
+                    setCursorOffset(editable, offset);
+                } else {
+                    el.outerHTML = content;
+                }
+
+
+                
                 document.querySelectorAll('#'+target+' script').forEach(old => {
                     const script = document.createElement('script');
                     script.textContent = old.textContent;
@@ -50,6 +119,12 @@ function read_run_response(response) {
 
 function run(ptr, ...captures) {
     const body = [ptr, ...captures].join('@'); //@ is the delmiter we use for runs
+
+    if(window.ws && window.ws.readyState === WebSocket.OPEN) {
+        window.ws.send('RUN '+body);
+        return Promise.resolve();
+    }
+
     return fetch(window.location.pathname, {
         method: 'RUN',
         body: body
@@ -157,6 +232,39 @@ function post(body) {
         method: "POST",
         body: body
     })
+}
+async function postAsset(file) {
+    const header = `ASSET ${file.type}\n`;
+
+    const payload = new Blob(
+        [header, file],
+        { type: "application/octet-stream" }
+    );
+
+    if(window.ws &&window.ws.readyState === WebSocket.OPEN) {
+        const wsPayload = new Blob([
+            "POST ",
+            payload
+        ]);
+        window.ws.send(wsPayload);
+        return;
+    }
+
+    const response = await fetch(window.location.href, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/octet-stream"
+        },
+        body: payload
+    });
+
+    if(!response.ok) {
+        throw new Error(
+            `Asset POST failed: ${response.status}`
+        );
+    }
+
+    return response.text();
 }
 
 function cell_post(input, label, col, row, target) {

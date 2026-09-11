@@ -1,15 +1,172 @@
 ##
-    register root_path;
-    "root_path" {
-        in htmlemiting {
-            subemit("body",false,"","");
-        }
-    }
+    global string golden_color = " #dea426";
+    global string golden_color_L1 = "rgb(235, 175, 47)";
+    global string golden_color_D1 = "rgb(201, 150, 39)";
+
+    global string pebble_color = "rgb(67, 67, 67)";
+    global string pebble_color_L2 = "rgb(110, 110, 110)";
+    global string pebble_color_L1 = "rgb(83, 83, 83)";
+    global string pebble_color_D1 = "rgb(52, 51, 51)";
+    global string pebble_color_D2 = "rgb(30, 30, 30)";
+
+    global string pine_color = "rgb(31, 60, 27)";
+    global string pine_color_L1 = "rgb(39, 76, 34)";
+
+    global string wood_color = "rgb(64, 26, 13)";
+    global string wood_color_L1 = "rgb(89, 51, 38)";
+    global string wood_color_D1 = "rgb(38, 13, 6)";
+
+    global string selected_color = "rgb(128, 128, 179)";
 ##
+
+inlined card_theme {
+    "border-radius" : "8px";
+    "background-color" : "rgb(67, 67, 67)";
+}
+inlined main_font {
+    "font-family" : "system-ui, sans-serif";
+}
+inlined golden_font {
+    "font-family" : "'Short Stack', system-ui, sans-serif";
+}
+inlined text_theme {
+    "white-space" : "pre-wrap";
+    "color" : " rgb(238, 238, 238)";
+    "margin" : "4 8 4 8px";
+    "font-size" : "0.9rem";
+    "font-weight" : "400";
+    "line-height" : "1.5";
+    main_font;
+}
+
+inlined wood_theme {
+    "background-color" : wood_color;
+    "color" : "rgb(238, 238, 238)";
+}
+
+inlined wood_bright_theme {
+    "background-color" : wood_color_L1;
+    "color" : "rgb(238, 238, 238)";
+}
+
+inlined wood_dark_theme {
+    "background-color" : wood_color_D1;
+    "color" : "rgb(238, 238, 238)";
+}
+
+inlined panel_theme {
+    wood_theme;
+    main_font;
+    "border-radius" : "8px";
+    "padding" : "6px";
+}
+
+inlined panel_header_theme {
+    wood_bright_theme;
+    main_font;
+    "padding" : "6px 10px";
+    "font-weight" : "600";
+}
+
+inlined panel_footer_theme {
+    wood_dark_theme;
+    main_font;
+    "padding" : "5px 10px";
+}
+
+inlined pebble_button_theme {
+    golden_font;
+
+    "background-color" : pebble_color;
+    "color" : "rgb(238, 238, 238)";
+    "border" : "none";
+    "border-radius" : "5px";
+    "padding" : "6px 10px";
+    "cursor" : "pointer";
+
+    "transition" : "background-color 0.08s ease, transform 0.06s ease";
+
+    "onmouseenter" : "
+        this.style.backgroundColor='"+pebble_color_L1+"';
+    ";
+
+    "onmouseleave" : "
+        this.style.backgroundColor='"+pebble_color+"';
+        this.style.transform='scale(1)';
+    ";
+
+    "onmousedown" : "
+        this.style.backgroundColor='"+pebble_color_D1+"';
+        this.style.transform='scale(0.97)';
+    ";
+
+    "onmouseup" : "
+        this.style.backgroundColor='"+pebble_color_L1+"';
+        this.style.transform='scale(1)';
+    ";
+}
+
+inlined wood_button_theme {
+    golden_font;
+
+    "background-color" : "rgb(104, 74, 61)";
+    "color" : "rgb(238, 238, 238)";
+
+    "class" : "wood_button";
+
+    "border-top" : "7px solid rgb(149, 109, 89)";
+    "border-left" : "7px solid rgb(124, 89, 73)";
+    "border-right" : "7px solid rgb(52, 32, 26)";
+    "border-bottom" : "7px solid rgb(52, 32, 26)";
+
+    "font-size" : "16px";
+    "text-align" : "center";
+    "padding" : "2px";
+
+    "cursor" : "pointer";
+    "user-select" : "none";
+    "transform-origin" : "top left";
+    "transition" : "transform 0.15s steps(2, end)";
+    "filter" : "brightness(0.85)";
+
+    "onmouseenter" : "
+        this.style.filter='brightness(1.0)';
+    ";
+
+    "onmousedown" : "
+        clearTimeout(this._clunkTimer);
+
+        this._clunkStart = performance.now();
+
+        this.style.filter='brightness(1.1)';
+        this.style.transform='scale(0.990)';
+    ";
+
+    "onmouseup" : "
+        releaseClunk(this, 1.0);
+    ";
+
+    "onmouseleave" : "
+        releaseClunk(this, 0.85);
+    ";
+}
+
+inlined hoverable_theme {
+    "background-color" : transparent;
+    "transition" : "background-color 0.15s ease";
+    "onmouseenter" : "if(this.style.backgroundColor==='transparent')this.style.backgroundColor='rgba(0,0,0,0.04)'";
+    "onmouseleave" : "if(this.style.backgroundColor==='rgba(0, 0, 0, 0.04)')this.style.backgroundColor='transparent'";
+}
+inlined skeleton_pulse {
+    "background" : "linear-gradient(90deg, rgb(60,60,60) 25%, rgb(80,80,80) 50%, rgb(60,60,60) 75%)";
+    "background-size" : "200% 100%";
+    "animation" : "skeleton_pulse 1.5s infinite";
+}
 
 void standard_header {
     html '<meta name="viewport" content="width=device-width, initial-scale=1">';
     style "
+        @import url('https://fonts.googleapis.com/css2?family=Short+Stack&display=swap');
         * {
             margin: 0;
             padding: 0;
@@ -20,29 +177,835 @@ void standard_header {
             html { font-size: 20px; }
         }
         @keyframes skeleton_pulse { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+        .wood_button:focus-visible {
+            outline: none;
+            filter: brightness(1.08);
+        }
     ";
     script read_file("web/webcorn.js");
+    script "
+        function releaseClunk(el, brightness) {
+            const elapsed =
+                performance.now() - (el._clunkStart || 0);
+
+            const wait =
+                Math.max(0, 150 - elapsed);
+
+            clearTimeout(el._clunkTimer);
+
+            el._clunkTimer = setTimeout(() => {
+                el.style.filter =
+                    'brightness(' + brightness + ')';
+
+                el.style.transform = 'scale(1)';
+            }, wait);
+        }
+    ";
 }
 
-root_path {
-    standard_header;
-    div {
-        "height" : "100vh";
-        "display" : "flex";
-        "flex-direction" : "column";
-        for(int j=0;j<2;j++) {
-            div {
-                "width" : "100%";
-                "height" : "50%";
-                for(int i=0;i<2;i++) {
-                    iframe {
-                        "src" : "http://localhost:443/";
-                        "width" : "50%";
-                        "height" : "100%";
-                        "border" : "none";
-                    }
+
+
+inlined input_theme {
+    component_theme;
+    "border-left" : "1px solid rgb(200,200,200)";
+    "border-top" : "1px solid rgb(200,200,200)";
+    "border-right" : "1px solid rgb(200,200,200)";
+    "border-bottom" : "1px solid rgb(200,200,200)";
+    "border-radius" : "8px";
+    "padding" : "10px 14px";
+    "width" : "100%";
+    "font-size" : "15px";
+    "font-family" : "system-ui, sans-serif";
+}
+inlined air_input_theme {
+    "border" : "none";
+    "border-bottom" : "2px solid rgb(200,200,200)";
+    "border-radius" : "0px";
+    "background-color" : "transparent";
+    "padding" : "8px 0px";
+    input_theme;
+}
+inlined form_input_theme {
+    air_input_theme;
+}
+inlined form_sub_input_theme {
+    "border" : "2px solid rgb(200,200,200)";
+    air_input_theme;
+}
+inlined form_select_theme {
+    component_theme;
+    "border" : "1px solid rgb(200,200,200)";
+    "border-radius" : "8px";
+    "padding" : "8px 12px";
+    "width" : "100%";
+    "font-size" : "14px";
+    "font-family" : "system-ui, sans-serif";
+    "cursor" : "pointer";
+    "appearance" : "none";
+    "-webkit-appearance" : "none";
+}
+
+##
+    global string guestid;
+    global Object user;
+    global void sync_user() {
+        guestid = get_cookie(current_request,"guestid");
+        ColCol users = database["Users"];
+        users.try_read_forever_then {
+            if(users.has(guestid)) {
+                user = users[guestid];
+            } else {
+                user = deadptr;
+            }
+        }
+    }  
+    global void sync_with_database() {
+        if(!has_state) {
+            if(guestid.length==0) {
+                guestid = get_cookie(current_request,"guestid");
+            }
+            if(guestid.length==0) {
+                guestid = generate_token;
+                response.append("HTTP/1.1 200 OK\r\n");
+                response.append("Content-Type: text/html\r\n");
+                response.append("Set-Cookie: guestid="+guestid+"; path=/; SameSite=Lax\r\n");
+            }
+            ColCol users = database["Users"];
+            users.try_read_forever_then {
+                if(users.has(guestid)) {
+                    user = users[guestid];
+                } else {
+                    user = deadptr;
                 }
             }
+            if(!is_live(user)) {
+                users.try_lock_forever_then {
+                    user = users.Object(
+                        Assets: [string]
+                    ).register(guestid);
+                }
+            }
+            guestid = "";
+        }
+    }
+##
+
+route login {
+    div {
+        standard_header;
+        
+        "background-color" : pebble_color_D1;
+        response.append("HTTP/1.1 200 OK\r\n");
+        response.append("Content-Type: text/html\r\n");
+        response.append("Cache-Control: no-store\r\n");
+        sync_user;
+        bool user_registered = false;
+        if(is_live(user)) {
+            user.as(ColCol).try_read_forever_then {
+                user_registered = user.?password;
+            }   
+        }
+        
+        div {
+            "display" : "flex";
+            "min-height" : "100vh";
+                div {
+                    "flex" : "1";
+                    "display" : "flex";
+                    "flex-direction" : "column";
+                    "justify-content" : "center";
+                    "align-items" : "center";
+                        div {
+                            "id" : "login_body";
+                            "display" : "flex";
+                            "justify-content" : "center";
+                            "align-items" : "center";
+                            "flex-direction" : "column";
+                            "width" : "min(480px, 90vw)";
+                            "height" : "auto";
+                            "min-height" : "120px";
+                            "padding" : "40px";
+                            "gap" : "12px";
+                            "background-color" : wood_color_L1;
+                            "border-radius" : "12px";
+                            "box-shadow" : "0 4px 24px rgba(0,0,0,0.08)";
+
+                            div login_buttons {
+                                "display" : "flex";
+                                "justify-content" : "center";
+                                "align-items" : "center";
+                                "flex-direction" : "column";
+                                "width" : "100%";
+                                "height" : "100%";
+                                
+                                div {
+                                    "display" : "flex";
+                                    "width" : "100%";
+                                    "padding" : "10px";
+                                    "gap" : "12px";
+
+                                    if(!user_registered) {
+                                        string login_behaviour = capture(
+                                            string given_username ; "getel('username').value",
+                                            string given_password ; "getel('password').value"
+                                        ) {
+                                            Ptr sessions = database[0]["sessions"];
+                                            string result = "";
+                                            sessions.try_read_forever_then {
+                                                if(sessions.has(given_username)) {
+                                                    user = sessions[given_username];
+                                                    if(user.password==secure_hash(given_password)) {
+                                                        response.append("HTTP/1.1 200 OK\r\n");
+                                                        response.append("Content-Type: text/html\r\n");
+                                                        response.append("Set-Cookie: guestid="+(user.label)+"; path=/; SameSite=Lax\r\n");
+                                                        emit_js("
+                                                            window.location.href = "+(redirected_from.length==0?"'/'":js_lit(redirected_from))+";
+                                                        ");
+                                                    } else {
+                                                        result = "Wrong password";
+                                                    }
+                                                } else {
+                                                    result = "Username not found";
+                                                }
+                                            }
+                                            if(result.length>0) {
+                                                emit_js("
+                                                    const btn = getel('login');
+                                                    btn.children[0].innerText='"+result+"';
+                                                    setTimeout(() => {
+                                                        btn.children[0].innerText = 'Login';
+                                                    }, 600);
+                                                "); 
+                                            }
+                                        };
+
+                                        string register_behaviour = capture(
+                                            string given_username ; "getel('username').value",
+                                            string given_password ; "getel('password').value"
+                                        ) {
+                                            Ptr sessions = database[0]["sessions"];
+                                            bool username_avaliable = true;
+                                            string result = "";
+                                            sessions.try_read_forever_then {
+                                                if(sessions.has(given_username)) {
+                                                    username_avaliable = false;
+                                                    result = "Username not avaliable";
+                                                }
+                                            }
+                                            if(username_avaliable) {
+                                                sync_with_database;
+                                                ColCol userlock = user;
+                                                string hashed_password = secure_hash(given_password);
+                                                sessions.try_lock_forever_then {
+                                                    if(sessions.has(given_username)) {
+                                                        result = "Username not avaliable";
+                                                    } else {
+                                                        userlock.try_lock_forever_then {
+                                                            if(user.?password) {
+                                                                result = "Already registered";
+                                                            } else {
+                                                                user.password = hashed_password;
+                                                                sessions.put(given_username, user);
+                                                                result = "Registered";
+                                                                emit_js("
+                                                                    window.location.href = "+(redirected_from.length==0?"'/'":js_lit(redirected_from))+";
+                                                                ");
+                                                                database.save;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            emit_js("
+                                                const btn = getel('login');
+                                                btn.children[0].innerText='"+result+"';
+                                                setTimeout(() => {
+                                                    btn.children[0].innerText = 'Register';
+                                                }, 600);
+                                            "); 
+                                        };
+                                        
+                                        script "
+                                            function expand_login_card(card) {
+                                                if(card.style.height === '0px') {
+                                                    card.style.height = 'auto';
+                                                    const h = card.scrollHeight;
+                                                    card.style.height = '0px';
+                                                    requestAnimationFrame(() => {
+                                                        card.style.height = h + 'px';
+                                                    });
+                                                }
+                                            }
+                                            function toggle_login_card(new_label, is_login) {
+                                                const card = getel('login_card');
+                                                const btn = getel('login');
+                                                btn.onclick = is_login ? function() { "+login_behaviour+" } : function() { "+register_behaviour+" };
+                                                if(btn.children[0].innerText !== new_label) {
+                                                    btn.children[0].innerText = new_label;
+                                                    expand_login_card(card);
+                                                } else {
+                                                    if(card.style.height === '0px') {
+                                                        expand_login_card(card);
+                                                    } else {
+                                                        card.style.height = '0px';
+                                                    }
+                                                }
+                                            }
+                                        ";
+                                    }
+
+                                    stateless template div loginbtn(string label, string behaviour) {
+                                        button {
+                                            "width" : "50%";
+                                            "height" : "35px";
+                                            wood_button_theme;
+                                            text label {"color" : "white"; golden_font;}
+                                            "onclick" : behaviour;
+                                        }
+                                    }
+                                    
+                                    if(user_registered) {
+                                        loginbtn("Back",capture{
+                                            emit_js("
+                                                window.location.href = "+(redirected_from.length==0?"'/'":js_lit(redirected_from))+";
+                                            ");
+                                        });
+                                        loginbtn("Logout",capture{
+                                            response.append("HTTP/1.1 200 OK\r\n");
+                                            response.append("Content-Type: text/html\r\n");
+                                            response.append("Set-Cookie: guestid=; path=/; SameSite=Lax; Max-Age=0\r\n");
+                                            user_registered = false;
+                                            login_buttons.reload;
+                                        });
+                                    } else {
+                                        loginbtn("Guest",capture{
+                                            emit_js("
+                                                window.location.href = "+(redirected_from.length==0?"'/'":js_lit(redirected_from))+";
+                                            ");
+                                        });
+                                        loginbtn("Log In","toggle_login_card('Login',true);");
+                                        loginbtn("Register","toggle_login_card('Register',false);");
+                                    }
+                                }
+                                div {
+                                    "width" : "100%";
+                                    "display" : "flex";
+                                    "flex-direction" : "column";
+                                    "align-items" : "center";
+                                    "gap" : "8px";
+                                    div {
+                                        "id" : "login_card";
+                                        "display" : "flex";
+                                        "justify-content" : "center";
+                                        "align-items" : "end";
+                                        "flex-direction" : "column";
+                                        "height" : "0px";
+                                        "overflow" : "hidden";
+                                        "transition" : "height 0.5s ease";
+                                        "gap" : "12px";
+                                        
+                                        inlined login_input_theme {
+                                            "border-top" : "none";
+                                            "border-left" : "none";
+                                            "border-right" : "none";
+                                            "border-bottom" : "2px solid rgb(200,200,200)";
+                                            "border-radius" : "0px";
+                                            "background-color" : "transparent";
+                                            "padding" : "8px 0px";
+                                            input_theme;
+                                        }
+        
+                                        div {
+                                            "display" : "flex";
+                                            "align-items" : "center";
+                                            "width" : "100%";
+                                            "gap" : "7px";
+                                                text "Username:" {
+                                                    "width" : "70px";
+                                                    "font-size" : "14px";
+                                                    "flex-shrink" : "0";
+                                                    text_theme;
+                                                }
+                                                input {
+                                                    "id" : "username";
+                                                    "flex" : "1";
+                                                    login_input_theme;
+                                                }
+                                        }
+
+                                        div {
+                                            "display" : "flex";
+                                            "align-items" : "center";
+                                            "width" : "100%";
+                                            "gap" : "8px";
+                                                text "Password:" {
+                                                    "width" : "70px";
+                                                    "font-size" : "14px";
+                                                    "flex-shrink" : "0";
+                                                    text_theme;
+                                                }
+                                                input {
+                                                    "id" : "password";
+                                                    "type" : "password";
+                                                    "flex" : "1";
+                                                    login_input_theme;
+                                                }
+                                        }
+
+                                        button {
+                                            "id" : "login";
+                                            text "Login" {
+                                                "font-size" : "14px";
+                                                "color" : "white";
+                                                golden_font;
+                                            }
+                                            "width" : "75%";
+                                            wood_button_theme;
+                                        }
+                                    }
+                                }
+                                if(!user_registered) {
+                                    if(is_live(user)) {
+                                        script "toggle_login_card('Register',false)";
+                                    }
+                                }
+                            }
+                        }
+                }
+        }
+    }
+}
+
+
+
+##
+    global ColColCol world = deadptr;
+##
+
+
+route "" {
+    standard_header;
+    sync_with_database;
+    div page_root {
+        "width" : "100%";
+        "min-height" : "100vh";
+        if(is_live(world)) {
+            print(green("User "),user," has entered world");
+            Ptr cfds = world[0]["CFDs"];
+            string basic_behaviour = capture(
+                string js_part ; "[ANY]"
+            ){
+                js_part = unescape_html(js_part);            
+                cfds.do(v => {
+                    if(v!=cfd) {
+                        websocket_write(v,js_part);
+                    }
+                });
+            }
+            script "
+                const basicBehaviour = "+js_lit(basic_behaviour)+";
+                function broadcast(js_part) {
+                    if(
+                        !window.ws ||
+                        window.ws.readyState !== WebSocket.OPEN
+                    ) {
+                        return;
+                    }
+                    eval(fill_capture(
+                        basicBehaviour,
+                        JSON.stringify(js_part)
+                    ));
+                }
+            ";
+
+
+            string world_init = "const world = {};";
+            world.try_read_forever_then {
+                world_init+="world.CFDs = [];";
+                world[0]["CFDs"].do(c => {
+                    world_init+="world.CFDs.push("+to_string(c)+");";
+                });
+            }
+
+            div viewport {
+                "display" : "flex";
+                "width" : "100%";
+                "height" : "100%";
+                "overflow" : "hidden";
+                "position" : "relative";
+                "cursor" : "grab";
+                "touch-action" : "none";
+                "background-color" : "black";
+                "flex-direction" : "column";
+
+                div {
+                    "id" : "world_root";
+                    "position" : "absolute";
+                    "left" : "0";
+                    "top" : "0";
+                    "transform-origin" : "0 0";
+                    "z-index" : "0";
+
+                    world.try_read_forever_then {
+                        ColCol geo = world["Geo"];
+                        Ptr e_handles = geo["E_Handles"];
+                        Ptr e_assets = geo["E_Assets"];
+
+                        Ptr e_x     = geo["E_X"];
+                        Ptr e_y     = geo["E_Y"];
+                        Ptr e_z     = geo["E_Z"];
+                        Ptr e_rot   = geo["E_Rot"];
+                        Ptr e_scale = geo["E_Scale"];
+
+                        string transform_thing_behaviour = capture(
+                            string s_eid       ; "[ANY]",
+                            string s_new_x     ; "[ANY]",
+                            string s_new_y     ; "[ANY]",
+                            string s_new_z     ; "[ANY]",
+                            string s_new_rot   ; "[ANY]",
+                            string s_new_scale ; "[ANY]"
+                        ){
+                            int eid = stoi(s_eid);
+                            float new_x = stof(s_new_x);
+                            float new_y = stof(s_new_y);
+                            int new_z = stoi(s_new_z);
+                            float new_rot = stof(s_new_rot);
+                            float new_scale = stof(s_new_scale);
+
+                            world.try_read_forever_then {
+                                geo.try_read_forever_then {
+                                    e_x[eid] = new_x;
+                                    e_y[eid] = new_y;
+                                    e_z[eid] = new_z;
+                                    e_rot[eid] = new_rot;
+                                    e_scale[eid] = new_scale;
+                                }
+                            }
+                        };
+                        script "
+                            const transformThingBehaviour = "+js_lit(transform_thing_behaviour)+";
+                            function transform_thing(
+                                eid,
+                                new_x,
+                                new_y,
+                                new_z,
+                                new_rot,
+                                new_scale
+                            ) {
+                                eval(fill_capture(
+                                    transformThingBehaviour,
+                                    JSON.stringify(eid),
+                                    JSON.stringify(new_x),
+                                    JSON.stringify(new_y),
+                                    JSON.stringify(new_z),
+                                    JSON.stringify(new_rot),
+                                    JSON.stringify(new_scale)
+                                ));
+                            }
+                        ";
+
+                
+                        world_init+="world.Things = [];";
+                        for(int i=0;i<e_handles.length;i++) {
+                            geo.try_read_forever_then {
+                                float x     = e_x[i];
+                                float y     = e_y[i];
+                                int   z     = e_z[i];
+                                float rot   = e_rot[i];
+                                float scale = e_scale[i];
+
+                                string ptr = capture_ptr(e_handles[i]);
+
+                                img {
+                                    "class" : "ab_entity";
+                                    "src" : (e_assets[i]);
+                                    "data-eidx" : to_string(i);
+
+                                    "position" : "absolute";
+                                    "left" : (to_string(x)+"px");
+                                    "top" : (to_string(y)+"px");
+                                    "z-index" : to_string(z);
+
+                                    "transform-origin" : "center center";
+                                    "transform" : (
+                                        "rotate("+to_string(rot)+"rad) scale("+to_string(scale)+")"
+                                    );
+
+                                    "draggable" : "false";
+                                    "user-select" : "none";
+                                }
+
+                                world_init += "
+                                    world.Things.push({
+                                        i: "+to_string(i)+",
+                                        ptr: "+js_lit(ptr)+",
+                                        x: "+to_string(x)+",
+                                        y: "+to_string(y)+",
+                                        z: "+to_string(z)+",
+                                        rot: "+to_string(rot)+",
+                                        scale: "+to_string(scale)+"
+                                    });
+                                ";
+                            }
+                        }
+                    }
+
+                    div {
+                        "id" : "scale_handle";
+                        "position" : "absolute";
+                        "width" : "14px";
+                        "height" : "14px";
+                        "background-color" : "white";
+                        "border" : "2px solid black";
+                        "cursor" : "nwse-resize";
+                        "z-index" : "10000";
+                        "display" : "none";
+                    }
+
+                    div {
+                        "id" : "rotate_handle";
+                        "position" : "absolute";
+                        "width" : "14px";
+                        "height" : "14px";
+                        "border-radius" : "50%";
+                        "background-color" : "white";
+                        "border" : "2px solid black";
+                        "cursor" : "grab";
+                        "z-index" : "10000";
+                        "display" : "none";
+                    }
+                }
+
+                input {
+                    "id" : "asset_file_input";
+                    "type" : "file";
+                    "accept" : "image/png,image/jpeg,image/webp";
+                    "display" : "none";
+                    "onchange" : "
+                        if(this.files.length > 0) {
+                            postAsset(this.files[0]);
+                            this.value = '';
+                        }
+                    ";
+                }
+                
+                div toolbar {
+                    "margin" : "18px";
+                    "width" : "100%";
+                    "height" : "50px";
+                    "background-color" : wood_color_L1;
+                    "position" : "relative";
+                    "z-index" : "10";
+                    "display" : "flex";
+                    "flex-direction" : "row";
+                    "padding" : "8px";
+                    "align-items" : "center";
+                    "justify-content" : "start";
+
+                    button {
+                        wood_button_theme;
+                        text "Walls";
+                        "onclick" : "toggleWallDrawing();";
+                    }   
+                    button {
+                        wood_button_theme;
+                        text "Assets";
+                        "onclick" : capture(
+                            string is_opening ; js_do("
+                                    const asset_panel = getel("+js_lit(capture_node(assets_panel))+");
+                                    if(asset_panel.style.display==='flex') {
+                                        asset_panel.style.display = 'none';
+                                        return 'no';
+                                    } else {
+                                        asset_panel.style.display = 'flex';
+                                        return 'yes';
+                                    }
+                                ")
+                            ) {
+                                if(is_opening=="yes") {
+                                    assets_panel.reload;
+                                }
+                            }
+                    }
+                }  
+
+                div assets_panel {
+                    "margin" : "20px";
+                    "width" : "100%";
+                    "height" : "100%";
+                    "background-color" : wood_color_L1;
+                    "position" : "relative";
+                    "z-index" : "10";
+                    "display" : "flex";
+                    "flex-direction" : "row";
+                    "padding" : "8px";
+                    "align-items" : "center";
+                    "justify-content" : "start";
+
+                    button {
+                        wood_button_theme;
+                        text "Upload";
+                        "onclick" : "getel('asset_file_input').click()";
+                    }
+
+                    Ptr assets = user.Assets;
+                    for(int i=0;i<assets.length;i++) {
+                        string assetpath = assets[i];
+                        if(file_exists(assetpath)) {
+                            img {
+                                "src" : assetpath;
+                                "width" : "100px";
+                                "height" : "100px";
+                                "cursor" : "pointer";
+                                "onclick" : capture(
+                                    string mypath ; js_lit(capture_ptr(assets[i]))
+                                ){
+                                    int eid = 0;
+                                    Ptr thingptr = deadptr;
+                                    Ptr asset = retrive_ptr(mypath);
+                                    world.try_read_forever_then {
+                                        ColCol geo = world["Geo"];
+                                        geo.try_lock_forever_then {
+                                            eid = geo["E_Handles"].length;
+                                            geo["E_Handles"].push(thingptr);
+                                            geo["E_X"].push(0.0);
+                                            geo["E_Y"].push(0.0);
+                                            geo["E_Z"].push(1);
+                                            geo["E_Rot"].push(0.0);
+                                            geo["E_Scale"].push(1.0);
+                                            geo["E_Assets"].push(asset);
+                                        }
+                                    }
+                                    string js =
+                                        "RUN addThing("
+                                        +to_string(eid)+","
+                                        +js_lit(capture_ptr(thingptr))+","
+                                        +js_lit(asset)+","
+                                        +"0.0,"
+                                        +"0.0,"
+                                        +"1,"
+                                        +"0.0,"
+                                        +"1.0"
+                                        +");";
+                                    print("JS: ",js);
+                                    cfds.try_read_forever_then {
+                                        cfds.do(ofd => {
+                                            websocket_write(ofd,js);
+                                        });
+                                    }
+                                }
+                            }
+                        } else {
+                            text "FILE NOT FOUND";
+                        }
+                    }
+
+                }
+
+                script "
+                    getel("+js_lit(capture_node(assets_panel))+").style.display = 'none';
+                ";
+            }
+            
+            script "
+                const viewport = getel("+js_lit(capture_node(viewport))+");
+                window.boardView = {
+                    panX: 0,
+                    panY: 0,
+                    scale: 1
+                };
+            ";
+            //print("World init: ",world_init);
+            script world_init;
+            script read_file(project_path+"abvtt.js");
+        } else {
+            string ws_connect_behaviour = capture(
+                string s_guestid ; "[ANY]"
+            ){
+                guestid = s_guestid;
+                sync_with_database;
+
+                cry("INVEST:world:worlds/world.gsu");
+                print("Unit ",unit_uid," entered world ",capture_ptr(world)," with cfd ",cfd);
+                Ptr cfds = world[0]["CFDs"];        
+                cfds.try_lock_forever_then {
+                    bool not_in = cfds.none(v => {v==cfd});
+                    if(not_in) {
+                        cfds.push(cfd);
+                    }
+                }
+                ws_disconnect_function = [](){
+                    print("Unit ",unit_uid," left world ",capture_ptr(world)," with cfd ",cfd);
+                    world = deadptr;
+                    cfds.try_lock_forever_then {
+                        for(int i=0;i<cfds.length;i++) {
+                            if(cfds[i]==cfd) {
+                                cfds.take(i);
+                                break;
+                            }
+                        }
+                    }
+                };
+                ws_post_function = [](){
+                    int split = request_path.find("\n");
+                    if(split<=0) return;
+
+                    string header = request_path.substr(0,split);
+                    string encoded = request_path.substr(split+1);
+
+                    int header_space = header.find(" ");
+
+                    string kind = header.substr(0,header_space);
+                    string mime = header.substr(header_space+1);
+
+                    if(kind=="ASSET") {
+                        string extension = "";
+                        if(mime=="image/png") {extension = ".png";}
+                        if(mime=="image/jpeg") {extension = ".jpg";}
+                        if(mime=="image/webp") {extension = ".webp";}
+                        if(extension.length==0) return;
+
+                        string pathid = to_string(getidx(user))+"_"+unit_timestamp;
+
+                        string filepath = project_path+"files/"+pathid+extension;
+                        print("Uploaded an asset to ",filepath);
+
+                        string storeptr = database["User_Assets"].add(char);
+                        storeptr = filepath;
+                        user.Assets.push(storeptr);
+
+                        write_file(filepath,encoded);
+
+                        print("Uploaded complete");
+                    }
+                };
+                page_root.reload;
+            };
+
+            script "
+                const wsURL = new URL(window.location.href);
+                wsURL.protocol =
+                wsURL.protocol === 'https:' ? 'wss:' : 'ws:';
+                wsURL.hash = '';
+                const ws = new WebSocket(wsURL.href);
+                window.ws = ws;
+
+                ws.onopen = () => {
+                    console.log('WebSocket connected');
+                    eval(fill_capture(\""+ws_connect_behaviour+"\",\""+js_lit(user.label)+"\"));
+                };
+                ws.onmessage = (event) => {
+                    read_run_response(event.data);
+                };
+                ws.onclose = () => {
+                    console.log('WebSocket closed');
+                };
+                ws.onerror = (error) => {
+                    console.log('WebSocket error', error);
+                };
+            ";
+            text "Connecting websocket";
         }
     }
 }

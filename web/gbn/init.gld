@@ -1,0 +1,61 @@
+bool reset = true;
+
+if(reset) {
+    print("Adventure Board Reseting");
+    ColColCol sub = usubunits.add("web/gbn/data.gsu");
+    ColCol common = sub.add("Common");
+        common.add(Ptr,"sessions").clear_lock;
+    ColCol users = sub.add("Users");
+        users.clear_lock;
+    ColCol user_assets = sub.add("User_Assets");
+        user_assets.clear_lock;
+    sub.save;
+
+    ColColCol world = usubunits.add("web/gbn/worlds/world.gsu");
+        world.clear_lock;
+    ColCol world_common = world.add("Common");
+        world_common.add(int,"CFDs").clear_lock;
+    ColCol geo = world.add("Geo");
+        geo.clear_lock();
+        geo.add(bool,"Flags");
+        geo.add(float,"Grid");
+        geo.add(float,"Walls");
+        geo.add(Ptr,"E_Handles");
+        geo.add(float,"E_X").clear_lock;
+        geo.add(float,"E_Y").clear_lock;
+        geo.add(int,"E_Z").clear_lock;
+        geo.add(float,"E_Rot").clear_lock;
+        geo.add(float,"E_Scale").clear_lock;
+        geo.add(string,"E_Assets");
+    ColCol storage = world.add("Storage");
+        string neuin_store = storage.add(char);
+        neuin_store = "web/gbn/files/Neuin1.png";
+        geo["E_Handles"].push(deadptr);
+        geo["E_Assets"].push(neuin_store);
+        geo["E_X"].push(0.0);
+        geo["E_Y"].push(0.0);
+        geo["E_Z"].push(0);
+        geo["E_Rot"].push(0.0);
+        geo["E_Scale"].push(1.0);
+
+        string fir_store = storage.add(char);
+        fir_store = "web/gbn/files/FirTheStudent.png";
+        geo["E_Handles"].push(deadptr);
+        geo["E_Assets"].push(fir_store);
+        geo["E_X"].push(10.0);
+        geo["E_Y"].push(10.0);
+        geo["E_Z"].push(3);
+        geo["E_Rot"].push(0.0);
+        geo["E_Scale"].push(0.5);
+
+    world.save;
+} else {
+    print("Loading database");
+    tstart("database_load");
+    ColColCol database = load_subunit("web/gbn/data.gsu");
+    database.clear_lock;
+        database.get("Users").clear_lock;
+        database[0].get("sessions").clear_lock;
+        database[0].get("CFDs").clear_lock;
+    print("Database loaded in: ",tstop("database_load"));
+}
