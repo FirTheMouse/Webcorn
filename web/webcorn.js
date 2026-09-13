@@ -70,7 +70,7 @@ function setCursorOffset(el, offset) {
 
 
 function read_run_response(response) {
-    if(!response) {console.log('no response from run'); return};
+    if(!response) {return};
     var to_return = '';
     const instructions = response.split('@');
     instructions.forEach(instr => {
@@ -186,6 +186,82 @@ function update_all_transforms() {
 window.addEventListener('resize', update_all_transforms);
 window.addEventListener('scroll', update_all_transforms, true);
 window.addEventListener('load', update_all_transforms);
+
+function makeDraggable(el, options = {}) {
+    let dragging = false;
+    let pointerId = null;
+
+    let startX = 0;
+    let startY = 0;
+
+    let startLeft = 0;
+    let startTop = 0;
+
+    el.style.touchAction = 'none';
+
+    el.addEventListener('pointerdown', e => {
+        if(e.button !== 0) return;
+
+        if(options.ignore&&e.target.closest(options.ignore)) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        dragging = true;
+        pointerId = e.pointerId;
+
+        startX = e.clientX;
+        startY = e.clientY;
+
+        startLeft = el.offsetLeft;
+        startTop = el.offsetTop;
+
+        el.style.left = startLeft + 'px';
+        el.style.top = startTop + 'px';
+
+        if(options.grabCursor !== false) {
+            el.style.cursor = 'grabbing';
+        }
+
+        el.setPointerCapture(pointerId);
+
+        if(options.onStart) {
+            options.onStart(el, e);
+        }
+    });
+
+    el.addEventListener('pointermove', e => {
+        if(!dragging || e.pointerId !== pointerId) return;
+
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+
+        el.style.left = (startLeft + dx) + 'px';
+        el.style.top = (startTop + dy) + 'px';
+
+        if(options.onMove) {
+            options.onMove(el, e);
+        }
+    });
+
+    function stopDrag(e) {
+        if(!dragging || e.pointerId !== pointerId) return;
+
+        dragging = false;
+        pointerId = null;
+
+        if(options.grabCursor !== false) {
+            el.style.cursor = 'grab';
+        }
+
+        if(options.onEnd) {
+            options.onEnd(el, e);
+        }
+    }
+
+    el.addEventListener('pointerup', stopDrag);
+    el.addEventListener('pointercancel', stopDrag);
+}
 
 // let mouse_x = 0;
 // let mouse_y = 0;

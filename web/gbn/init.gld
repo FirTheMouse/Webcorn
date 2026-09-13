@@ -28,26 +28,8 @@ if(reset) {
         geo.add(float,"E_Scale").clear_lock;
         geo.add(string,"E_Assets");
     ColCol storage = world.add("Storage");
-        string neuin_store = storage.add(char);
-        neuin_store = "web/gbn/files/Neuin1.png";
-        geo["E_Handles"].push(deadptr);
-        geo["E_Assets"].push(neuin_store);
-        geo["E_X"].push(0.0);
-        geo["E_Y"].push(0.0);
-        geo["E_Z"].push(0);
-        geo["E_Rot"].push(0.0);
-        geo["E_Scale"].push(1.0);
-
-        string fir_store = storage.add(char);
-        fir_store = "web/gbn/files/FirTheStudent.png";
-        geo["E_Handles"].push(deadptr);
-        geo["E_Assets"].push(fir_store);
-        geo["E_X"].push(10.0);
-        geo["E_Y"].push(10.0);
-        geo["E_Z"].push(3);
-        geo["E_Rot"].push(0.0);
-        geo["E_Scale"].push(0.5);
-
+    ColCol things = world.add("Things");
+        things.clear_lock;
     world.save;
 } else {
     print("Loading database");

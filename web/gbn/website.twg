@@ -151,6 +151,44 @@ inlined wood_button_theme {
     ";
 }
 
+inlined metal_font {
+    "font-family" : "'Walter Turncoat', system-ui, sans-serif";
+}   
+inlined metal_text_theme_static {
+    metal_font;
+    "font-size" : "0.9rem";
+    "color" : "gray";
+    "text-shadow" : "0 1px 0 rgba(255,255,255,0.16), 0 -1px 1px rgba(0,0,0,0.75)";
+    "transition" : "color 0.25s ease, text-shadow 0.25s ease";
+    "-webkit-user-select" : "none";
+}
+inlined metal_text_theme {
+    "transition" : "color 0.25s ease, text-shadow 0.25s ease";
+    "data-flaring" : "0";
+    "data-mousein" : "0";
+    "onmouseenter" : "
+        this.dataset.mousein='1';
+        if(this.dataset.flaring==='1') return;
+
+        this.style.color='rgb(220,220,215)';
+        this.style.textShadow=
+            '0 0 2px rgba(255,255,255,0.65), '+
+            '0 0 6px rgba(255,255,255,0.25)';
+    ";
+
+    "onmouseleave" : "
+        this.dataset.mousein='0';
+        if(this.dataset.flaring==='1') return;
+
+        this.style.color='gray';
+        this.style.textShadow=
+            '0 1px 0 rgba(255,255,255,0.16), '+
+            '0 -1px 1px rgba(0,0,0,0.75)';
+    ";
+
+    "onmousedown" : "flareMetal(this);";
+    metal_text_theme_static;
+}
 inlined hoverable_theme {
     "background-color" : transparent;
     "transition" : "background-color 0.15s ease";
@@ -163,10 +201,12 @@ inlined skeleton_pulse {
     "animation" : "skeleton_pulse 1.5s infinite";
 }
 
+
 void standard_header {
     html '<meta name="viewport" content="width=device-width, initial-scale=1">';
     style "
         @import url('https://fonts.googleapis.com/css2?family=Short+Stack&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Walter+Turncoat&display=swap');
         * {
             margin: 0;
             padding: 0;
@@ -178,9 +218,22 @@ void standard_header {
         }
         @keyframes skeleton_pulse { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
+        input:focus {
+            outline: none;
+            box-shadow: none;
+        }
+
         .wood_button:focus-visible {
             outline: none;
             filter: brightness(1.08);
+        }
+
+        @keyframes context_hover {
+            0% {transform: translateY(0px) rotate(-0.25deg); box-shadow: 0 14px 20px rgba(0,0,0,0.38);}
+            23% {transform: translateY(-3px) rotate(0.15deg); box-shadow: 0 17px 23px rgba(0,0,0,0.34);}
+            51% {transform: translateY(-5px) rotate(0.3deg); box-shadow: 0 20px 26px rgba(0,0,0,0.30);}
+            76% {transform: translateY(-2px) rotate(-0.1deg); box-shadow: 0 16px 22px rgba(0,0,0,0.35);}
+            100% {transform: translateY(0px) rotate(-0.25deg); box-shadow: 0 14px 20px rgba(0,0,0,0.38);}
         }
     ";
     script read_file("web/webcorn.js");
@@ -200,6 +253,85 @@ void standard_header {
 
                 el.style.transform = 'scale(1)';
             }, wait);
+        }
+
+        function flareMetal(el, time=600) {
+            el.dataset.flaring='1';
+            el.style.filter='brightness(1.8)';
+            el.style.color='white';
+            el.style.textShadow=
+                '0 0 2px white, '+
+                '0 0 5px white, '+
+                '0 0 10px rgba(255,255,255,.95), '+
+                '0 0 20px rgba(255,255,255,.75), '+
+                '0 0 35px rgba(255,255,255,.45)';
+
+            setTimeout(()=>{
+                el.dataset.flaring='0';
+                el.style.filter='brightness(1)';
+
+                if(el.dataset.mousein==='1') {
+                    el.style.color='rgb(220,220,215)';
+                    el.style.textShadow=
+                        '0 0 2px rgba(255,255,255,.65), '+
+                        '0 0 6px rgba(255,255,255,.25)';
+                } else {
+                    el.style.color='gray';
+                    el.style.textShadow=
+                        '0 1px 0 rgba(255,255,255,.16), '+
+                        '0 -1px 1px rgba(0,0,0,.75)';
+                }
+            },time);
+        }
+        function flareRivet(el) {
+            el.animate([
+                {
+                    filter:'brightness(1)',
+                    boxShadow:'1px 2px 2px rgba(0,0,0,.55)',
+                    offset:0
+                },
+                {
+                    filter:'brightness(2.2) saturate(.5)',
+                    boxShadow:
+                        '0 0 3px rgba(255,255,255,.45), '+
+                        '0 0 8px rgba(255,255,255,.20)',
+                    offset:.25
+                },
+                {
+                    filter:'brightness(7) saturate(0)',
+                    boxShadow:
+                        '0 0 3px white, '+
+                        '0 0 8px rgba(255,255,255,1), '+
+                        '0 0 18px rgba(255,255,255,.8), '+
+                        '0 0 35px rgba(255,255,255,.45)',
+                    offset:.5
+                },
+                {
+                    filter:'brightness(4) saturate(.15)',
+                    boxShadow:
+                        '0 0 3px rgba(255,255,255,.9), '+
+                        '0 0 12px rgba(255,255,255,.55), '+
+                        '0 0 25px rgba(255,255,255,.22)',
+                    offset:.68
+                },
+
+                {
+                    filter:'brightness(2) saturate(.55)',
+                    boxShadow:
+                        '0 0 4px rgba(255,255,255,.35), '+
+                        '0 0 10px rgba(255,255,255,.12)',
+                    offset:.84
+                },
+
+                {
+                    filter:'brightness(1) saturate(1)',
+                    boxShadow:'1px 2px 2px rgba(0,0,0,.55)',
+                    offset:1
+                }
+            ], {
+                duration:1200,
+                easing:'linear'
+            });
         }
     ";
 }
@@ -284,6 +416,12 @@ inlined form_select_theme {
                     user = users.Object(
                         Assets: [string]
                     ).register(guestid);
+                    string neuin_path = database["User_Assets"].add(char);
+                        neuin_path = project_path+"files/Neuin1.png";
+                    string fir_path = database["User_Assets"].add(char);
+                        fir_path = project_path+"files/FirTheStudent.png";
+                    user.Assets.push(neuin_path);
+                    user.Assets.push(fir_path);
                 }
             }
             guestid = "";
@@ -581,6 +719,7 @@ route login {
 
 ##
     global ColColCol world = deadptr;
+    global Node global_reload_target = deadnode;
 ##
 
 
@@ -617,6 +756,8 @@ route "" {
                         JSON.stringify(js_part)
                     ));
                 }
+                var context_selected_thing = -1;
+                var selected_asset = '';
             ";
 
 
@@ -627,6 +768,16 @@ route "" {
                     world_init+="world.CFDs.push("+to_string(c)+");";
                 });
             }
+
+                ColCol geo = world["Geo"];
+                Ptr e_handles = deadptr;
+                Ptr e_assets = deadptr;
+
+                Ptr e_x     = deadptr;
+                Ptr e_y     = deadptr;
+                Ptr e_z     = deadptr;
+                Ptr e_rot   = deadptr;
+                Ptr e_scale = deadptr;
 
             div viewport {
                 "display" : "flex";
@@ -646,17 +797,18 @@ route "" {
                     "top" : "0";
                     "transform-origin" : "0 0";
                     "z-index" : "0";
+                    "width" : "100%";
+                    "height" : "100%";
 
                     world.try_read_forever_then {
-                        ColCol geo = world["Geo"];
-                        Ptr e_handles = geo["E_Handles"];
-                        Ptr e_assets = geo["E_Assets"];
+                        e_handles = geo["E_Handles"];
+                        e_assets = geo["E_Assets"];
 
-                        Ptr e_x     = geo["E_X"];
-                        Ptr e_y     = geo["E_Y"];
-                        Ptr e_z     = geo["E_Z"];
-                        Ptr e_rot   = geo["E_Rot"];
-                        Ptr e_scale = geo["E_Scale"];
+                        e_x     = geo["E_X"];
+                        e_y     = geo["E_Y"];
+                        e_z     = geo["E_Z"];
+                        e_rot   = geo["E_Rot"];
+                        e_scale = geo["E_Scale"];
 
                         string transform_thing_behaviour = capture(
                             string s_eid       ; "[ANY]",
@@ -667,6 +819,10 @@ route "" {
                             string s_new_scale ; "[ANY]"
                         ){
                             int eid = stoi(s_eid);
+                            if(s_new_x.find(".")<0) {s_new_x+=".0";}   
+                            if(s_new_y.find(".")<0) {s_new_y+=".0";}   
+                            if(s_new_scale.find(".")<0) {s_new_scale+=".0";}   
+                            if(s_new_rot.find(".")<0) {s_new_rot+=".0";} 
                             float new_x = stof(s_new_x);
                             float new_y = stof(s_new_y);
                             int new_z = stoi(s_new_z);
@@ -685,22 +841,15 @@ route "" {
                         };
                         script "
                             const transformThingBehaviour = "+js_lit(transform_thing_behaviour)+";
-                            function transform_thing(
-                                eid,
-                                new_x,
-                                new_y,
-                                new_z,
-                                new_rot,
-                                new_scale
-                            ) {
+                            function updateAcornTransform(thing) {
                                 eval(fill_capture(
                                     transformThingBehaviour,
-                                    JSON.stringify(eid),
-                                    JSON.stringify(new_x),
-                                    JSON.stringify(new_y),
-                                    JSON.stringify(new_z),
-                                    JSON.stringify(new_rot),
-                                    JSON.stringify(new_scale)
+                                    JSON.stringify(thing.i),
+                                    JSON.stringify(thing.x),
+                                    JSON.stringify(thing.y),
+                                    JSON.stringify(thing.z),
+                                    JSON.stringify(thing.rot),
+                                    JSON.stringify(thing.scale)
                                 ));
                             }
                         ";
@@ -750,7 +899,6 @@ route "" {
                             }
                         }
                     }
-
                     div {
                         "id" : "scale_handle";
                         "position" : "absolute";
@@ -775,7 +923,20 @@ route "" {
                         "z-index" : "10000";
                         "display" : "none";
                     }
+                    div grid {
+                        "position" : "absolute";
+                        "left" : "0";
+                        "top" : "0";
+                        "width" : "2000px";
+                        "height" : "2000px";
+                        "pointer-events" : "none";
+                        "z-index" : "1";
+                    }   
+                    script "
+                        const grid = getel("+js_lit(capture_node(grid))+");
+                    ";
                 }
+
 
                 input {
                     "id" : "asset_file_input";
@@ -789,127 +950,631 @@ route "" {
                         }
                     ";
                 }
-                
-                div toolbar {
-                    "margin" : "18px";
-                    "width" : "100%";
-                    "height" : "50px";
-                    "background-color" : wood_color_L1;
-                    "position" : "relative";
-                    "z-index" : "10";
-                    "display" : "flex";
-                    "flex-direction" : "row";
-                    "padding" : "8px";
-                    "align-items" : "center";
-                    "justify-content" : "start";
 
-                    button {
-                        wood_button_theme;
-                        text "Walls";
-                        "onclick" : "toggleWallDrawing();";
-                    }   
-                    button {
-                        wood_button_theme;
-                        text "Assets";
-                        "onclick" : capture(
-                            string is_opening ; js_do("
-                                    const asset_panel = getel("+js_lit(capture_node(assets_panel))+");
-                                    if(asset_panel.style.display==='flex') {
-                                        asset_panel.style.display = 'none';
-                                        return 'no';
-                                    } else {
-                                        asset_panel.style.display = 'flex';
-                                        return 'yes';
-                                    }
-                                ")
-                            ) {
-                                if(is_opening=="yes") {
-                                    assets_panel.reload;
+                div {
+                    "id" : "context_panel_flyer";
+                    "position" : "absolute";
+                    "right" : "30px";
+                    "top" : "100px";
+                    "z-index" : "15";
+                    "transform" : "translateX(280px)";
+                    "pointer-events" : "none";
+
+                    div {
+                        "id" : "context_panel";
+                        "width" : "200px";
+                        "height" : "300px";
+                        "position" : "relative";
+                        "data-open" : "";
+                        "animation" : "context_hover 3.6s ease-in-out infinite";
+                        "cursor" : "pointer";
+                        "pointer-events" : "auto";
+                        "touch-action" : "none";
+
+                        "background" : "
+                            repeating-linear-gradient(
+                                0deg,
+                                rgba(255,255,255,0.018) 0px,
+                                rgba(255,255,255,0.018) 1px,
+                                rgba(0,0,0,0.018) 1px,
+                                rgba(0,0,0,0.018) 2px
+                            ),
+                            linear-gradient(
+                                145deg,
+                                rgb(122,128,123) 0%,
+                                rgb(91,96,92) 18%,
+                                rgb(70,74,71) 55%,
+                                rgb(53,56,54) 100%
+                            )
+                        ";
+
+                        "border-top" : "5px solid rgb(151,158,152)";
+                        "border-left" : "5px solid rgb(125,132,126)";
+                        "border-right" : "5px solid rgb(45,48,46)";
+                        "border-bottom" : "5px solid rgb(38,41,39)";
+
+                        "border-radius" : "2px";
+
+                        "box-shadow" : "
+                            0 14px 20px rgba(0,0,0,0.38),
+                            inset 0 2px 0 rgba(255,255,255,0.12),
+                            inset 0 -3px 0 rgba(0,0,0,0.20)
+                        ";
+
+                        inlined rivet_theme {
+                            "position" : "absolute";
+                            "width" : "8px";
+                            "height" : "8px";
+                            "border-radius" : "50%";
+                            "class" : "rivet";
+                            "background" : "
+                                radial-gradient(
+                                    circle at 35% 30%,
+                                    rgb(190,195,190),
+                                    rgb(92,97,93) 45%,
+                                    rgb(43,46,44) 100%
+                                )
+                            ";
+                            "box-shadow" : "1px 2px 2px rgba(0,0,0,0.55)";
+                        }
+                        div {rivet_theme; "left" : "8px"; "top" : "8px";}
+                        div {rivet_theme; "right" : "8px"; "top" : "8px";}
+                        div {rivet_theme; "left" : "8px"; "bottom" : "8px";}
+                        div {rivet_theme; "right" : "8px"; "bottom" : "8px";}
+
+
+                       div {
+                            "id" : "context_panel_flare";
+                            "position" : "absolute";
+
+                            "left" : "-60%";
+                            "top" : "-45%";
+                            "width" : "220%";
+                            "height" : "190%";
+
+                            "z-index" : "100";
+                            "pointer-events" : "none";
+                            "opacity" : "0";
+
+                            "background" : "
+                                radial-gradient(
+                                    ellipse at center,
+                                    rgba(255,255,255,1) 0%,
+                                    rgba(255,255,255,1) 28%,
+                                    rgba(255,255,255,0.96) 40%,
+                                    rgba(255,255,255,0.65) 52%,
+                                    rgba(255,255,255,0.25) 62%,
+                                    rgba(255,255,255,0.06) 70%,
+                                    rgba(255,255,255,0) 76%
+                                )
+                            ";
+                        }
+                        
+                        div {
+                            "id" : "context_panel_contents";
+                            "margin" : "18px";
+                            div {
+                                "id" : "context_content_options";
+                                "display" : "none";
+                                "flex-direction" : "column";
+                                "align-items" : "center";
+                                "gap" : "10px";
+                                div {
+                                    text "DISMISS" {"font-size" : "1.2rem"; metal_text_theme;}
+                                    "onclick" : "contextPanelOut()";
+                                }
+                                div {
+                                    text "EXIT" {"font-size" : "1.2rem"; metal_text_theme;}
+                                    "onclick" : "";
+                                }
+                                div {
+                                    text "LOGIN" {"font-size" : "1.2rem"; metal_text_theme;}
+                                    "onclick" : "window.location.href = '/login'";
+                                }
+                                div {
+                                    text "FLARE" {"font-size" : "1.2rem"; metal_text_theme;}
+                                    "onclick" : "
+                                       flarePanel();
+                                    ";
                                 }
                             }
-                    }
-                }  
-
-                div assets_panel {
-                    "margin" : "20px";
-                    "width" : "100%";
-                    "height" : "100%";
-                    "background-color" : wood_color_L1;
-                    "position" : "relative";
-                    "z-index" : "10";
-                    "display" : "flex";
-                    "flex-direction" : "row";
-                    "padding" : "8px";
-                    "align-items" : "center";
-                    "justify-content" : "start";
-
-                    button {
-                        wood_button_theme;
-                        text "Upload";
-                        "onclick" : "getel('asset_file_input').click()";
-                    }
-
-                    Ptr assets = user.Assets;
-                    for(int i=0;i<assets.length;i++) {
-                        string assetpath = assets[i];
-                        if(file_exists(assetpath)) {
-                            img {
-                                "src" : assetpath;
-                                "width" : "100px";
-                                "height" : "100px";
-                                "cursor" : "pointer";
-                                "onclick" : capture(
-                                    string mypath ; js_lit(capture_ptr(assets[i]))
-                                ){
-                                    int eid = 0;
-                                    Ptr thingptr = deadptr;
-                                    Ptr asset = retrive_ptr(mypath);
-                                    world.try_read_forever_then {
-                                        ColCol geo = world["Geo"];
-                                        geo.try_lock_forever_then {
-                                            eid = geo["E_Handles"].length;
-                                            geo["E_Handles"].push(thingptr);
-                                            geo["E_X"].push(0.0);
-                                            geo["E_Y"].push(0.0);
-                                            geo["E_Z"].push(1);
-                                            geo["E_Rot"].push(0.0);
-                                            geo["E_Scale"].push(1.0);
-                                            geo["E_Assets"].push(asset);
+                            div {
+                                "id" : "context_content_assets";
+                                "display" : "none";
+                                "flex-direction" : "column";
+                                "align-items" : "center";
+                                "gap" : "10px";
+                                div {
+                                    text "DISMISS" {"font-size" : "1.2rem"; metal_text_theme;}
+                                    "onclick" : "contextPanelOut()";
+                                }
+                                div {
+                                    text "PLACE" {"font-size" : "1.2rem"; metal_text_theme;}
+                                    "onclick" : capture(
+                                        string mypath ; js_do("return selected_asset;");
+                                    ){
+                                        int eid = 0;
+                                        Ptr thingptr = world["Things"].add(Ptr);
+                                        Ptr asset = retrive_ptr(mypath);
+                                        world.try_read_forever_then {
+                                            geo.try_lock_forever_then {
+                                                eid = geo["E_Handles"].length;
+                                                geo["E_Handles"].push(thingptr);
+                                                geo["E_X"].push(0.0);
+                                                geo["E_Y"].push(0.0);
+                                                geo["E_Z"].push(3);
+                                                geo["E_Rot"].push(0.0);
+                                                geo["E_Scale"].push(1.0);
+                                                geo["E_Assets"].push(asset);
+                                            }
+                                        }
+                                        string js = "RUN addThing("
+                                            +to_string(eid)+","
+                                            +js_lit(capture_ptr(thingptr))+","
+                                            +js_lit(asset)+","
+                                            +"0.0,"
+                                            +"0.0,"
+                                            +"3,"
+                                            +"0.0,"
+                                            +"1.0"
+                                            +");";
+                                        cfds.try_read_forever_then {
+                                            cfds.do(ofd => {
+                                                websocket_write(ofd,js);
+                                            });
                                         }
                                     }
-                                    string js =
-                                        "RUN addThing("
-                                        +to_string(eid)+","
-                                        +js_lit(capture_ptr(thingptr))+","
-                                        +js_lit(asset)+","
-                                        +"0.0,"
-                                        +"0.0,"
-                                        +"1,"
-                                        +"0.0,"
-                                        +"1.0"
-                                        +");";
-                                    print("JS: ",js);
-                                    cfds.try_read_forever_then {
-                                        cfds.do(ofd => {
-                                            websocket_write(ofd,js);
-                                        });
-                                    }
+                                }
+                                div {
+                                    text "DELETE" {"font-size" : "1.2rem"; metal_text_theme;}
+                                    "onclick" : "";
                                 }
                             }
-                        } else {
-                            text "FILE NOT FOUND";
+                            div {
+                                "id" : "context_content_thing";
+                                "display" : "none";
+                                "flex-direction" : "column";
+                                "align-items" : "center";
+                                "gap" : "10px";
+                                div {
+                                    text "LOCK" {"font-size" : "1.2rem"; metal_text_theme;}
+                                    "onclick" : capture(
+                                        string mything ; js_do("return context_selected_thing;")
+                                    ){
+                                        Object thing;
+                                            geo.try_read_forever_then {
+                                                thing = e_handles[stoi(mything)];
+                                            }
+                                        string js = "RUN ";
+                                        if(!thing.?locked) {
+                                            thing.locked = false;
+                                        }
+                                        if(thing.locked) {
+                                            thing.locked = false;
+                                            js+="world.Things["+mything+"].locked = false;";
+                                        } else {
+                                            thing.locked = true;
+                                            js+="world.Things["+mything+"].locked = true; selectedThing=null; updateThingHandles();";
+                                        }
+                                        cfds.try_read_forever_then {
+                                            cfds.do(ofd => {
+                                                websocket_write(ofd,js);
+                                            });
+                                        }    
+                                    }
+                                }
+                                div {
+                                    "width" : "100%";
+                                    "display" : "flex";
+                                    "flex-direction" : "row";
+                                    "justify-content" : "center";
+                                    "align-items" : "center";
+                                    "gap" : "6px";
+                                    text "Z: " {"font-size" : "1.2rem"; metal_text_theme_static;}
+                                    input {
+                                        "width" : "65px";
+                                        "padding" : "3px 6px";
+                                        "background-color" : "rgb(58,61,59)";
+                                        "border" : "none";
+                                        "border-radius" : "2px";
+                                        "outline" : "none";
+                                        "box-shadow" : "
+                                            inset 2px 2px 4px rgba(0,0,0,0.65),
+                                            inset -1px -1px 1px rgba(255,255,255,0.10)
+                                        ";
+                                        metal_text_theme;
+                                        "onfocus" : "if(context_selected_thing>=0) {this.value = world.Things[context_selected_thing].z}";
+                                        "onchange" : capture(
+                                            string mything ; js_do("return context_selected_thing;"),
+                                            string myval ; "this.value"
+                                        ) {
+                                            geo.try_read_forever_then {
+                                                e_z[stoi(mything)] = stoi(myval);
+                                            }
+                                            string js = "RUN ";
+                                            js+="world.Things["+mything+"].z = "+myval+"; syncThingTransform(world.Things["+mything+"]);";
+                                            cfds.try_read_forever_then {
+                                                cfds.do(ofd => {
+                                                    websocket_write(ofd,js);
+                                                });
+                                            }    
+                                        }
+                                    }
+
+                                }
+
+                                div {
+                                    text "DELETE" {"font-size" : "1.2rem"; metal_text_theme;}
+                                    "onclick" : "";
+                                }
+                                div {
+                                    text "DISMISS" {"font-size" : "1.2rem"; metal_text_theme;}
+                                    "onclick" : "contextPanelOut(); context_selected_thing = -1;";
+                                }
+                            }
+                        }
+                    }
+                }
+                script "
+                    const context_panel = getel('context_panel');
+                    const context_panel_flyer = getel('context_panel_flyer');
+
+                    makeDraggable(context_panel, {
+                        ignore: 'button, input, textarea, select, p'
+                    });
+                    function flarePanel(swap) {
+                        const content = getel('context_panel_contents');
+                        const flare = getel('context_panel_flare');
+
+                        content.querySelectorAll('[data-flaring]').forEach(el=>flareMetal(el));
+                        context_panel.querySelectorAll('.rivet').forEach(el=>flareRivet(el));
+
+                        setTimeout(()=>{
+                            flare.animate([
+                                {
+                                    opacity:0,
+                                    filter:'brightness(1)',
+                                    offset:0
+                                },
+                                {
+                                    opacity:.45,
+                                    filter:'brightness(1.4)',
+                                    offset:.22
+                                },
+                                {
+                                    opacity:1,
+                                    filter:'brightness(3.5)',
+                                    offset:.45
+                                },
+                                {
+                                    opacity:1,
+                                    filter:'brightness(3.5)',
+                                    offset:.78
+                                },
+                                {
+                                    opacity:0,
+                                    filter:'brightness(1)',
+                                    offset:1
+                                }
+                            ], {
+                                duration:700,
+                                easing:'linear'
+                            });
+                            if(swap) {
+                                setTimeout(swap,350);
+                            }
+                        },100);
+                    }
+
+                    let panelFlight = null;
+                    let pendingFlight = null;
+                    let panelBraking = false;
+                        function panelPos() {
+                            const m = new DOMMatrix(getComputedStyle(context_panel_flyer).transform);
+                            return [m.m41, m.m42];
+                        }
+                        function movePanel(targetX, targetY, leaving=false) {
+                            pendingFlight = {x:targetX, y:targetY, leaving};
+
+                            if(panelFlight) {
+                                if(!panelBraking) brakePanel();
+                                return;
+                            }
+
+                            startPanelFlight();
+                        }
+
+                        function startPanelFlight() {
+                            if(!pendingFlight) return;
+
+                            const target = pendingFlight;
+                            pendingFlight = null;
+
+                            const [currentX,currentY] = panelPos();
+
+                            panelFlight = flyPanel(
+                                currentX,
+                                currentY,
+                                target.x,
+                                target.y,
+                                target.leaving
+                            );
+                        }
+                        function brakePanel() {
+                            panelBraking = true;
+
+                            const flight = panelFlight;
+                            flight.onfinish = null;
+
+                            const start = performance.now();
+
+                            function brake(now) {
+                                const t = Math.min((now-start)/250, 1);
+                                flight.playbackRate = Math.max(.03, 1-t);
+
+                                if(t < 1) {
+                                    requestAnimationFrame(brake);
+                                } else {
+                                    flight.pause();
+                                    flight.commitStyles();
+                                    flight.cancel();
+
+                                    panelFlight = null;
+                                    panelBraking = false;
+
+                                    startPanelFlight();
+                                }
+                            }
+
+                            requestAnimationFrame(brake);
+                        }
+                        function flyPanel(ax, ay, bx, by, leaving=false) {
+
+                            if(!leaving) {
+                                const r = context_panel.getBoundingClientRect();
+                                const left = r.left - ax;
+                                const top  = r.top  - ay;
+
+                                if(left+r.width<=0 || left>=innerWidth ||
+                                top+r.height<=0 || top>=innerHeight) {
+
+                                    const x = Math.max(0,Math.min(innerWidth-r.width,left));
+                                    const y = Math.max(0,Math.min(innerHeight-r.height,top));
+
+                                    context_panel.style.left =
+                                        context_panel.offsetLeft + x-left + 'px';
+
+                                    context_panel.style.top =
+                                        context_panel.offsetTop + y-top + 'px';
+                                }
+                            }
+                            
+                            const p=n=>`translate(${ax+(bx-ax)*n}px,${ay+(by-ay)*n}px)`;
+
+                            const flight=context_panel_flyer.animate([
+                                {transform:p(0)},
+                                {transform:p(1)}
+                            ], {
+                                duration: leaving ? 1700 : 1500,
+                                easing: leaving
+                                    ? 'cubic-bezier(.55,.02,.85,.45)'
+                                    : 'cubic-bezier(.18,.52,.24,1)',
+                                fill:'forwards'
+                            });
+
+                            flight.onfinish=()=>{
+                                context_panel_flyer.style.transform=p(1);
+                                flight.cancel();
+                                panelFlight=null;
+                                startPanelFlight();
+                            };
+
+                            return flight;
+                        }
+                        function contextPanelIn() {
+                            context_panel_flyer.style.pointerEvents='auto';
+                            movePanel(0,0,false);
+                        }
+                        function contextPanelOut() {
+                            const rect = context_panel.getBoundingClientRect();
+
+                            let dx = rect.left + rect.width/2 - window.innerWidth/2;
+                            let dy = rect.top  + rect.height/2 - window.innerHeight/2;
+
+                            const len = Math.hypot(dx,dy) || 1;
+                            dx /= len;
+                            dy /= len;
+
+                            const tx = dx < 0 ? (rect.right + 30) / -dx : (window.innerWidth - rect.left + 30) / dx;
+                            const ty = dy < 0 ? (rect.bottom + 30) / -dy : (window.innerHeight - rect.top + 30) / dy;
+
+                            const dist = Math.min(tx,ty);
+
+                            movePanel(dx * dist,dy * dist,true);
+
+                            context_panel_flyer.style.pointerEvents='none';
+                        }
+                        function selectContextPage(page_id) {
+                            flarePanel(()=>{
+                                Array.from(getel('context_panel_contents').children).forEach(c => {
+                                    c.style.display='none';
+                                });
+                                getel(page_id).style.display='flex';
+                            });
+                        }
+                ";
+                
+
+                div asset_ui {
+                    "margin" : "18px";
+                    "width" : "calc(100% - 36px)";
+                    "position" : "relative";
+                    "z-index" : "10";
+
+                    div toolbar {
+                        "width" : "100%";
+                        "height" : "50px";
+                        "background-color" : wood_color_L1;
+                        "display" : "flex";
+                        "flex-direction" : "row";
+                        "padding" : "8px";
+                        "align-items" : "center";
+                        "justify-content" : "start";
+
+                        button {
+                            wood_button_theme;
+                            text "Options";
+                            "onclick" : "contextPanelIn(); selectContextPage('context_content_options');";
+                        }
+                        button {
+                            wood_button_theme;
+                            text "Walls";
+                            "onclick" : "toggleWallDrawing();";
+                        }
+                        button {
+                            wood_button_theme;
+                            text "Assets";
+
+                            "onclick" : "
+                                toggleAssetPanel();
+                            ";
                         }
                     }
 
+                    div assets_panel {
+                        "width" : "92%";
+                        "height" : "0px";
+                        "margin" : "0 auto";
+
+                        "overflow" : "hidden";
+
+                        "background-color" : pebble_color_D1;
+
+                        "display" : "flex";
+                        "flex-direction" : "row";
+                        "align-items" : "center";
+                        "justify-content" : "start";
+
+                        "box-sizing" : "border-box";
+
+                        "transition" : "height 0.28s cubic-bezier(.2,.8,.25,1)";
+
+                        div assets_contents {
+                            "width" : "100%";
+                            "padding" : "12px";
+
+                            "display" : "flex";
+                            "flex-direction" : "column";
+                            "flex-wrap" : "wrap";
+                            "gap" : "8px";
+
+                            div {
+                                "width" : "100%";
+                                "height" : "100%";
+                                "display" : "flex";
+                                "flex-direction" : "row";
+                                "gap" : "5px";
+                                button {
+                                    wood_button_theme;
+                                    text "Refresh";
+                                    "onclick" : capture(
+                                        js_do("toggleAssetPanel()");
+                                    ){
+                                        assets_contents.reload;
+                                        emit_js("setTimeout(() =>{toggleAssetPanel()},300)");
+                                    };
+                                }
+
+                                button {
+                                    wood_button_theme;
+                                    text "Upload";
+                                    "onclick" : capture(js_do("getel('asset_file_input').click()")) {
+                                        global_reload_target = ~&assets_contents;
+                                    } 
+                                }
+                            }
+
+                            div {
+                                "width" : "100%";
+                                "height" : "100%";
+                                "display" : "flex";
+                                "flex-direction" : "row";
+                                "flex-wrap" : "wrap";
+                                "gap" : "8px";
+                                Ptr assets = user.Assets;
+                                for(int i=0;i<assets.length;i++) {
+                                    string assetpath = assets[i];
+                                    if(file_exists(assetpath)) {
+                                        img {
+                                            "class" : "ab_clickable";
+                                            "src" : assetpath;
+                                            "width" : "100px";
+                                            "height" : "100px";
+                                            "cursor" : "pointer";
+                                            "onclick" : "
+                                                const this_asset = "+js_lit(capture_ptr(assets[i]))+"; 
+                                                contextPanelIn();
+                                                selectContextPage('context_content_assets');
+                                                selected_asset = this_asset;
+                                            ";
+                                        }
+                                    } else {
+                                        text "FILE NOT FOUND";
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+
+                    div asset_bottom_rail {
+                        "width" : "98%";
+                        "height" : "14px";
+                        "margin" : "0 auto";
+
+                        "background-color" : wood_color_L1;
+
+                        "border-top" : "5px solid rgb(149,109,89)";
+                        "border-bottom" : "5px solid rgb(52,32,26)";
+
+                        "box-shadow" : "0 5px 6px rgba(0,0,0,0.5)";
+
+                        "position" : "relative";
+                        "z-index" : "2";
+                    }
+
+                    script "
+                        function toggleAssetPanel() {
+                            const panel = getel("+js_lit(capture_node(assets_panel))+");
+
+                            if(panel.style.height !== '0px') {
+                                panel.style.height =
+                                    panel.scrollHeight + 'px';
+
+                                requestAnimationFrame(() => {
+                                    panel.style.height = '0px';
+                                });
+
+                                return;
+                            }
+
+                            panel.style.height = 'auto';
+                            const h = panel.scrollHeight;
+                            panel.style.height = '0px';
+
+                            requestAnimationFrame(() => {
+                                panel.style.height = h + 'px';
+                            });
+                        }
+                    ";
                 }
 
-                script "
-                    getel("+js_lit(capture_node(assets_panel))+").style.display = 'none';
-                ";
+
             }
             
             script "
                 const viewport = getel("+js_lit(capture_node(viewport))+");
+                const world_root = getel('world_root');
                 window.boardView = {
                     panX: 0,
                     panY: 0,
@@ -978,6 +1643,11 @@ route "" {
                         write_file(filepath,encoded);
 
                         print("Uploaded complete");
+                    }
+
+                    if(is_live(global_reload_target)) {
+                        //For some reason ctx.source isn't propagating in this one specific instance, investigate later.
+                        emit_reload(ctx,global_reload_target);
                     }
                 };
                 page_root.reload;

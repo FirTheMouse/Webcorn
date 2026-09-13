@@ -5070,3 +5070,145 @@ script read_file(project_path+"abvtt.js");
             }   
         }
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    div toolbar {
+                    "margin" : "18px";
+                    "width" : "100%";
+                    "height" : "50px";
+                    "background-color" : wood_color_L1;
+                    "position" : "relative";
+                    "z-index" : "10";
+                    "display" : "flex";
+                    "flex-direction" : "row";
+                    "padding" : "8px";
+                    "align-items" : "center";
+                    "justify-content" : "start";
+
+                    button {
+                        wood_button_theme;
+                        text "Walls";
+                        "onclick" : "toggleWallDrawing();";
+                    }   
+                    button {
+                        wood_button_theme;
+                        text "Assets";
+                        "onclick" : capture(
+                            string is_opening ; js_do("
+                                    const asset_panel = getel("+js_lit(capture_node(assets_panel))+");
+                                    if(asset_panel.style.display==='flex') {
+                                        asset_panel.style.display = 'none';
+                                        return 'no';
+                                    } else {
+                                        asset_panel.style.display = 'flex';
+                                        return 'yes';
+                                    }
+                                ")
+                            ) {
+                                if(is_opening=="yes") {
+                                    assets_panel.reload;
+                                }
+                            }
+                    }
+                }  
+
+                div assets_panel {
+                    "margin" : "20px";
+                    "width" : "100%";
+                    "height" : "100%";
+                    "background-color" : wood_color_L1;
+                    "position" : "relative";
+                    "z-index" : "10";
+                    "display" : "flex";
+                    "flex-direction" : "row";
+                    "padding" : "8px";
+                    "align-items" : "center";
+                    "justify-content" : "start";
+
+                    
+
+                }
+
+                script "
+                    getel("+js_lit(capture_node(assets_panel))+").style.display = 'none';
+                ";
+
+
+
+
+
+    inlined rivet_theme {
+        "position" : "absolute";
+        "width" : "8px";
+        "height" : "8px";
+        "border-radius" : "50%";
+        "background" : "
+            radial-gradient(
+                circle at 35% 30%,
+                rgb(190,195,190),
+                rgb(92,97,93) 45%,
+                rgb(43,46,44) 100%
+            )
+        ";
+        "box-shadow" : "1px 2px 2px rgba(0,0,0,0.55)";
+    }
+    div {rivet_theme; "left" : "8px"; "top" : "8px";}
+    div {rivet_theme; "right" : "8px"; "top" : "8px";}
+    div {rivet_theme; "left" : "8px"; "bottom" : "8px";}
+    div {rivet_theme; "right" : "8px"; "bottom" : "8px";}
+
+
+
+
+
+
+
+    "onclick" : capture(
+        string mypath ; js_lit(capture_ptr(assets[i]))
+    ){
+        int eid = 0;
+        Ptr thingptr = deadptr;
+        Ptr asset = retrive_ptr(mypath);
+        world.try_read_forever_then {
+            ColCol geo = world["Geo"];
+            geo.try_lock_forever_then {
+                eid = geo["E_Handles"].length;
+                geo["E_Handles"].push(thingptr);
+                geo["E_X"].push(0.0);
+                geo["E_Y"].push(0.0);
+                geo["E_Z"].push(1);
+                geo["E_Rot"].push(0.0);
+                geo["E_Scale"].push(1.0);
+                geo["E_Assets"].push(asset);
+            }
+        }
+        string js =
+            "RUN addThing("
+            +to_string(eid)+","
+            +js_lit(capture_ptr(thingptr))+","
+            +js_lit(asset)+","
+            +"0.0,"
+            +"0.0,"
+            +"1,"
+            +"0.0,"
+            +"1.0"
+            +");";
+        cfds.try_read_forever_then {
+            cfds.do(ofd => {
+                websocket_write(ofd,js);
+            });
+        }
+    }

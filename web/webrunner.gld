@@ -394,8 +394,7 @@
         ctx.source = "";
         htmlemit n;
         c.source = (oldsrc+ctx.source);
-        //print("NEW SOURCE: ",c.source);
-        return ctx.source;
+        return c.source;
     }
     "component" {
         on ".\"reload\"" {
@@ -560,6 +559,7 @@ while(0<1) {
                         if(is_live(ws_post_function)) {
                             ws_post_function();
                         }
+                        websocket_write(cfd, ctx.source);
                     }
 
                     if(method=="GET") {
