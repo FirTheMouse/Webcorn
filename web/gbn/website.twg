@@ -925,12 +925,14 @@ route "" {
                     }
                     div grid {
                         "position" : "absolute";
-                        "left" : "0";
-                        "top" : "0";
+                        "left" : "50%";
+                        "top" : "50%";
                         "width" : "2000px";
                         "height" : "2000px";
+                        "transform" : "translate(-50%, -50%)";
+                        "transform-origin" : "center center";
                         "pointer-events" : "none";
-                        "z-index" : "1";
+                        "z-index" : "2";
                     }   
                     script "
                         const grid = getel("+js_lit(capture_node(grid))+");

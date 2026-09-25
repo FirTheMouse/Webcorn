@@ -1,7 +1,11 @@
-let gridSize = 50;
+let gridScale = 50;
+let gridWidth = 3000;
+let gridHeight = 2000;
 let gridOffsetX = 0;
 let gridOffsetY = 0;
     function updateGrid() {
+        grid.style.width = `${gridWidth}px`;
+        grid.style.height = `${gridHeight}px`;
         grid.style.backgroundImage = `
             linear-gradient(
                 to right,
@@ -14,11 +18,8 @@ let gridOffsetY = 0;
                 transparent 1px
             )
         `;
-        grid.style.backgroundSize =
-            `${gridSize}px ${gridSize}px`;
-
-        grid.style.backgroundPosition =
-            `${gridOffsetX}px ${gridOffsetY}px`;
+        grid.style.backgroundSize = `${gridScale}px ${gridScale}px`;
+        grid.style.backgroundPosition = `${gridOffsetX}px ${gridOffsetY}px`;
     }
     updateGrid();
 
@@ -121,8 +122,8 @@ let startY = 0;
     }
     function snapToGrid(x, y) {
         return {
-            x: Math.round((x - gridOffsetX) / gridSize)* gridSize + gridOffsetX,
-            y: Math.round((y - gridOffsetY) / gridSize)* gridSize + gridOffsetY
+            x: Math.round((x - gridOffsetX) / gridScale)* gridScale + gridOffsetX,
+            y: Math.round((y - gridOffsetY) / gridScale)* gridScale + gridOffsetY
         };
     }
 

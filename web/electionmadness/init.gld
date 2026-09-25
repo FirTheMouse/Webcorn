@@ -52,7 +52,7 @@ void add_us_map_data(ColCol emmap) {
 }
 
 
-bool reset = true;
+bool reset = false;
 
 if(reset) {
     print("Election Madness Reseting");

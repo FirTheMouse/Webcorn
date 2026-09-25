@@ -920,11 +920,11 @@ namespace Acorn {
                             int fd = servers[i]->getfd();
                             if(fd > 0) CLOSE_SOCKET(fd);
                             servers[i]->thread->detach();
-                            for(int s=1;s<unit->subunits.length();s++) {
-                                ColColCol& subunit = unit->subunits.get(s);
-                                subunit.unlock();
-                                bounce_subunit(&subunit);
-                            }
+                            // for(int s=1;s<unit->subunits.length();s++) {
+                            //     ColColCol& subunit = unit->subunits.get(s);
+                            //     subunit.unlock();
+                            //     bounce_subunit(&subunit);
+                            // }
                         }
                     }
                 }
@@ -2400,6 +2400,157 @@ namespace Acorn {
             //         print(red("server_id::x_handler write() failed"));
             //     }
             // };
+
+
+            //Still a WIP, finish later when multi-device scaling becomes a concearn
+            g_ptr<Webcorn_Core> transactor = nullptr;
+            for(int i=0;i<units.length();i++) {
+                if(units[i]->unit_label=="transactor_constructor") {
+                    transactor = this;
+                    break;
+                }
+                if(units[i]->unit_label=="transactor") {
+                    transactor = as<Webcorn_Core>(units[i]);
+                }
+            }
+            if(!transactor) {
+                std::string old_label = unit_label;
+                unit_label = "transactor_constructor";
+                transactor = make_unit<Webcorn_Core>();
+                transactor->unit_label = "transactor";
+                unit_label = old_label;
+            }
+
+            uint32_t RemotePtr_id = make_YAPA_type("RemotePtr",3,true);
+            add_function("make_remote",[this](Context& ctx){
+                standard_sub_process(ctx);
+                Ptr local = ctx.node().getPtr(0);
+                Ptr remote = local;
+                ctx.node().set((void*)&remote);
+            },sizeof(Ptr),RemotePtr_id);
+            add_function("make_new_remote",[this](Context& ctx){
+                g_ptr<Webcorn_Core> workshop = make_unit<Webcorn_Core>();
+                workshop->uargs << uargs;
+                Ptr remote(workshop->uid,0,0,0,0);
+                remote.cachelevel = 5;
+                ctx.node().set((void*)&remote);
+            },sizeof(Ptr),RemotePtr_id);
+
+            overload_type(RemotePtr_id,".'transact'(=>)","RemotePtr_TRANSACT",make_value(duck_id,0),[this,transactor](Context& ctx){
+                uint32_t old_type = ctx.node().type();
+                standard_sub_process(ctx);
+                if(ctx.node().type()!=old_type) {standard_process(ctx); return;}
+                Ptr& ptr = ctx.node().getPtr(0);
+
+                standard_sub_process(ctx);
+                if(ctx.node().value().sub_values().empty()) {
+                    Node expr = ctx.node().right().c0();
+                    Value outval = deadptr;
+                    list<Value> bindings;
+                    map<uint32_t, bool> internal_values;
+                    uint32_t hash = 5381;
+                    walk_handlers.default_function = [this,&hash,&bindings,&internal_values](Context& ctx){
+                        Col& name = ctx.node().name_col();
+                        for(uint32_t i = 0; i < name.length(); i++) {
+                            hash = ((hash << 5) + hash) + *(uint8_t*)name.qget(i);
+                        }
+                        if(ctx.node().type()==var_decl_id&&is_live(ctx.node().value())) {
+                            internal_values.put(ctx.node().value().idx, true);
+                        }
+                        if(ctx.node().type()==identifier_id&&is_live(ctx.node().value())) {
+                            if(!internal_values.hasKey(ctx.node().value().idx)) {
+                                bindings.push(ctx.node().value());
+                            }
+                        }
+                        standard_sub_process(ctx);
+                    };
+                    standard_direct_walk(expr);
+                    hash = mix32_final(hash);
+
+                    if(transactor->types[value_type_id].hasKeyByHash(hash)) {
+                        outval = Ptr(&transactor->types,value_type_id,transactor->types[value_type_id].getidxByHash(hash),0);
+                    } else {
+                        Node out_node = transactor->make_node();
+                        map<uint32_t, Value> value_alias_table;
+                        if(is_live(expr.value())) {
+                            Value new_return_value = transactor->make_value();
+                            new_return_value.copy(expr.value(),true);
+                            value_alias_table.put(expr.value().idx, new_return_value);
+                        }
+                        map<uint32_t, Node> node_alias_table;
+                        deep_copy_node(out_node,expr,value_alias_table,node_alias_table,transactor);
+                        outval = transactor->make_value(function_id,sizeof(Ptr));
+                        transactor->types[value_type_id].addcell(outval.idx,(void*)&hash,4,int_id);
+                        outval.set((void*)&out_node);
+                    }
+                    ctx.node().value().sub_values().insert(0,outval);
+
+                    Node transaction = *(Node*)outval.get();
+                    internal_values.clear();
+                    list<Value> transaction_bindings;
+                    walk_handlers.default_function = [this,&transaction_bindings,&internal_values](Context& ctx){
+                        if(ctx.node().type()==var_decl_id&&is_live(ctx.node().value())) {
+                            internal_values.put(ctx.node().value().idx, true);
+                        }
+                        if(ctx.node().type()==identifier_id&&is_live(ctx.node().value())) {
+                            if(!internal_values.hasKey(ctx.node().value().idx)) {
+                                transaction_bindings.push(ctx.node().value());
+                            }
+                        }
+                        standard_sub_process(ctx);
+                    };
+                    standard_direct_walk(transaction);
+
+                    for(int i=0;i<bindings.length();i++) {
+                        ctx.node().value().sub_values().push(transaction_bindings[i]);
+                        ctx.node().value().sub_values().push(bindings[i]);
+                    }
+                } 
+
+                Node transaction = *(Node*)ctx.node().value().sub_values()[0].get();
+
+                std::string signature = Ptr_to_string(transaction,transaction.cachelevel)+"@"+capture_ptr(ptr);
+                for(int i=1;i<ctx.node().value().sub_values().length();i++) {
+                    Value val = ctx.node().value().sub_values()[i];
+                    signature+="@";
+                    if(i%2==0) {
+                        signature+=value_as_string(val);
+                    } else {
+                        signature+=Ptr_to_string(val,val.cachelevel);
+                    }
+                }
+                
+                //On database
+                transactor->run(transactor->process("process_transaction('"+signature+"');"));
+
+                //On server
+                // ctx.node().value(compile_literal(returned).value());
+                // sync_identifier(ctx);
+            });
+            add_function("process_transaction",[this](Context& ctx){
+                standard_sub_process(ctx);
+                list<std::string> args = split_str(ctx.node().getString(0).to_std(),'@'); 
+                Node expr = string_to_Ptr(args[0]); 
+                expr.cache = &types; expr.unit = uid;
+                Ptr capabilityptr = string_to_Ptr(args[1]);
+                capabilityptr.cachelevel = 3;
+                capabilityptr.cache = &types; capabilityptr.unit = uid;
+                expr.c0().c0().set((void*)&capabilityptr);
+                Value target_val = deadptr;
+                for(int i=2;i<args.length();i++) {
+                    if(i%2==0) {
+                        target_val = string_to_Ptr(args[i]);
+                        target_val.cache = &types; target_val.unit = uid;
+                    } else {
+                        target_val.copy(compile_literal(args[i]).value(),false);
+                    }
+                }
+                start_stage(x_handlers);
+                standard_travel_pass(expr.scope());
+                if(is_live(expr.value())&&is_live(expr.value().data_ptr())) {
+                    resolve_string_ticket(ctx.node()) = value_as_string(expr.value());
+                }
+            },sizeof(Ptr),string_id);
 
 
             x_handlers[make_tokenized_keyword("mem_test")] = [this](Context& ctx){

@@ -178,10 +178,10 @@ inlined skeleton_pulse {
             }
         ";
         user.votes.cells((race_label,candidate) => {
-            js+="voted_for['"+js_lit(race_label)+"'] = "+js_lit(candidate.label)+"; ";
+            js+="voted_for["+js_lit(race_label)+"] = "+js_lit(candidate.label)+"; ";
         });
         tally_by_state.cells((state_label,tally) => {
-            js+="vote_tally['"+js_lit(state_label)+"'] = "+to_string(tally)+"; ";
+            js+="vote_tally["+js_lit(state_label)+"] = "+to_string(tally)+"; ";
         });
         return js;
     }
@@ -278,27 +278,27 @@ inlined skeleton_pulse {
     }       
 ##
 
+
+void standard_header {
+    html '<meta name="viewport" content="width=device-width, initial-scale=1">';
+    style "
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html { font-size: 17px; }
+        @media (min-width: 560px) {
+            html { font-size: 20px; }
+        }
+        @keyframes skeleton_pulse { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    ";
+    script read_file("web/webcorn.js");
+}
+
 route login {
     div {
-        style "
-            td:hover {
-                background-color:rgb(234, 234, 234);
-            }
-            input:focus {
-                outline: none;
-            }
-            textarea:focus {
-                outline: none;
-            }
-
-            * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }
-        ";
-
-        script read_file("web/webcorn.js");
+        standard_header;
         background_theme;
 
         response.append("HTTP/1.1 200 OK\r\n");
@@ -352,7 +352,8 @@ route login {
                             "justify-content" : "center";
                             "align-items" : "center";
                             "flex-direction" : "column";
-                            "width" : "min(480px, 90vw)";
+                            "width" : "100%";
+                            "max-width" : "700px";
                             "height" : "auto";
                             "min-height" : "120px";
                             "padding" : "40px";
@@ -763,7 +764,7 @@ stateless template div render_race(Header& race, bool is_visible) {
                     "transition" : "opacity 0.15s ease";
                     "onmouseenter" : "this.style.opacity='0.85'";
                     "onmouseleave" : "this.style.opacity='1'";
-                    text "VOTE" {
+                    text "PICK" {
                         "id" : candidate+"_text";
                         "color" : "white";
                         "font-size" : "12px";
@@ -1021,15 +1022,15 @@ div top_bar(string on_route) {
             "background-color" : "light gray";
             "border-radius" : "12px";
             "width" : "20%";
-            text "v" {"margin" : "5px"; text_theme;}
+            text "expand" {"margin" : "5px"; text_theme;}
             "onclick" : "
                 const nav = this.parentElement.children[1];
                 if(nav.style.height === '0px') {
                     nav.style.height = nav.scrollHeight + 'px';
-                    this.children[0].innerText = '^';
+                    this.children[0].innerText = 'hide';
                 } else {
                     nav.style.height = '0px';
-                    this.children[0].innerText = 'v';
+                    this.children[0].innerText = 'expand';
                 }
             ";
         }
@@ -1054,28 +1055,12 @@ div top_bar(string on_route) {
     ";
 }
 
-void standard_header {
-    html '<meta name="viewport" content="width=device-width, initial-scale=1">';
-    style "
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        html { font-size: 17px; }
-        @media (min-width: 560px) {
-            html { font-size: 20px; }
-        }
-        @keyframes skeleton_pulse { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-    ";
-    script read_file("web/webcorn.js");
-}
 
 route "" {
     standard_header;
+    top_bar("/");
     sync_with_database;
     script sync_with_client();
-    top_bar("/");
     div {
         "display" : "flex";
         "justify-content" : "center";
@@ -1471,7 +1456,7 @@ route "" {
         "justify-content" : "center";
         "width" : "100%";
         button {
-            text " v " {"font-size" : "1rem"; text_theme;}
+            text "to bottom" {"font-size" : "0.8rem"; text_theme;}
             "border" : "none";
             "background-color" : "light gray";
             "border-radius" : "12px";
@@ -1535,6 +1520,14 @@ route "" {
                             current = user.tb1;
                         }
                     }
+                    option "-- Select a race --" {
+                        "value" : "";
+                        "disabled" : "true";
+                        "selected" : "true";
+                        if(current.length>0) {
+                            "hidden" : "true";
+                        }
+                    }
                     for(int i=0;i<all_races.length;i++) {
                         Header race = all_races[i];
                         option race.label {
@@ -1566,7 +1559,7 @@ route "" {
                 "box-shadow" : "0 2px 8px rgba(0,0,0,0.08)";
                 "padding" : "12px";
                 component_theme;
-                string current = "50";
+                string current = "0";
                 database["Users"].try_read_forever_then {
                     if(user.?tb2) {
                         current = user.tb2;
@@ -1620,7 +1613,7 @@ route "" {
         "padding" : "24px";
 
         button {
-            text " ^ " {"font-size" : "1rem"; text_theme;}
+            text "to top" {"font-size" : "0.8rem"; text_theme;}
             "border" : "none";
             "background-color" : "light gray";
             "border-radius" : "12px 12px 0 0";
@@ -1830,7 +1823,7 @@ route "" {
                     "display" : (voting_finished?"none":"flex");
                     "align-items" : "center";
                     "justify-content" : "center";
-                    text "vote in all races to unlock" {
+                    text "finish picks and tiebreakers" {
                         "color" : "white";
                         "font-size" : "0.7rem";
                         "font-weight" : "700";
@@ -2381,10 +2374,146 @@ route admin {
 
             ColCol classes = database["Classes"];
             
-
-        } else {
             print(user.username," attempted unauthorized access to the admin route in unit ",unit_uid," on ",unit_standard_time); 
             script "window.location.href = '/';";
+        } else {
+            standard_header;
+            top_bar("/admin");
+            text "Welcome to the admin page";
+
+            Ptr string files = list_files_in_directory(project_path).filter(f => f.ends(".gsu"));
+            files.do(f => {
+                string sub_label = project_path+f;
+                ColColCol sub = load_subunit(sub_label);
+                div {   
+                    "id" : sub_label;             
+                    div {
+                        text sub_label {
+                            text_theme;
+                        }  
+                    }                          
+                    div {
+                        sub.do((pool, idx) => {
+                            div {
+                                if(idx<3) {
+                                    div {
+                                        text to_string(idx) {
+                                            "text-align" : "center";
+                                            "white-space" : "pre";
+                                            "margin" : "2px";
+                                            text_theme;
+                                        }
+                                        string poollabel = pool.label;
+                                        string poolkey = pool.key;
+                                        if(poolkey.length>0) {
+                                            if(poolkey==poollabel) {
+                                                poollabel="[:] "+poollabel;
+                                            } else {
+                                                poollabel=poolkey+": "+poollabel;
+                                            }
+                                        }
+                                        if(pool.tag>0) {
+                                            poollabel+=" ["+labels(pool.tag)+"]";
+                                        }
+                                        text poollabel {
+                                            "text-align" : "center";
+                                            "white-space" : "pre";
+                                            "margin" : "5px";
+                                            text_theme;
+                                        }
+
+                                        button {
+                                            text "SHOW/HIDE";
+                                            "onclick" : capture(
+                                                js_do("this.parentElement.parentElement.children[1].id = 'temp_frag_target';");
+                                            ){
+                                                ctx.source = "FRAG temp_frag_target <div><p>nothing</p></div>";
+                                            }
+                                        }
+                                    }
+                                    
+                                    div {
+                                        "display" : "flex";
+                                        "flex-direction" : "row";
+                                        pool.do((col, cidx) => {
+                                            div {
+                                                "display" : "flex";
+                                                "flex-direction" : "column";
+                                                "transition" : "background-color 0.2s ease";
+                                                div {
+                                                    text to_string(cidx) {
+                                                        "text-align" : "center";
+                                                        "white-space" : "pre";
+                                                        "margin" : "2px";
+                                                        text_theme;
+                                                    }
+                                                    string collabel = col.label;
+                                                    string colkey = col.key;
+                                                    if(colkey.length>0) {
+                                                        if(colkey==collabel) {
+                                                            collabel="[:] "+collabel;
+                                                        } else {
+                                                            collabel=colkey+": "+collabel;
+                                                        }
+                                                    }
+                                                    collabel+=" ["+labels(col.tag)+"]";
+                                                    text collabel {
+                                                        "text-align" : "center";
+                                                        "white-space" : "pre";
+                                                        "margin" : "5px";
+                                                        text_theme;
+                                                    }
+                                                }
+                                                div {
+                                                    col.do(e => {
+                                                        div {
+                                                            "border" : "1px solid black";
+                                                            "white-space" : "pre";
+                                                            string colval = to_string(e);
+                                                            string colkey = (&e).celllabel;
+                                                            if(colkey.length>0) {
+                                                                if(colkey==colval) {
+                                                                    colval="[:] "+colval;
+                                                                } else {
+                                                                    colval=colkey+": "+colval;
+                                                                }
+                                                            }
+
+                                                            if(is_value_ptr(e)) {
+                                                                string jsstr = "let el = getel("+js_lit(sub_label)+")";
+                                                                e.fields.do((t,onT) => {
+                                                                    if((onT>0)&&(t==0)) {
+                                                                        break;
+                                                                    } else {
+                                                                        jsstr+=".children[1].children["+to_string(t)+"]";
+                                                                    }
+                                                                });
+                                                                "onclick" : jsstr+"; el.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'center' });";
+                                                                "onmouseenter" : jsstr+"; el.style.backgroundColor='blue';";
+                                                                "onmouseleave" : jsstr+"; setTimeout(()=>{el.style.backgroundColor='white';},100);";
+                                                            }
+
+                                                            text colval {
+                                                                "margin" : "3px";
+                                                                text_theme;
+                                                            }
+                                                        }
+                                                    });
+                                                }
+                                            }
+                                        });
+                                    }
+                                } else {
+                                    div {
+
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }
+                sub.clear;
+            });
         }
     } else {
         print("A guest attempted to access the admin route in unit ",unit_uid," on ",unit_standard_time); 

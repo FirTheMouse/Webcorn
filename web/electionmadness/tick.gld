@@ -1,0 +1,46 @@
+ColColCol database = usubunits.get("web/electionmadness/data.gsu");
+
+int recent_count = 0;
+int hourly_count = 0;
+int longterm_count = 0;
+tstart("recent_tick");
+tstart("hourly_tick");
+tstart("longterm_tick");
+
+while(!unit_shutdown_flag) {
+    if(ttime_s("recent_tick")>300) {
+        string backup_path = "web/electionmadness/backups/data_recent_"+to_string(recent_count)+".gsu";
+        database.label(backup_path);
+        database.save;
+        database.label("web/electionmadness/data.gsu");
+        print(unit_time+": Recent backup saved to ",backup_path);
+        recent_count++;
+        recent_count = recent_count%3;
+        tstart("recent_tick");
+    }
+    if(ttime_s("hourly_tick")>3600) {
+        string backup_path = "web/electionmadness/backups/data_hourly_"+to_string(hourly_count)+".gsu";
+        database.label(backup_path);
+        database.save;
+        database.label("web/electionmadness/data.gsu");
+        print(unit_time+": Hourly backup saved to ",backup_path);
+        hourly_count++;
+        hourly_count = hourly_count%24;
+        tstart("hourly_tick");
+    }
+    if(ttime_s("longterm_tick")>259200) {
+        string backup_path = "web/electionmadness/backups/data_longterm_"+to_string(longterm_count)+".gsu";
+        database.label(backup_path);
+        database.save;
+        database.label("web/electionmadness/data.gsu");
+        print(unit_time+": Long term backup saved to ",backup_path);
+        longterm_count = (longterm_count+1)%4;
+        tstart("longterm_tick");
+    }
+    catch {
+        print("Tick error, terminating");
+        terminate_all_servers;
+        break;
+    }
+    thread_sleep;
+}
