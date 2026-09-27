@@ -1,3 +1,8 @@
+Renewing the TLS cert
+
+    chmod +x certer.sh
+    ./certer.sh
+
 Flags cheat sheet
 
 For the intial build (cmake -B build):

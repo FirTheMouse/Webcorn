@@ -176,13 +176,89 @@ inlined skeleton_pulse {
                     }
                 }
             }
+            function update_voting_state(racelabel, candidate, is_inital = false) {
+                document.querySelectorAll('.race_display').forEach(race => {
+                    if(race.id===racelabel) {
+                        const candidates = race.children;
+                        let mycolor = null;
+                        for(let i=0;i<candidates.length;i++) {
+                            const candidate_btn = candidates[i].children[3];
+                            if(candidates[i].dataset.candidate===candidate) {
+                                candidate_btn.style.backgroundColor = 'gray';
+                                mycolor = candidates[i].dataset.mycolor;
+                            } else {
+                                candidate_btn.style.backgroundColor = candidates[i].dataset.mycolor;
+                            }
+                        }
+
+                        const tally = getel(racelabel+'_tally');
+                        if(tally) {
+                            tally.style.backgroundColor = mycolor;
+                            tally.children[1].innerText = candidate;
+                            tally.children[2].innerText = '0'; //Replace later
+                        }
+
+                        const race_state = racelabel.split('-')[0];
+                        if(is_inital || !(racelabel in voted_for)) {
+                            let t = 0;
+                            if(is_inital) {
+                                t = vote_tally[race_state];
+                            } else {
+                                t = vote_tally[race_state]-1;
+                                vote_tally[race_state] = t;
+                            }
+                            if(t<=0) {
+                                getel(race_state).style.fill = 'white';
+                                check_vote_finished();
+                            }
+                            const mybadge = race.closest('.badge_expanded_view');
+                            if(mybadge) {
+                                if(t==0) {
+                                    close_open_badge();
+                                    mybadge.parentElement.style.display = 'none';
+                                } else {
+                                    mybadge.parentElement.children[1].children[0].innerText = t;
+                                }
+                            } else {
+                                getel(race_state+'_badge_text').innerText = t;
+                            }
+                            
+                            const races = race.closest('.races_display');
+                            if(races) {
+                                const tabs = races.children[0].children;
+                                var next_race_idx = -1;
+                                for(let i=0; i<tabs.length; i++) {
+                                    var rlabel = tabs[i].dataset.racelabel;
+                                    if(rlabel in voted_for) {
+                                        tabs[i].style.backgroundColor = 'gray';
+                                        tabs[i].style.borderBottomColor = 'transparent';
+                                    } else if(rlabel===racelabel) { 
+                                        tabs[i].style.backgroundColor = 'gray';
+                                        tabs[i].style.borderBottomColor = 'transparent';
+                                    } else if(next_race_idx===-1) { //switch to the next active tab
+                                        tabs[i].style.borderBottomColor = 'rgb(172,57,147)';
+                                        next_race_idx = i;
+                                    }
+                                }
+                                if(next_race_idx!==-1) { //then this switches to the next active race
+                                    const race_displays = races.children[1].children;
+                                    for(let i=0; i<race_displays.length; i++) {
+                                        race_displays[i].style.display = (i===next_race_idx) ? 'flex' : 'none';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
         ";
         user.votes.cells((race_label,candidate) => {
-            js+="voted_for["+js_lit(race_label)+"] = "+js_lit(candidate.label)+"; ";
+            js+="voted_for["+js_lit(race_label)+"] = "+js_lit(candidate.label)+";";
         });
         tally_by_state.cells((state_label,tally) => {
             js+="vote_tally["+js_lit(state_label)+"] = "+to_string(tally)+"; ";
         });
+        
         return js;
     }
     global bool is_voting_finished() {
@@ -611,50 +687,6 @@ route login {
                 }
         }
     }
-    script "
-
-        function type_into(el, text, callback) {
-            let i = 0;
-            function type_next() {
-                if(i < text.length) {
-                    el.value += text[i];
-                    i++;
-                    setTimeout(type_next, 40 + Math.random() * 80);
-                } else {
-                    callback && callback();
-                }
-            }
-            type_next();
-        }
-
-        function simulate_user() {
-            const buttons = getel('login_body').querySelectorAll('button');
-            const logout_btn = Array.from(buttons).find(b => b.innerText.trim() === 'Logout');
-            if(logout_btn) {
-                setTimeout(() => {
-                    logout_btn.click();
-                    simulate_user();
-                }, 600);
-            } else {
-                const username = 'bot_' + Math.random().toString(36).substr(2, 9);
-                const password = Math.random().toString(36).substr(2, 12);
-                setTimeout(() => {
-                    if(getel('login_card').style.height === '0px') {
-                        toggle_login_card('Register', false);
-                    }
-                    type_into(getel('username'), username, () => {
-                        setTimeout(() => {
-                            type_into(getel('password'), password, () => {
-                                setTimeout(() => {
-                                    getel('login').click();
-                                }, 300);
-                            });
-                        }, 200);
-                    });
-                }, 600);
-            }
-        }
-    ";
 }
 
 stateless template div render_race(Header& race, bool is_visible) { 
@@ -754,12 +786,6 @@ stateless template div render_race(Header& race, bool is_visible) {
                     "data-btncandidate" : candidate;
 
                     string racelabel = race.label;
-                    Ptr myvote = get_vote(race.label);
-                    if(is_live(myvote)) {
-                        if(getidx(myvote)==getidx(rbn)) {
-                            "background-color" : "gray";
-                        } 
-                    }
                     "background-color" : party_color;
                     "transition" : "opacity 0.15s ease";
                     "onmouseenter" : "this.style.opacity='0.85'";
@@ -771,83 +797,14 @@ stateless template div render_race(Header& race, bool is_visible) {
                         "font-weight" : "700";
                         "font-family" : "system-ui, sans-serif";
                     }
-
                     "onclick" : capture(
                         js_do("
                             event.stopPropagation();
                             if(votes_locked) return;
-                            document.querySelectorAll('.race_display').forEach(race => {
-                                const racelabel = "+js_lit(racelabel)+";
-                                const candidate = "+js_lit(candidate)+";
-                                if(race.id===racelabel) {
-                                    const candidates = race.children;
-                                    for(let i=0;i<candidates.length;i++) {
-                                        const candidate_btn = candidates[i].children[3];
-                                        if(candidates[i].dataset.candidate===candidate) {
-                                            candidate_btn.style.backgroundColor = 'gray';
-                                        } else {
-                                            candidate_btn.style.backgroundColor = candidates[i].dataset.mycolor;
-                                        }
-                                    }
-
-                                    const tally = getel("+js_lit(racelabel+"_tally")+");
-                                    if(tally) {
-                                        tally.style.backgroundColor = this.parentElement.dataset.mycolor;
-                                        tally.children[1].innerText = candidate;
-                                        tally.children[2].innerText = "+js_lit(points_str)+";
-                                    }
-
-                                    const race_state = racelabel.split('-')[0];
-                                    if(!(racelabel in voted_for)) {
-                                        t = vote_tally[race_state]-1;
-                                        vote_tally[race_state] = t;
-                                        if(t<=0) {
-                                            getel(race_state).style.fill = 'white';
-                                            check_vote_finished();
-                                        }
-                                        const mybadge = race.closest('.badge_expanded_view');
-                                        if(mybadge) {
-                                            if(t==0) {
-                                                close_open_badge();
-                                                mybadge.parentElement.style.display = 'none';
-                                            } else {
-                                                mybadge.parentElement.children[1].children[0].innerText = t;
-                                            }
-                                        } else {
-                                            getel(race_state+'_badge').parentElement.children[1].children[0].innerText = t;
-                                        }
-                                        
-                                        const races = race.closest('.races_display');
-                                        if(races) {
-                                            const tabs = races.children[0].children;
-                                            var next_race_idx = -1;
-                                            for(let i=0; i<tabs.length; i++) {
-                                                var rlabel = tabs[i].dataset.racelabel;
-                                                if(rlabel in voted_for) {
-                                                    tabs[i].style.backgroundColor = 'gray';
-                                                    tabs[i].style.borderBottomColor = 'transparent';
-                                                } else if(rlabel==="+js_lit(racelabel)+") { 
-                                                    tabs[i].style.backgroundColor = 'gray';
-                                                    tabs[i].style.borderBottomColor = 'transparent';
-                                                } else if(next_race_idx===-1) { //switch to the next active tab
-                                                    tabs[i].style.borderBottomColor = 'rgb(172,57,147)';
-                                                    next_race_idx = i;
-                                                }
-                                            }
-                                            console.log('Next active race ',next_race_idx);
-                                            if(next_race_idx!==-1) { //then this switches to the next active race
-                                                const race_displays = races.children[1].children;
-                                                for(let i=0; i<race_displays.length; i++) {
-                                                    race_displays[i].style.display = (i===next_race_idx) ? 'flex' : 'none';
-                                                }
-                                            }
-                                        } else {
-                                            console.log('No races found');
-                                        }
-                                    }
-                                    voted_for[racelabel] = candidate;
-                                }
-                            });
+                            const racelabel = "+js_lit(racelabel)+";
+                            const candidate = "+js_lit(candidate)+";
+                            update_voting_state(racelabel,candidate);
+                            voted_for[racelabel] = candidate;
                         "),
                         string frbn ; js_lit(capture_ptr(rbn))
                     ){
@@ -1057,6 +1014,7 @@ div top_bar(string on_route) {
 
 
 route "" {
+newline("Total");
     standard_header;
     top_bar("/");
     sync_with_database;
@@ -1108,7 +1066,7 @@ route "" {
         }
     }
 
-
+newline("Map");
     div {
         "id" : "all_races_view";
         "background-color" : "rgb(40, 40, 40)";
@@ -1159,254 +1117,251 @@ route "" {
                 "overflow" : "hidden";
                 "position" : "relative";
                 "cursor" : "grab";
-                
-                stateless template div clickable_state(string myid) {
-                    if(get_tally(myid)>0) {
-                        "fill" : "rgb(190, 109, 236)";
-                    } else {
-                        "fill" : "white";
-                    }
-                }
 
-                svg {
-                    "viewBox" : "0 0 1000 589";
-                    "id" : "mapsvg";
-                    "style" : "position:absolute;top:0;left:0;width:100%;height:100%;stroke-linejoin:round;stroke:#000;fill:none;";
+                cache_catcher {
+                    svg {
+                        "viewBox" : "0 0 1000 589";
+                        "id" : "mapsvg";
+                        "style" : "position:absolute;top:0;left:0;width:100%;height:100%;stroke-linejoin:round;stroke:#000;fill:none;";
 
-                    ColCol& map_data = database["Map"];
-                    for(int i=0;i<map_data.length;i++) {
-                        string mapel = map_data[i];
-                        g {
-                            clickable_state(mapel.label);
-                            path {
-                                "id" : mapel.label;
-                                "d" : mapel;
-                                "stroke-width" : "0.97063118000000004";
+                        ColCol& map_data = database["Map"];
+                        for(int i=0;i<map_data.length;i++) {
+                            string mapel = map_data[i];
+                            g {
+                                "fill" : "white";
+                                path {
+                                    "id" : mapel.label;
+                                    "d" : mapel;
+                                    "stroke-width" : "0.97063118000000004";
+                                }
                             }
                         }
                     }
+
+                    script "
+                        const svg = getel("+js_lit(capture_node(map_viewport))+").children[0];
+                        let isPanning = false;
+                        let isExpanding = false;
+                        let nudge_interval = null;
+                        let startX, startY, offsetX = 0, offsetY = 0;
+
+                        let scale = 1.0;
+                        const BASE_W = 1000, BASE_H = 589;
+
+                        function updateViewBox() {
+                            const w = BASE_W / scale;
+                            const h = BASE_H / scale;
+                            svg.setAttribute('viewBox', `${-offsetX} ${-offsetY} ${w} ${h}`);
+                            update_all_transforms();
+                        }
+                        
+                        (function() {
+                            const el = getel("+js_lit(capture_node(map_viewport))+");
+
+                            el.addEventListener('mouseleave', () => { isPanning = false; el.style.cursor = 'grab'; });
+
+
+                            let isZooming = false;
+                            let zoomStartY;
+
+                            el.addEventListener('mousedown', e => {
+                                if(e.button === 0 && !isExpanding) {
+                                    isPanning = true;
+                                    el.style.cursor = 'grabbing';
+                                    startX = e.clientX - offsetX;
+                                    startY = e.clientY - offsetY;
+                                } else if(e.button === 1 && !isExpanding) {
+                                    e.preventDefault();
+                                    isZooming = true;
+                                    zoomStartY = e.clientY;
+                                }
+                            });
+                            el.addEventListener('mouseup', e => { 
+                                isPanning = false; 
+                                isZooming = false;
+                                el.style.cursor = 'grab'; 
+                            });
+                            el.addEventListener('mousemove', e => {
+                                if(isPanning && !isExpanding) {
+                                    offsetX = e.clientX - startX;
+                                    offsetY = e.clientY - startY;
+                                    updateViewBox();
+                                } else if(isZooming && !isExpanding) {
+                                    const dy = zoomStartY - e.clientY;
+                                    zoomStartY = e.clientY;
+                                    const delta = dy > 0 ? 1.02 : 0.98;
+                                    const newScale = Math.max(1.0, Math.min(8.0, scale * delta));
+                                    const oldW = BASE_W / scale;
+                                    const oldH = BASE_H / scale;
+                                    const newW = BASE_W / newScale;
+                                    const newH = BASE_H / newScale;
+                                    const centerX = -offsetX + oldW / 2;
+                                    const centerY = -offsetY + oldH / 2;
+                                    offsetX = -(centerX - newW / 2);
+                                    offsetY = -(centerY - newH / 2);
+                                    scale = newScale;
+                                    updateViewBox();
+                                }
+                            });
+
+                            let lastTouchDist = null;
+                            let touchStartX, touchStartY;
+
+                            el.addEventListener('touchstart', e => {
+                                if(e.touches.length === 1 && !isExpanding) {
+                                    isPanning = true;
+                                    startX = e.touches[0].clientX - offsetX;
+                                    startY = e.touches[0].clientY - offsetY;
+                                } else if(e.touches.length === 2 && !isExpanding) {
+                                    isPanning = false;
+                                    lastTouchDist = Math.hypot(
+                                        e.touches[0].clientX - e.touches[1].clientX,
+                                        e.touches[0].clientY - e.touches[1].clientY
+                                    );
+                                }
+                            });
+                            el.addEventListener('touchmove', e => {
+                                e.preventDefault();
+                                if(e.touches.length === 1 && isPanning && !isExpanding) {
+                                    offsetX = e.touches[0].clientX - startX;
+                                    offsetY = e.touches[0].clientY - startY;
+                                    updateViewBox();
+                                } else if(e.touches.length === 2 && !isExpanding) {
+                                    const dist = Math.hypot(
+                                        e.touches[0].clientX - e.touches[1].clientX,
+                                        e.touches[0].clientY - e.touches[1].clientY
+                                    );
+                                    if(lastTouchDist) {
+                                        scale = Math.max(1.0, Math.min(8.0, scale * (dist / lastTouchDist)));
+                                    }
+                                    lastTouchDist = dist;
+                                    updateViewBox();
+                                }
+                            }, { passive: false });
+                            el.addEventListener('touchend', () => { isPanning = false; lastTouchDist = null; });
+                        })();
+                    ";
                 }
 
-                script "
-                    const svg = getel("+js_lit(capture_node(map_viewport))+").children[0];
-                    let isPanning = false;
-                    let isExpanding = false;
-                    let nudge_interval = null;
-                    let startX, startY, offsetX = 0, offsetY = 0;
 
-                    let scale = 1.0;
-                    const BASE_W = 1000, BASE_H = 589;
-
-                    function updateViewBox() {
-                        const w = BASE_W / scale;
-                        const h = BASE_H / scale;
-                        svg.setAttribute('viewBox', `${-offsetX} ${-offsetY} ${w} ${h}`);
-                        update_all_transforms();
-                    }
-                    
-                    (function() {
-                        const el = getel("+js_lit(capture_node(map_viewport))+");
-
-                        el.addEventListener('mouseleave', () => { isPanning = false; el.style.cursor = 'grab'; });
-
-
-                        let isZooming = false;
-                        let zoomStartY;
-
-                        el.addEventListener('mousedown', e => {
-                            if(e.button === 0 && !isExpanding) {
-                                isPanning = true;
-                                el.style.cursor = 'grabbing';
-                                startX = e.clientX - offsetX;
-                                startY = e.clientY - offsetY;
-                            } else if(e.button === 1 && !isExpanding) {
-                                e.preventDefault();
-                                isZooming = true;
-                                zoomStartY = e.clientY;
-                            }
-                        });
-                        el.addEventListener('mouseup', e => { 
-                            isPanning = false; 
-                            isZooming = false;
-                            el.style.cursor = 'grab'; 
-                        });
-                        el.addEventListener('mousemove', e => {
-                            if(isPanning && !isExpanding) {
-                                offsetX = e.clientX - startX;
-                                offsetY = e.clientY - startY;
-                                updateViewBox();
-                            } else if(isZooming && !isExpanding) {
-                                const dy = zoomStartY - e.clientY;
-                                zoomStartY = e.clientY;
-                                const delta = dy > 0 ? 1.02 : 0.98;
-                                const newScale = Math.max(1.0, Math.min(8.0, scale * delta));
-                                const oldW = BASE_W / scale;
-                                const oldH = BASE_H / scale;
-                                const newW = BASE_W / newScale;
-                                const newH = BASE_H / newScale;
-                                const centerX = -offsetX + oldW / 2;
-                                const centerY = -offsetY + oldH / 2;
-                                offsetX = -(centerX - newW / 2);
-                                offsetY = -(centerY - newH / 2);
-                                scale = newScale;
-                                updateViewBox();
-                            }
-                        });
-
-                        let lastTouchDist = null;
-                        let touchStartX, touchStartY;
-
-                        el.addEventListener('touchstart', e => {
-                            if(e.touches.length === 1 && !isExpanding) {
-                                isPanning = true;
-                                startX = e.touches[0].clientX - offsetX;
-                                startY = e.touches[0].clientY - offsetY;
-                            } else if(e.touches.length === 2 && !isExpanding) {
-                                isPanning = false;
-                                lastTouchDist = Math.hypot(
-                                    e.touches[0].clientX - e.touches[1].clientX,
-                                    e.touches[0].clientY - e.touches[1].clientY
-                                );
-                            }
-                        });
-                        el.addEventListener('touchmove', e => {
-                            e.preventDefault();
-                            if(e.touches.length === 1 && isPanning && !isExpanding) {
-                                offsetX = e.touches[0].clientX - startX;
-                                offsetY = e.touches[0].clientY - startY;
-                                updateViewBox();
-                            } else if(e.touches.length === 2 && !isExpanding) {
-                                const dist = Math.hypot(
-                                    e.touches[0].clientX - e.touches[1].clientX,
-                                    e.touches[0].clientY - e.touches[1].clientY
-                                );
-                                if(lastTouchDist) {
-                                    scale = Math.max(1.0, Math.min(8.0, scale * (dist / lastTouchDist)));
-                                }
-                                lastTouchDist = dist;
-                                updateViewBox();
-                            }
-                        }, { passive: false });
-                        el.addEventListener('touchend', () => { isPanning = false; lastTouchDist = null; });
-                    })();
-                ";
 
                 stateless template div make_badge(string stateid, Ptr races) {
-                    div {
-                        string badgeid = stateid+"_badge";
-                        "id" : badgeid;
-                        "position" : "fixed";
-                        "z-index" : "1";
-                        div expanded_view {
-                            "display" : "none";
-                            "class" : "badge_expanded_view";
-                            render_races(races);
-                            "transition" : "opacity 0.3s ease, transform 0.5s ease";
-                            "position" : "relative";
-                            button {
-                                "position" : "absolute";
-                                "top" : "8px";
-                                "right" : "8px";
-                                "border" : "none";
-                                "background" : "none";
-                                "cursor" : "pointer";
-                                text "x" {
-                                    "font-size" : "0.8rem";
-                                    "font-weight" : "500";
-                                    "color" : "rgb(80,80,80)";
+                    cache_catcher(stateid,races) {
+                        div {
+                            string badgeid = stateid+"_badge";
+                            "id" : badgeid;
+                            "position" : "fixed";
+                            "z-index" : "1";
+                            div expanded_view {
+                                "display" : "none";
+                                "class" : "badge_expanded_view";
+                                render_races(races);
+                                "transition" : "opacity 0.3s ease, transform 0.5s ease";
+                                "position" : "relative";
+                                button {
+                                    "position" : "absolute";
+                                    "top" : "8px";
+                                    "right" : "8px";
+                                    "border" : "none";
+                                    "background" : "none";
+                                    "cursor" : "pointer";
+                                    text "x" {
+                                        "font-size" : "0.8rem";
+                                        "font-weight" : "500";
+                                        "color" : "rgb(80,80,80)";
+                                        text_theme;
+                                    }
+                                    "onclick" : "
+                                        event.stopPropagation();
+                                        const expanded = this.parentElement;
+                                        expanded.style.display = 'none';
+                                        const badgeview = expanded.parentElement.children[1];
+                                        badgeview.style.display = 'flex';
+                                        badgeview.style.transform = 'scale(4)';
+                                        badgeview.style.opacity = '1';
+                                        if(nudge_interval) { clearInterval(nudge_interval); nudge_interval = null; isExpanding = false; }
+                                        expanded.parentElement.style.zIndex = '1';
+                                        setTimeout(() => {
+                                            badgeview.style.transform = 'scale(1)';
+                                            badgeview.style.opacity = '1';
+                                        }, 10);
+                                        update_all_transforms();
+                                    ";
+                                }
+                            } 
+                            
+                            div badge_view {
+                                "display" : "flex";
+                                "width" : "40px";
+                                "height" : "40px";
+                                "border-radius" : "8px";
+                                "background" : "rgb(255, 255, 255)";
+                                "border" : "2px solid black";
+                                "align-items" : "center";
+                                "justify-content" : "center";
+                                "transition" : "opacity 0.3s ease, transform 0.5s ease";
+                                text "7" {
+                                    "id" : badgeid+"_text";
+                                    "color" : "black";
+                                    "font-size" : "11px";
+                                    "font-weight" : "700";
                                     text_theme;
                                 }
                                 "onclick" : "
-                                    event.stopPropagation();
-                                    const expanded = this.parentElement;
-                                    expanded.style.display = 'none';
-                                    const badgeview = expanded.parentElement.children[1];
-                                    badgeview.style.display = 'flex';
-                                    badgeview.style.transform = 'scale(4)';
-                                    badgeview.style.opacity = '1';
-                                    if(nudge_interval) { clearInterval(nudge_interval); nudge_interval = null; isExpanding = false; }
-                                    expanded.parentElement.style.zIndex = '1';
+                                    close_open_badge();
+                                    this.style.display = 'none';
+
+                                    const expandedview = this.parentElement.children[0];
+                                    expandedview.style.display = 'flex';
+                                    expandedview.style.transform = 'scale(0)';
+                                    expandedview.style.opacity = '0';
+                                    this.parentElement.style.zIndex = '100';
                                     setTimeout(() => {
-                                        badgeview.style.transform = 'scale(1)';
-                                        badgeview.style.opacity = '1';
+                                        expandedview.style.transform = 'scale(1)';
+                                        expandedview.style.opacity = '1';
                                     }, 10);
+                                    isExpanding = true;
+                                    nudge_interval = setInterval(() => {
+                                        const mrect = getel("+js_lit(capture_node(map_viewport))+").getBoundingClientRect();
+                                        const erect = expandedview.getBoundingClientRect();
+                                        let dx = 0, dy = 0;
+                                        if(erect.right > mrect.right) dx = -(erect.right - mrect.right + 16);
+                                        if(erect.bottom > mrect.bottom) dy = -(erect.bottom - mrect.bottom + 16);
+                                        if(erect.left < mrect.left) dx = -(erect.left - mrect.left - 16);
+                                        if(erect.top < mrect.top) dy = -(erect.top - mrect.top - 16);
+                                        if(dx !== 0 || dy !== 0) {
+                                            offsetX += dx / scale;
+                                            offsetY += dy / scale;
+                                            updateViewBox();
+                                        }
+                                    }, 1);
+                                    setTimeout(() => { clearInterval(nudge_interval); isExpanding = false; }, 300);
                                     update_all_transforms();
                                 ";
                             }
-                        } 
-                        
-                        div badge_view {
-                            "display" : "flex";
-                            "width" : "40px";
-                            "height" : "40px";
-                            "border-radius" : "8px";
-                            "background" : "rgb(255, 255, 255)";
-                            "border" : "2px solid black";
-                            "align-items" : "center";
-                            "justify-content" : "center";
-                            "transition" : "opacity 0.3s ease, transform 0.5s ease";
-                            string tally = to_string(get_tally(stateid));
-                            text tally {
-                                "id" : badgeid+"_text";
-                                "color" : "black";
-                                "font-size" : "11px";
-                                "font-weight" : "700";
-                                text_theme;
-                            }
-                            "onclick" : "
-                                close_open_badge();
-                                this.style.display = 'none';
-
-                                const expandedview = this.parentElement.children[0];
-                                expandedview.style.display = 'flex';
-                                expandedview.style.transform = 'scale(0)';
-                                expandedview.style.opacity = '0';
-                                this.parentElement.style.zIndex = '100';
-                                setTimeout(() => {
-                                    expandedview.style.transform = 'scale(1)';
-                                    expandedview.style.opacity = '1';
-                                }, 10);
-                                isExpanding = true;
-                                nudge_interval = setInterval(() => {
+                            string badgescript = "
+                                make_snap_root(getel("+js_lit(stateid)+"));
+                                getel("+js_lit(stateid)+").addSnapChild(getel("+js_lit(badgeid)+"));                        
+                                getel("+js_lit(badgeid)+").joint = function() {
+                                    const prect = this.snap_parent.getBoundingClientRect();
+                                    const badge = getel("+js_lit(badgeid)+");
+                                    badge.style.left = (prect.left + prect.width/2 - badge.offsetWidth/2) + 'px';
+                                    badge.style.top  = (prect.top  + prect.height/2 - badge.offsetHeight/2) + 'px';
                                     const mrect = getel("+js_lit(capture_node(map_viewport))+").getBoundingClientRect();
-                                    const erect = expandedview.getBoundingClientRect();
-                                    let dx = 0, dy = 0;
-                                    if(erect.right > mrect.right) dx = -(erect.right - mrect.right + 16);
-                                    if(erect.bottom > mrect.bottom) dy = -(erect.bottom - mrect.bottom + 16);
-                                    if(erect.left < mrect.left) dx = -(erect.left - mrect.left - 16);
-                                    if(erect.top < mrect.top) dy = -(erect.top - mrect.top - 16);
-                                    if(dx !== 0 || dy !== 0) {
-                                        offsetX += dx / scale;
-                                        offsetY += dy / scale;
-                                        updateViewBox();
-                                    }
-                                }, 1);
-                                setTimeout(() => { clearInterval(nudge_interval); isExpanding = false; }, 300);
+                                    const cx = prect.left + prect.width/2;
+                                    const cy = prect.top + prect.height/2;
+                                    const inside = cx >= mrect.left && cx <= mrect.right && cy >= mrect.top && cy <= mrect.bottom;
+                                    badge.style.visibility = inside ? 'visible' : 'hidden';
+                                    return true;
+                                };       
                                 update_all_transforms();
+                                setTimeout(() => {
+                                    getel("+js_lit(badgeid)+").style.opacity = '1';
+                                    getel("+js_lit(badgeid)+").style.transform = 'scale(1)';
+                                }, 80);
                             ";
+                            script badgescript;
                         }
-                        string badgescript = "
-                            make_snap_root(getel("+js_lit(stateid)+"));
-                            getel("+js_lit(stateid)+").addSnapChild(getel("+js_lit(badgeid)+"));                        
-                            getel("+js_lit(badgeid)+").joint = function() {
-                                const prect = this.snap_parent.getBoundingClientRect();
-                                const badge = getel("+js_lit(badgeid)+");
-                                badge.style.left = (prect.left + prect.width/2 - badge.offsetWidth/2) + 'px';
-                                badge.style.top  = (prect.top  + prect.height/2 - badge.offsetHeight/2) + 'px';
-                                const mrect = getel("+js_lit(capture_node(map_viewport))+").getBoundingClientRect();
-                                const cx = prect.left + prect.width/2;
-                                const cy = prect.top + prect.height/2;
-                                const inside = cx >= mrect.left && cx <= mrect.right && cy >= mrect.top && cy <= mrect.bottom;
-                                badge.style.visibility = inside ? 'visible' : 'hidden';
-                                return true;
-                            };       
-                            update_all_transforms();
-                            setTimeout(() => {
-                                getel("+js_lit(badgeid)+").style.opacity = '1';
-                                getel("+js_lit(badgeid)+").style.transform = 'scale(1)';
-                            }, 80);
-                        ";
-                        script badgescript;
                     }
                 }
 
@@ -1417,9 +1372,7 @@ route "" {
                     for(int i=0;i<bystate.length;i++) {
                         setsidx(bystate,i);
                         string stateid = bystate.celllabel;
-                        if(get_tally(stateid)>0) {
-                            make_badge(stateid,bystate[i]);
-                        }
+                        make_badge(stateid,bystate[i]);
                     }
                 }
                 script "
@@ -1446,9 +1399,9 @@ route "" {
             }
         }
     }
+endline;
 
-
-
+newline("All races");
     div {
         "display" : "flex";
         "flex-direction" : "column";
@@ -1483,16 +1436,18 @@ route "" {
             "max-width" : "900px";
             for(int i=0;i<all_races.length;i++) {
                 Header race = all_races[i];
-                text race.label {
-                    "id" : (race.label)+"_scroll_label";
-                    "onclick" : "
-                        const el = getel("+js_lit(race.label+"_tally")+");
-                        if(el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    ";
-                    "cursor" : "pointer";
-                    race_header_theme;
+                cache_catcher(race) {
+                    text race.label {
+                        "id" : (race.label)+"_scroll_label";
+                        "onclick" : "
+                            const el = getel("+js_lit(race.label+"_tally")+");
+                            if(el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        ";
+                        "cursor" : "pointer";
+                        race_header_theme;
+                    }
+                    render_race(race,true);
                 }
-                render_race(race,true);
             }
 
             text "Tiebreaker 1" {
@@ -1601,7 +1556,7 @@ route "" {
             }
         }
     }
-
+endline;
 
     div tally_board_holder {
         "min-height" : "100vh";
@@ -1945,8 +1900,6 @@ route "" {
         }
     }
 
-
-
     string capstr = capture{
         if(usubunits.length==1) {
             print("Snapshotting");
@@ -1975,6 +1928,16 @@ route "" {
         print("==Server Votes==\n",check_votes(),"\n==Client Votes==\n",jsvotes);
     };
     script "
+        Object.entries(voted_for).forEach(([racelabel, candidate]) => {
+            update_voting_state(racelabel, candidate, true);
+        });
+        Object.keys(vote_tally).forEach(race_state => {
+            if(vote_tally[race_state] > 0) {
+                getel(race_state).style.fill = 'rgb(190, 109, 236)';
+                getel(race_state+'_badge_text').innerText = vote_tally[race_state];
+            }
+        });
+        
         document.addEventListener('keydown', (e) => {
             if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
             if(e.key === 'm') {
@@ -1984,123 +1947,10 @@ route "" {
                 "+checkvotes+";
             }
         });
-
-        const personalities = {
-            map_user: {
-                think_time: () => 300 + Math.random() * 700,
-                tab_delay: () => 400 + Math.random() * 300,
-                vote_delay: () => 300 + Math.random() * 400,
-                use_drawer: false,
-            },
-            mobile_user: {
-                think_time: () => 500 + Math.random() * 1000,
-                tab_delay: () => 600 + Math.random() * 500,
-                vote_delay: () => 400 + Math.random() * 600,
-                use_drawer: true,
-            },
-            speedrunner: {
-                think_time: () => 50 + Math.random() * 50,
-                tab_delay: () => 80 + Math.random() * 50,
-                vote_delay: () => 60 + Math.random() * 40,
-                use_drawer: true,
-            },
-            map_speedrunner: {
-                think_time: () => 50 + Math.random() * 400,
-                tab_delay: () => 80 + Math.random() * 100,
-                vote_delay: () => 60 + Math.random() * 200,
-                scroll_speed: () => 50 + Math.random() * 50,
-                use_drawer: false,
-            },
-        };
-        const keys = Object.keys(personalities);
-        const my_personality = personalities[keys[Math.floor(Math.random() * keys.length)]];
-
-        function simulate_user() {
-            const states = Object.keys(vote_tally).filter(s => vote_tally[s] > 0);
-            if(states.length === 0) {
-                getel('tally_board').scrollIntoView({ behavior: 'smooth', block: 'end' });
-                setTimeout(() => {
-                    getel('vote_lock_btn').click();
-                    if(getel('register_prompt').style.display==='flex') {
-                        setTimeout(() => {
-                            window.location.href = '/login';
-                        },600);
-                    } else {
-                        setTimeout(() => {
-                            window.location.href = '/login';
-                        },1200);
-                    }
-                }, 500);
-                return;
-            }
-
-            if(my_personality.use_drawer) {
-                const drawer_btn = getel('all_races_view').children[0];
-                const drawer = getel('all_races_view').children[1];
-                if(drawer.style.height === '0px') {
-                    drawer_btn.click();
-                }
-                setTimeout(() => {
-                    const all_displays = drawer.querySelectorAll('.race_display');
-                    let display_idx = 0;
-                    function do_drawer_race() {
-                        if(display_idx < all_displays.length) {
-                            const display = all_displays[display_idx];
-                            display.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                            if(display.style.display !== 'none') {
-                                const buttons = display.querySelectorAll('button[data-btncandidate]');
-                                if(buttons.length > 0) {
-                                    setTimeout(() => {
-                                        buttons[Math.floor(Math.random() * buttons.length)].click();
-                                    }, my_personality.vote_delay());
-                                }
-                            }
-                            display_idx++;
-                            setTimeout(do_drawer_race, my_personality.tab_delay());
-                        } else {
-                            drawer_btn.click();
-                            setTimeout(simulate_user, my_personality.think_time());
-                        }
-                    }
-                    do_drawer_race();
-                }, my_personality.think_time());
-            } else {
-                const state = states[Math.floor(Math.random() * states.length)];
-                const badge = getel(state+'_badge');
-                const races = badge.querySelector('.races_display');
-                const displays = races.children[1].children;
-                if(badge) {
-                    if(badge.children[0].style.display==='none') {
-                        badge.children[1].click();
-                    }
-                    setTimeout(() => {
-                        const tabs = badge.querySelectorAll('.race_tab');
-                        let tab_idx = 0;
-                        function do_tab() {
-                            if(tab_idx < tabs.length) {
-                                const tab = tabs[tab_idx];
-                                tab.click();
-                                const active_display = displays[tab_idx];
-                                setTimeout(() => {
-                                    const buttons = active_display.querySelectorAll('button[data-btncandidate]');
-                                    if(buttons.length > 0) {
-                                        buttons[Math.floor(Math.random() * buttons.length)].click();
-                                    }
-                                    tab_idx++;
-                                    setTimeout(do_tab, my_personality.tab_delay());
-                                }, my_personality.vote_delay());
-                            } else {
-                                badge.children[0].click();
-                                setTimeout(simulate_user, my_personality.think_time());
-                            }
-                        }
-                        do_tab();
-                    }, my_personality.think_time());
-                }
-            }
-        }
-        //simulate_user();
     ";
+    endline;
+    udump;
+    ures;
 }
 
 route faqs {
@@ -2373,13 +2223,6 @@ route admin {
             text "Welcome to the admin page";
 
             ColCol classes = database["Classes"];
-            
-            print(user.username," attempted unauthorized access to the admin route in unit ",unit_uid," on ",unit_standard_time); 
-            script "window.location.href = '/';";
-        } else {
-            standard_header;
-            top_bar("/admin");
-            text "Welcome to the admin page";
 
             Ptr string files = list_files_in_directory(project_path).filter(f => f.ends(".gsu"));
             files.do(f => {
@@ -2514,6 +2357,9 @@ route admin {
                 }
                 sub.clear;
             });
+        } else {      
+            print(user.username," attempted unauthorized access to the admin route in unit ",unit_uid," on ",unit_standard_time); 
+            script "window.location.href = '/';";
         }
     } else {
         print("A guest attempted to access the admin route in unit ",unit_uid," on ",unit_standard_time); 

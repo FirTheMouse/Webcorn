@@ -20,6 +20,10 @@
 ##
 
 ##
+
+##
+
+##
     newstage posting;
     newstage fraging;
 
@@ -424,12 +428,14 @@
         }
     }
 
+    register cache_catcher;
 ##
 
 string inital_request = unit_label;
 
 global Session session;
 global ColColCol database;
+global ColColCol cache;
 
 int units = 0;
 string arg_units = unit_get_arg("--units=");
@@ -437,10 +443,84 @@ if(arg_units.length!=0) {units = stoi(arg_units);}
 
 global bool has_state = (units==0);
 
+global string project_path;
+string arg_path = unit_get_arg("--project=");
+if(arg_path.length!=0) {project_path = arg_path;}
 
+bool use_caching = true;
 
 if(!has_state) {
     cry("INVEST:database:data.gsu");
+    if(use_caching) {
+            if(file_exists(project_path+"cache.gsu")) {
+            cry("INVEST:cache:cache.gsu");
+            "cache_catcher" {
+                in htmlemiting {
+                    Value v = ctx.node.value;
+                    Context& myctx = ctx;
+                    if(!is_live(v)) {
+                        v = make_value(#string,ptr_size);
+                        ColCol catchers = cache["Catchers"];
+                        string node_sig = to_string(cast_to(#ptr,myctx.node));
+                        bool has_node_sig;
+                        catchers.try_read_forever_then {
+                            has_node_sig = catchers.has(node_sig);
+                        }
+                        if(has_node_sig) {
+                            catchers.try_read_forever_then {
+                                v.data = catchers[node_sig];
+                            }
+                        } else {
+                            catchers.try_lock_forever_then {
+                                if(!catchers.has(node_sig)) {
+                                    v.data = catchers.add(string,node_sig);
+                                    v.data.clear_lock;
+                                }
+                            }
+                        }
+                        ctx.node.value = v;
+                    }
+                    string signature = children_to_string(myctx);
+                    if(signature.length<1) {signature = "ALL";}
+
+                    bool has_sig;
+                    v.data.try_read_forever_then {
+                        has_sig = v.data.has(signature);
+                    }
+                    if(!has_sig) {
+                        v.data.try_lock_forever_then {
+                            if(!v.data.has(signature)) {
+                                setsidx(v.data,v.data.length);
+                                cache["Storage"].try_lock_forever_then {
+                                    v.data.put(signature,cache["Storage"].add(char));
+                                }
+                                local_subemit("",false,"","");
+                                v.getStr = v.getStr.slice(2,v.getStr.length-3);
+                                v.getStr.clear_lock;
+                            }
+                        }
+                    }
+                    v.data.get(signature).try_read_forever_then {
+                        emit_part(v.data.get(signature));
+                    }
+                }
+            }
+        } else {
+            print(yellow("No cache.gsu was found for this project, caching is disabled"));
+        }
+    } else {
+        "cache_catcher" {
+            in resolving {
+                ctx.node.value = make_value(#string,ptr_size);
+            }   
+            in htmlemiting {
+                Value v = ctx.node.value;         
+                local_subemit("",false,"","");
+                v.getStr = v.getStr.slice(2,v.getStr.length-3);
+                emit_part(v.getStr);
+            }
+        }
+    }
 }
 
 global int guest_counter = 0;
@@ -457,9 +537,7 @@ if(arg_verbosity.length!=0) {log_verbosity = stoi(arg_verbosity);}
 global string current_request = "";
 global string response = "";
 
-global string project_path;
-string arg_path = unit_get_arg("--project=");
-if(arg_path.length!=0) {project_path = arg_path;}
+
 
 Ptr bool file_whitelist;
 string twigpath = "";

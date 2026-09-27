@@ -54,9 +54,17 @@ void add_us_map_data(ColCol emmap) {
 
 bool reset = false;
 
+ColColCol cache = usubunits.add("web/electionmadness/cache.gsu");
+    cache.clear_lock;
+    cache.add("Catchers").clear_lock;
+    cache.add("Storage").clear_lock;
+cache.save;
+
 if(reset) {
     print("Election Madness Reseting");
+
     ColColCol sub = usubunits.add("web/electionmadness/data.gsu");
+    sub.clear_lock;
 
     ColCol ledger = sub.add("Ledger");
 

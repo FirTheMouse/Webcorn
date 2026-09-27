@@ -5306,3 +5306,20 @@ script read_file(project_path+"abvtt.js");
                                 }
                             }
                         }
+
+
+
+
+        "cache_catcher" {
+        in resolving {
+            ctx.node.value = make_value(#string,ptr_size);
+        }   
+        in htmlemiting {
+            Value v = ctx.node.value;         
+            if(v.getStr.length<1) {
+                local_subemit("",false,"","");
+                v.getStr = v.getStr.slice(2,v.getStr.length-3);
+            }
+            emit_part(v.getStr);
+        }
+    }

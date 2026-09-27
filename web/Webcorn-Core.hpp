@@ -158,7 +158,7 @@ namespace Acorn {
 
 
        uint32_t print_memory_id = add_function("print_memory",[this](Context& ctx){
-            print(children_to_string(ctx,ctx.node().children()),": ",current_rss()," | ",current_vsz());
+            print(children_to_string(ctx),": ",current_rss()," | ",current_vsz());
        });
 
         struct qeue_request {
@@ -895,9 +895,9 @@ namespace Acorn {
                 server = new_server;
                 uint16_t uid = webcorn->uid;
                 server->setfd(server_fd);
-                new_server->thread->run_raw([webcorn, unitcode]() mutable {
+                new_server->thread->run_blocking_with_stack_size([webcorn, unitcode]() mutable {
                     webcorn->run(webcorn->process(unitcode));
-                });
+                },1*1024*1024);
             }
         }
         uint32_t setup_unit_id = add_function("setup_unit",[this](Context& ctx){
