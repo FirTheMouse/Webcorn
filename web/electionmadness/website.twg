@@ -107,29 +107,43 @@ inlined skeleton_pulse {
     Ptr int tally_by_state;
     global string guestid;
     global Object user;
+    global ColColCol class;
 
-    global void sync_user() {
-        guestid = get_cookie(current_request,"guestid");
-        ColCol users = database["Users"];
-        users.try_read_forever_then {
-            if(users.has(guestid)) {
-                user = users[guestid];
-            } else {
-                user = deadptr;
+    global void sync_class(string classcode) {
+        Ptr class_cache = cache["Classes"]["Lookup"];
+        class = deadptr;
+        bool cache_has_class = false;
+        class_cache.try_read_forever_then {
+            if(class_cache.has(classcode)) {
+                class = class_cache[classcode];
+            }
+        }
+        if(!is_live(class)) {
+            Ptr class_database = database["Classes"]["Lookup"];
+            class_database.try_read_forever_then {
+                if(class_database.has(classcode)) {
+                    class = load_subunit(class_database[classcode]);
+                }
+            }
+            if(is_live(class)) {
+                class_cache.try_lock_forever_then { 
+                    if(!class_cache.has(classcode)) {
+                        class_cache.put(classcode, class); 
+                    }
+                }
             }
         }
     }
-
-    global void sync_with_database() {
-        if(!has_state) {
+    global void sync_user() {
+        string classcode = get_cookie(current_request,"classcode");
+        if(classcode.length==0) {
+            classcode = "GLOBAL";
+        }
+        sync_class(classcode);
+        user = deadptr;
+        if(is_live(class)) {
             guestid = get_cookie(current_request,"guestid");
-            if(guestid.length==0) {
-                guestid = generate_token;
-                response.append("HTTP/1.1 200 OK\r\n");
-                response.append("Content-Type: text/html\r\n");
-                response.append("Set-Cookie: guestid="+guestid+"; path=/; SameSite=Lax\r\n");
-            }
-            ColCol users = database["Users"];
+            ColCol users = class["Users"];
             users.try_read_forever_then {
                 if(users.has(guestid)) {
                     user = users[guestid];
@@ -137,27 +151,43 @@ inlined skeleton_pulse {
                     user = deadptr;
                 }
             }
-            if(!is_live(user)) {
-                users.try_lock_forever_then {
-                    user = users.Object(
-                        "votes": [Ptr];
-                        "locked": false;
-                    ).register(guestid);
-                }
-            }
-            tally_by_state.clear;
-            Ptr bystate = database[0]["bystate"];
-            bystate.cells((state_label,states) => {
-                tally_by_state.put(state_label,states.length);
-            });
-            users.try_read_forever_then {
-                user.votes.cells((race_label,val) => {
-                    string state_label = race_label.slice(0,race_label.find("-"));
-                    if(tally_by_state.has(state_label)) {
-                        int t = tally_by_state[state_label];
-                        tally_by_state[state_label]=t-1;
+        } else {
+            print(red("Class "+classcode+" was not found"));
+        }
+    }
+    global void sync_with_database() {
+        if(!has_state) {
+            sync_user;
+            if(is_live(class)) {
+                ColCol users = class["Users"];
+                if(!is_live(user)) {
+                    guestid = generate_token;
+                    response.append("HTTP/1.1 200 OK\r\n");
+                    response.append("Content-Type: text/html\r\n");
+                    response.append("Set-Cookie: guestid="+guestid+"; path=/; SameSite=Lax\r\n");
+                    users.try_lock_forever_then {
+                        user = users.Object(
+                            "votes": [Ptr];
+                            "locked": false;
+                        ).register(guestid);
                     }
+                }
+                tally_by_state.clear;
+                Ptr bystate = database[0]["bystate"];
+                bystate.cells((state_label,states) => {
+                    tally_by_state.put(state_label,states.length);
                 });
+                users.try_read_forever_then {
+                    user.votes.cells((race_label,val) => {
+                        string state_label = race_label.slice(0,race_label.find("-"));
+                        if(tally_by_state.has(state_label)) {
+                            int t = tally_by_state[state_label];
+                            tally_by_state[state_label]=t-1;
+                        }
+                    });
+                }
+            } else {
+                print(red("Unable to sync with database because no valid class was provided"));
             }
         }
     }
@@ -292,35 +322,39 @@ inlined skeleton_pulse {
         }
     }
     global string check_votes {
-        sync_with_database;
+        sync_user;
         string to_return = "";
-        user.votes.cells((race_label,candidate) => {
-            to_return+=race_label;
-            to_return+=":";
-            string candidate_name = candidate.label;
-            to_return+=candidate_name;
-            to_return+="\n";
-        });
+        if(is_live(user)) {
+            user.votes.cells((race_label,candidate) => {
+                to_return+=race_label;
+                to_return+=":";
+                string candidate_name = candidate.label;
+                to_return+=candidate_name;
+                to_return+="\n";
+            });
+        }
         return to_return;
     }
 
     global void cast_vote(Ptr candidate) {
-        sync_with_database;
-        if(!user.locked) {
-            ColCol users = user;
-            ColCol race = candidate;
-            string rl = race.label;
-            if(users.try_read_forever) {
-                user.votes.getOrPut(rl) = candidate;
-                users.unlock;
-                database.save;
+        sync_user;
+        if(is_live(user)) {
+            if(!user.locked) {
+                ColCol users = user;
+                ColCol race = candidate;
+                string rl = race.label;
+                if(users.try_read_forever) {
+                    user.votes.getOrPut(rl) = candidate;
+                    users.unlock;
+                    class.save;
+                }
             }
         }
     }   
 
     global void lock_in_votes() {
-        sync_with_database;
-        if(guestid.length>0) {
+        sync_user;
+        if(is_live(user)) {
             user.votes.cells((race_label,candidate) => {
                 ColCol race = candidate;
                 Ptr tally = candidate.votes;
@@ -372,6 +406,37 @@ void standard_header {
     script read_file("web/webcorn.js");
 }
 
+
+route join {
+    standard_header;
+    if(params.?Class) {
+        string classcode = params.Class;
+        sync_class(classcode);
+        if(is_live(class)) {
+            response.append("HTTP/1.1 200 OK\r\n");
+            response.append("Content-Type: text/html\r\n");
+            response.append("Set-Cookie: classcode="+classcode+"; path=/; SameSite=Lax\r\n");
+            text "Registered to "+classcode {
+                text_theme;
+            }
+        } else {
+            text "Class "+classcode+" not found" {
+                text_theme;
+            }
+        }
+    } else {
+        text "No class found" {
+            text_theme;
+        }
+    }
+    button {
+        text "To login" {
+            text_theme;
+        }
+        "onclick" : "window.location.href = '/login'";
+    }
+}
+
 route login {
     div {
         standard_header;
@@ -387,7 +452,7 @@ route login {
                 user_registered = user.?password;
             }   
         }
-        
+
         div {
             "display" : "flex";
             "min-height" : "100vh";
@@ -438,6 +503,12 @@ route login {
                             "border-radius" : "12px";
                             "box-shadow" : "0 4px 24px rgba(0,0,0,0.08)";
 
+                            if(is_live(class)) {
+                                text class.label {
+                                    text_theme;
+                                }
+                            }
+
                             div login_buttons {
                                 "display" : "flex";
                                 "justify-content" : "center";
@@ -458,7 +529,7 @@ route login {
                                             string given_username ; "getel('username').value",
                                             string given_password ; "getel('password').value"
                                         ) {
-                                            Ptr sessions = database[0]["sessions"];
+                                            Ptr sessions = class[0]["Sessions"];
                                             string result = "";
                                             sessions.try_read_forever_then {
                                                 if(sessions.has(given_username)) {
@@ -492,7 +563,7 @@ route login {
                                             string given_username ; "getel('username').value",
                                             string given_password ; "getel('password').value"
                                         ) {
-                                            Ptr sessions = database[0]["sessions"];
+                                            Ptr sessions = class[0]["Sessions"];
                                             bool username_avaliable = true;
                                             string result = "";
                                             sessions.try_read_forever_then {
@@ -519,7 +590,7 @@ route login {
                                                                 emit_js("
                                                                     window.location.href = "+(redirected_from.length==0?"'/'":js_lit(redirected_from))+";
                                                                 ");
-                                                                database.save;
+                                                                class.save;
                                                             }
                                                         }
                                                     }
@@ -1470,7 +1541,7 @@ newline("All races");
                     "text-align" : "center";
                     form_select_theme;
                     string current = "";
-                    database["Users"].try_read_forever_then {
+                    user.as(ColCol).try_read_forever_then {
                         if(user.?tb1) {
                             current = user.tb1;
                         }
@@ -1494,10 +1565,10 @@ newline("All races");
                     }
                     "onchange" : capture(js_do("tb1 = true; check_vote_finished();"), string myval ; "this.value") {
                         sync_with_database;
-                        database["Users"].try_lock_forever_then {
+                        user.as(ColCol).try_lock_forever_then {
                             user.tb1 = myval;
                         }
-                        database.save;
+                        class.save;
                     }
                 }
             }
@@ -1515,7 +1586,7 @@ newline("All races");
                 "padding" : "12px";
                 component_theme;
                 string current = "0";
-                database["Users"].try_read_forever_then {
+                user.as(ColCol).try_read_forever_then {
                     if(user.?tb2) {
                         current = user.tb2;
                     }
@@ -1546,10 +1617,10 @@ newline("All races");
                     "value" : current;
                     "onchange" : capture(js_do("tb2 = true; check_vote_finished();"), string myval ; "this.value") {
                         sync_with_database;
-                        database["Users"].try_lock_forever_then {
+                        user.as(ColCol).try_lock_forever_then {
                             user.tb2 = myval;
                         }
-                        database.save;
+                        class.save;
                     }
                     "oninput" : "getel('tb2_display').innerText = this.value + '%'";
                 }
@@ -2222,8 +2293,6 @@ route admin {
             top_bar("/admin");
             text "Welcome to the admin page";
 
-            ColCol classes = database["Classes"];
-
             Ptr string files = list_files_in_directory(project_path).filter(f => f.ends(".gsu"));
             files.do(f => {
                 string sub_label = project_path+f;
@@ -2238,7 +2307,7 @@ route admin {
                     div {
                         sub.do((pool, idx) => {
                             div {
-                                if(idx<3) {
+                                if(idx<2) {
                                     div {
                                         text to_string(idx) {
                                             "text-align" : "center";

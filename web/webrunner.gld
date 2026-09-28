@@ -923,7 +923,7 @@ while(0<1) {
                 response = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
                 write(cfd, response);
                 unit_setindex(0);
-                print("Unit ",unit_uid," returned 404 from: ",pure_request_path," took ",tstop("request_timer"));
+                //print("Unit ",unit_uid," returned 404 from: ",pure_request_path," took ",tstop("request_timer"));
                 cfd = 0;
                 continue;
             }

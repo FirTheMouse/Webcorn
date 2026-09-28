@@ -52,18 +52,14 @@ void add_us_map_data(ColCol emmap) {
 }
 
 
-bool reset = false;
-
-ColColCol cache = usubunits.add("web/electionmadness/cache.gsu");
-    cache.clear_lock;
-    cache.add("Catchers").clear_lock;
-    cache.add("Storage").clear_lock;
-cache.save;
+bool reset = true;
+ColColCol database = deadptr;
 
 if(reset) {
     print("Election Madness Reseting");
 
     ColColCol sub = usubunits.add("web/electionmadness/data.gsu");
+    database = sub;
     sub.clear_lock;
 
     ColCol ledger = sub.add("Ledger");
@@ -73,16 +69,8 @@ if(reset) {
     ColCol users = sub.add("Users");
     users.clear_lock; //<- Since this will be used by multiple people
 
-    Object user_fir = users.Object(
-        "username": "Fir";
-        "password": secure_hash("fir");
-        "votes": [Ptr];
-        "locked": false;
-        "authourized": true;
-    ).register(generate_token);
-    ledger["sessions"].put("Fir",user_fir);
+    sub.add("Classes").clear_lock;
 
-    ColCol classes = sub.add("Classes");
     ColCol emmap = sub.add("Map");
 
     void add_candidate(ColCol race, string name, string party, string points, string link) {
@@ -226,9 +214,16 @@ if(reset) {
     );
     
     Ptr Header races = ledger.add(Ptr,"races");
-    for(int r=4;r<sub.length;r++) {
-        races.push(sub[r]);
-        sub[r].unlock;
+    bool on_races = false;
+    for(int r=0;r<sub.length;r++) {
+        if(on_races) {
+            races.push(sub[r]);
+            sub[r].unlock;
+        } else {
+            if(sub[r].label=="Map") {
+                on_races = true;
+            }
+        }
     }
     Ptr Ptr Header bystate = ledger.add(Ptr,"bystate");
     for(int r=0;r<races.length;r++) {
@@ -251,20 +246,52 @@ if(reset) {
 } else {
     print("Loading database");
     tstart("database_load");
-    ColColCol database = load_subunit("web/electionmadness/data.gsu");
+    database = load_subunit("web/electionmadness/data.gsu");
     database.clear_lock;
     //Since these will be used by multiple units
         database.get("Users").clear_lock;
         database[0].get("sessions").clear_lock;
-
-        int total_sessions = 0;
-        database[0].get("sessions").keys(k => {
-            total_sessions++;
-        });
-        print("TOTAL SESSIONS: ",total_sessions);
-
-    for(int r=3;r<database.length;r++) {
+    for(int r=2;r<database.length;r++) {
         database[r].clear_lock;
     }
     print("Database loaded in: ",tstop("database_load"));
 }
+
+ColColCol class_global = usubunits.add("web/electionmadness/classes/global.gsu");
+    class_global.clear_lock;
+    ColCol class_global_common = class_global.add("Common");
+        class_global_common.clear_lock;
+        class_global_common.add(Ptr,"Sessions").clear_lock;
+    ColCol class_global_users = class_global.add("Users");
+        class_global_users.clear_lock;
+        Object user_fir = class_global_users.Object(
+            "username": "Fir";
+            "password": secure_hash("fir");
+            "votes": [Ptr];
+            "locked": false;
+            "authourized": true;
+        ).register(generate_token);
+        class_global_common.Sessions.Fir = user_fir;
+class_global.save;
+dump_subunit(class_global,true);
+
+
+ColColCol class_test = usubunits.add("web/electionmadness/classes/testing.gsu");
+    class_test.clear_lock;
+    ColCol class_test_common = class_test.add("Common");
+        class_test_common.clear_lock;
+        class_test_common.add(Ptr,"Sessions").clear_lock;
+    ColCol class_test_users = class_test.add("Users");
+        class_test_users.clear_lock;
+class_test.save;
+
+ColColCol cache = usubunits.add("web/electionmadness/cache.gsu");
+    cache.clear_lock;
+    cache.add("Catchers").clear_lock;
+    cache.add("Storage").clear_lock;
+    ColCol classes = cache.add("Classes");
+        classes.clear_lock;
+        classes.add(Ptr,"Lookup").init(GLOBAL: class_global, testing: class_test);
+cache.save;
+
+database["Classes"].add(string,"Lookup").init(GLOBAL: "web/electionmadness/classes/global.gsu");
