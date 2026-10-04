@@ -3,4 +3,6 @@ hazel
 build
 .git
 data.gsu
+backups
+classes
 ext/mbedtls

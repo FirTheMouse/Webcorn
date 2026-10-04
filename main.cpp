@@ -391,6 +391,8 @@ int main(int argc, char* argv[]) {
         #if TESTING_LANGUGE_ONLY
             g_ptr<Acorn::Compiler_Unit> u =  Acorn::make_unit<Acorn::Compiler_Unit>();
             u->test_compiler();
+            // g_ptr<Acorn::Nodenet_Unit> u =  Acorn::make_unit<Acorn::Nodenet_Unit>();
+            // u->test_nodenet();
         #else
             // size_t start_rss; size_t start_vsz;
             // size_t last_rss; size_t last_vsz;
@@ -413,7 +415,7 @@ int main(int argc, char* argv[]) {
             // Acorn::test_acorn();
     
             g_ptr<Acorn::Unit> u =  Acorn::make_unit<Acorn::Unit>();
-            u->test_pool_groups();
+            u->test_unit();
 
             // g_ptr<Acorn::Unit> u =  Acorn::make_unit<Acorn::Unit>();
             // u->unit_label = "u";

@@ -92,7 +92,7 @@ inlined form_select_theme {
 
 
 inlined hoverable_theme {
-    "background-color" : transparent;
+    "background-color" : "transparent";
     "transition" : "background-color 0.15s ease";
     "onmouseenter" : "if(this.style.backgroundColor==='transparent')this.style.backgroundColor='rgba(0,0,0,0.04)'";
     "onmouseleave" : "if(this.style.backgroundColor==='rgba(0, 0, 0, 0.04)')this.style.backgroundColor='transparent'";
@@ -112,7 +112,6 @@ inlined skeleton_pulse {
     global void sync_class(string classcode) {
         Ptr class_cache = cache["Classes"]["Lookup"];
         class = deadptr;
-        bool cache_has_class = false;
         class_cache.try_read_forever_then {
             if(class_cache.has(classcode)) {
                 class = class_cache[classcode];
@@ -123,6 +122,13 @@ inlined skeleton_pulse {
             class_database.try_read_forever_then {
                 if(class_database.has(classcode)) {
                     class = load_subunit(class_database[classcode]);
+                    dump_subunit(class,true);
+                    class["Users"].cells((usercookie,u) => {
+                        u.as(Object).votes.do(candidate => {
+                            database.adopt(candidate);
+                        });
+                    });
+                    class.clear_all_locks;
                 }
             }
             if(is_live(class)) {
@@ -278,6 +284,9 @@ inlined skeleton_pulse {
                                 }
                             }
                         }
+                        if(!is_inital) {
+                            voted_for[racelabel] = candidate;
+                        }
                     }
                 });
             }
@@ -343,9 +352,8 @@ inlined skeleton_pulse {
                 ColCol users = user;
                 ColCol race = candidate;
                 string rl = race.label;
-                if(users.try_read_forever) {
+                users.try_read_forever_then {
                     user.votes.getOrPut(rl) = candidate;
-                    users.unlock;
                     class.save;
                 }
             }
@@ -353,20 +361,26 @@ inlined skeleton_pulse {
     }   
 
     global void lock_in_votes() {
-        sync_user;
+        sync_with_database;
         if(is_live(user)) {
-            user.votes.cells((race_label,candidate) => {
-                ColCol race = candidate;
-                Ptr tally = candidate.votes;
-                race.try_lock_forever_then {
-                    if(!(tally.has(guestid))) {
-                        tally.put(guestid,'T');
+            if(is_voting_finished) {
+                user.votes.cells((race_label,candidate) => {
+                    ColCol race = candidate;
+                    Ptr tally = candidate.as(Object).votes;
+                    race.try_lock_forever_then {
+                        if(!(tally.has(guestid))) {
+                            tally.put(guestid,'T');
+                        }
                     }
+                });
+                ColCol users = user;
+                users.try_read_forever_then {
+                    user.locked = true;
+                    class.save;
                 }
-            });
-            ColCol users = user;
-            users.try_read_forever_then {
-                user.locked = !(user.locked);
+                database.save;
+            } else {
+                print("User ",user.label," attemped to lock in votes before voting was finished");
             }
         }
     }
@@ -409,8 +423,8 @@ void standard_header {
 
 route join {
     standard_header;
-    if(params.?Class) {
-        string classcode = params.Class;
+    if(request_arg.length>0) {
+        string classcode = request_arg;
         sync_class(classcode);
         if(is_live(class)) {
             response.append("HTTP/1.1 200 OK\r\n");
@@ -503,11 +517,7 @@ route login {
                             "border-radius" : "12px";
                             "box-shadow" : "0 4px 24px rgba(0,0,0,0.08)";
 
-                            if(is_live(class)) {
-                                text class.label {
-                                    text_theme;
-                                }
-                            }
+
 
                             div login_buttons {
                                 "display" : "flex";
@@ -516,6 +526,22 @@ route login {
                                 "flex-direction" : "column";
                                 "width" : "100%";
                                 "height" : "100%";
+
+                                if(is_live(class)) {
+                                    text class.label {
+                                        text_theme;
+                                    }
+                                    button {
+                                        text "leave" {text_theme;}
+                                        "onclick" : capture{
+                                            response.append("HTTP/1.1 200 OK\r\n");
+                                            response.append("Content-Type: text/html\r\n");
+                                            response.append("Set-Cookie: classcode=; path=/; SameSite=Lax; Max-Age=0\r\n");
+                                            user_registered = false;
+                                            login_buttons.reload;
+                                        };
+                                    }
+                                }
                                 
                                 
                                 div {
@@ -529,6 +555,7 @@ route login {
                                             string given_username ; "getel('username').value",
                                             string given_password ; "getel('password').value"
                                         ) {
+                                            sync_user;
                                             Ptr sessions = class[0]["Sessions"];
                                             string result = "";
                                             sessions.try_read_forever_then {
@@ -537,7 +564,7 @@ route login {
                                                     if(user.password==secure_hash(given_password)) {
                                                         response.append("HTTP/1.1 200 OK\r\n");
                                                         response.append("Content-Type: text/html\r\n");
-                                                        response.append("Set-Cookie: guestid="+(user.label)+"; path=/; SameSite=Lax\r\n");
+                                                        response.append("Set-Cookie: guestid="+(user.label)+"; path=/; HttpOnly; Secure; SameSite=Lax\r\n");
                                                         emit_js("
                                                             window.location.href = "+(redirected_from.length==0?"'/'":js_lit(redirected_from))+";
                                                         ");
@@ -563,6 +590,7 @@ route login {
                                             string given_username ; "getel('username').value",
                                             string given_password ; "getel('password').value"
                                         ) {
+                                            sync_user;
                                             Ptr sessions = class[0]["Sessions"];
                                             bool username_avaliable = true;
                                             string result = "";
@@ -758,6 +786,57 @@ route login {
                 }
         }
     }
+
+    script "
+        function type_into(el, text, callback) {
+            let i = 0;
+            function type_next() {
+                if(!el.isConnected) { simulate_user(); return; }
+                if(i < text.length) {
+                    el.value += text[i];
+                    i++;
+                    setTimeout(type_next, 40 + Math.random() * 80);
+                } else {
+                    callback && callback();
+                }
+            }
+            type_next();
+        }
+
+        function simulate_user() {
+            const buttons = getel('login_body').querySelectorAll('button');
+            const logout_btn = Array.from(buttons).find(b => b.innerText.trim() === 'Logout');
+            if(logout_btn) {
+                setTimeout(() => {
+                    logout_btn.click();
+                    const poll = setInterval(() => {
+                        if(!logout_btn.isConnected) {
+                            clearInterval(poll);
+                            setTimeout(simulate_user, 100);
+                        }
+                    }, 50);
+                }, 600);
+            } else {
+                const username = 'bot_' + Math.random().toString(36).slice(2, 12);
+                const password = Math.random().toString(36).substr(2, 12);
+                setTimeout(() => {
+                    if(getel('login_card').style.height === '0px') {
+                        toggle_login_card('Register', false);
+                    }
+                    type_into(getel('username'), username, () => {
+                        setTimeout(() => {
+                            type_into(getel('password'), password, () => {
+                                setTimeout(() => {
+                                    getel('login').click();
+                                }, 300);
+                            });
+                        }, 200);
+                    });
+                }, 600);
+            }
+        }
+        //simulate_user();
+    ";
 }
 
 stateless template div render_race(Header& race, bool is_visible) { 
@@ -823,7 +902,7 @@ stateless template div render_race(Header& race, bool is_visible) {
                         }
                     }
                 }
-                string points_str = value_as_string(rbn["points"])
+                string points_str = value_as_string(rbn["points"]);
                 link candidate+" ("+points_str+")" {
                     "font-size" : "13px";
                     "font-weight" : "800";
@@ -832,7 +911,7 @@ stateless template div render_race(Header& race, bool is_visible) {
                     "overflow" : "hidden";
                     "text-overflow" : "ellipsis";
                     "width" : "100%";
-                    "cursour" : "pointer";
+                    "cursor" : "pointer";
                     "href" : value_as_string(rbn["link"]);
                     "target" : "_blank";
                     text_theme;
@@ -874,8 +953,7 @@ stateless template div render_race(Header& race, bool is_visible) {
                             if(votes_locked) return;
                             const racelabel = "+js_lit(racelabel)+";
                             const candidate = "+js_lit(candidate)+";
-                            update_voting_state(racelabel,candidate);
-                            voted_for[racelabel] = candidate;
+                            update_voting_state(racelabel,candidate,false,true);
                         "),
                         string frbn ; js_lit(capture_ptr(rbn))
                     ){
@@ -1042,6 +1120,7 @@ div top_bar(string on_route) {
             nav_link("instructor resources","/instructor_resources");
             nav_link("contact","/contacts");
             nav_link("login","/login");
+            nav_link("classes","/myclass");
         }
 
         button {
@@ -1085,7 +1164,7 @@ div top_bar(string on_route) {
 
 
 route "" {
-newline("Total");
+
     standard_header;
     top_bar("/");
     sync_with_database;
@@ -1137,7 +1216,6 @@ newline("Total");
         }
     }
 
-newline("Map");
     div {
         "id" : "all_races_view";
         "background-color" : "rgb(40, 40, 40)";
@@ -1470,9 +1548,7 @@ newline("Map");
             }
         }
     }
-endline;
 
-newline("All races");
     div {
         "display" : "flex";
         "flex-direction" : "column";
@@ -1568,7 +1644,9 @@ newline("All races");
                         user.as(ColCol).try_lock_forever_then {
                             user.tb1 = myval;
                         }
-                        class.save;
+                        user.as(ColCol).try_read_forever_then {
+                            class.save;
+                        }
                     }
                 }
             }
@@ -1620,14 +1698,15 @@ newline("All races");
                         user.as(ColCol).try_lock_forever_then {
                             user.tb2 = myval;
                         }
-                        class.save;
+                        user.as(ColCol).try_read_forever_then {
+                            class.save;
+                        }
                     }
                     "oninput" : "getel('tb2_display').innerText = this.value + '%'";
                 }
             }
         }
     }
-endline;
 
     div tally_board_holder {
         "min-height" : "100vh";
@@ -1652,7 +1731,7 @@ endline;
 
         div {
             "id" : "tally_board";
-            "position" : "relative"
+            "position" : "relative";
             "width" : "100%";
             "max-width" : "800px";
             "height" : "100%";
@@ -1739,7 +1818,7 @@ endline;
                                             "flex" : "1";
                                             "color" : "white";
                                             "font-size" : "0.6rem";
-                                            "whitespace" : "nowrap";
+                                            "white-space" : "nowrap";
                                             "font-weight" : "600";
                                             "padding-left" : (i==0?"12px":"0px");
                                             "padding-right" : (i==1?"12px":"0px");
@@ -1971,33 +2050,6 @@ endline;
         }
     }
 
-    string capstr = capture{
-        if(usubunits.length==1) {
-            print("Snapshotting");
-            snapshot_subunit(0,"savetest.gsu");
-        }
-        print(unit_time_precise,":");
-        print(unit_info);
-        ColColCol diffable = load_subunit("savetest.gsu");
-        correct_loaded_ptrs(diffable);
-        print("Diffable: ",capture_ptr(diffable));
-        print(utypes[4].length," / ",diffable[4].length);
-        diff_types(diffable);
-    };
-    string checkvotes = capture(
-        string jsvotes ; js_do("
-            let to_return = '';
-            const entries = Object.entries(voted_for);
-            for(let i=0; i<entries.length; i++) {
-                const key = entries[i][0];
-                const val = entries[i][1];
-                to_return += key + ':' + val + (i+1<entries.length?'\\n':'');
-            }
-            return to_return;
-        ");
-    ){
-        print("==Server Votes==\n",check_votes(),"\n==Client Votes==\n",jsvotes);
-    };
     script "
         Object.entries(voted_for).forEach(([racelabel, candidate]) => {
             update_voting_state(racelabel, candidate, true);
@@ -2008,20 +2060,194 @@ endline;
                 getel(race_state+'_badge_text').innerText = vote_tally[race_state];
             }
         });
-        
-        document.addEventListener('keydown', (e) => {
-            if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-            if(e.key === 'm') {
-                "+capstr+";
+
+        const CONFIRM_LOCK = true;
+
+        const personalities = {
+            map_user: {
+                think_time: () => 300 + Math.random() * 700,
+                tab_delay: () => 400 + Math.random() * 300,
+                vote_delay: () => 300 + Math.random() * 400,
+                use_map: true,
+            },
+            mobile_user: {
+                think_time: () => 500 + Math.random() * 1000,
+                tab_delay: () => 600 + Math.random() * 500,
+                vote_delay: () => 400 + Math.random() * 600,
+                use_map: false,
+            },
+            speedrunner: {
+                think_time: () => 50 + Math.random() * 50,
+                tab_delay: () => 80 + Math.random() * 50,
+                vote_delay: () => 60 + Math.random() * 40,
+                use_map: false,
+            },
+            map_speedrunner: {
+                think_time: () => 50 + Math.random() * 200,
+                tab_delay: () => 80 + Math.random() * 100,
+                vote_delay: () => 60 + Math.random() * 200,
+                scroll_speed: () => 50 + Math.random() * 50,
+                use_map: true,
+            },
+        };
+        const keys = Object.keys(personalities);
+        const my_personality = personalities[keys[Math.floor(Math.random() * keys.length)]];
+
+        function pick_random(arr) {
+            return arr[Math.floor(Math.random() * arr.length)];
+        }
+
+        function vote_in(display) {
+            const buttons = Array.from(display.querySelectorAll('button[data-btncandidate]'));
+            if(buttons.length > 0) {
+                pick_random(buttons).click();
             }
-            if(e.key === 'v') {
-                "+checkvotes+";
+        }
+
+        function drawer_parts() {
+            const root = getel('all_races_view');
+            return { btn: root.children[0], drawer: root.children[1] };
+        }
+
+        function map_session(states) {
+            const { btn, drawer } = drawer_parts();
+            if(drawer.style.height === '0px') {
+                btn.click();
             }
-        });
+            setTimeout(() => {
+                const state = pick_random(states);
+                const badge = getel(state+'_badge');
+                if(!badge) {
+                    setTimeout(simulate_user, my_personality.think_time());
+                    return;
+                }
+                const expanded = badge.children[0];
+                const badge_view = badge.children[1];
+                if(expanded.style.display !== 'flex') {
+                    badge_view.click();
+                }
+                setTimeout(() => {
+                    const tabs = badge.querySelectorAll('.race_tab');
+                    const displays = badge.querySelector('.races_display').children[1].children;
+                    let tab_idx = 0;
+                    function do_tab() {
+                        if(tab_idx < tabs.length) {
+                            tabs[tab_idx].click();
+                            const active_display = displays[tab_idx];
+                            setTimeout(() => {
+                                vote_in(active_display);
+                                tab_idx++;
+                                setTimeout(do_tab, my_personality.tab_delay());
+                            }, my_personality.vote_delay());
+                        } else {
+                            const close_btn = expanded.querySelector(':scope > button');
+                            if(expanded.style.display === 'flex' && close_btn) {
+                                close_btn.click();
+                            }
+                            setTimeout(simulate_user, my_personality.think_time());
+                        }
+                    }
+                    do_tab();
+                }, my_personality.think_time());
+            }, my_personality.think_time());
+        }
+
+        function scroll_session() {
+            const displays = Array.from(document.querySelectorAll('#scrollable_races .race_display'));
+            let idx = 0;
+            function do_race() {
+                if(idx < displays.length) {
+                    const display = displays[idx];
+                    display.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    if(display.style.display !== 'none') {
+                        setTimeout(() => vote_in(display), my_personality.vote_delay());
+                    }
+                    idx++;
+                    setTimeout(do_race, my_personality.tab_delay());
+                } else {
+                    setTimeout(simulate_user, my_personality.think_time());
+                }
+            }
+            setTimeout(do_race, my_personality.think_time());
+        }
+
+        function do_tiebreakers(callback) {
+            const scope = getel('scrollable_races');
+            const sel = scope.querySelector('select');
+            const range = scope.querySelector('input[type=range]');
+
+            function set_tb1(next) {
+                if(tb1) { next(); return; }
+                sel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                setTimeout(() => {
+                    const opts = Array.from(sel.options).filter(o => o.value);
+                    sel.value = pick_random(opts).value;
+                    sel.dispatchEvent(new Event('change', { bubbles: true }));
+                    setTimeout(next, my_personality.vote_delay());
+                }, my_personality.vote_delay());
+            }
+            function set_tb2(next) {
+                if(tb2) { next(); return; }
+                range.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                setTimeout(() => {
+                    range.value = Math.floor(Math.random() * 101);
+                    range.dispatchEvent(new Event('input', { bubbles: true }));
+                    range.dispatchEvent(new Event('change', { bubbles: true }));
+                    setTimeout(next, my_personality.vote_delay());
+                }, my_personality.vote_delay());
+            }
+            set_tb1(() => set_tb2(callback));
+        }
+
+        function lock_in() {
+            getel('tally_board').scrollIntoView({ behavior: 'smooth', block: 'end' });
+            setTimeout(() => {
+                if(getel('lock_pane').style.display !== 'none') {
+                    console.warn('lock pane still covering the lock button');
+                }
+                getel('vote_lock_btn').click();
+                const prompt = getel('register_prompt');
+                const sure = Array.from(prompt.querySelectorAll('button'))
+                    .find(b => b.innerText.trim() === \"I'm Sure\");
+                if(CONFIRM_LOCK && sure) {
+                    sure.click();
+                    const t0 = performance.now();
+                    const poll = setInterval(() => {
+                        if(votes_locked || performance.now() - t0 > 20000) {
+                            clearInterval(poll);
+                            setTimeout(() => { window.location.href = '/login'; }, 500);
+                        }
+                    }, 200);
+                } else {
+                    setTimeout(() => {
+                        window.location.href = '/login';
+                    }, prompt.style.display === 'flex' ? 600 : 1200);
+                }
+            }, 500);
+        }
+
+        function simulate_user() {
+            if(votes_locked) {
+                window.location.href = '/login';
+                return;
+            }
+            const states = Object.keys(vote_tally).filter(s => vote_tally[s] > 0);
+            if(states.length > 0) {
+                if(my_personality.use_map) {
+                    map_session(states);
+                } else {
+                    scroll_session();
+                }
+                return;
+            }
+            const { btn, drawer } = drawer_parts();
+            if(drawer.style.height !== '0px') {
+                btn.click();
+            }
+            do_tiebreakers(lock_in);
+        }
+        //simulate_user();
     ";
-    endline;
-    udump;
-    ures;
 }
 
 route faqs {
@@ -2427,11 +2653,259 @@ route admin {
                 sub.clear;
             });
         } else {      
-            print(user.username," attempted unauthorized access to the admin route in unit ",unit_uid," on ",unit_standard_time); 
+            print(user.label," attempted unauthorized access to the admin route in unit ",unit_uid," on ",unit_standard_time); 
             script "window.location.href = '/';";
         }
     } else {
         print("A guest attempted to access the admin route in unit ",unit_uid," on ",unit_standard_time); 
         script "window.location.href = '/';";
+    }
+}
+
+route myclass {
+    sync_user;
+    if(is_live(user)) {
+        if(user.?password) {
+            standard_header;
+            top_bar("/myclass");
+            if(!user.?myclasses) {
+                user.as(ColCol).try_lock_forever_then {
+                    user.myclasses = user.as(ColCol).add(int);
+                }
+            }
+            static string target_classcode = "";
+            div {
+                "display" : "flex";
+                "min-height" : "100vh";
+                div classes_sidebar {
+                    "flex" : "1";
+                    "padding" : "12px";
+                    "display" : "flex";
+                    "justify-content" : "start";
+                    "align-items" : "center";
+                    "flex-direction" : "column";
+                    card_theme;
+                    user.myclasses.keys(classcode => {
+                        sync_class(classcode);
+                        div {
+                            text classcode {
+                                "margin" : "8px";
+                                "font-size" : "0.9rem";
+                                text_theme;
+                                "onclick" : capture(
+                                    js_do("Array.from(this.parentElement.parentElement.children).forEach(e => {if(e.children[0].style.color!=='white') {e.children[0].style.color='black';}});  this.style.color = 'blue';"),
+                                    string fclasscode ; js_lit(classcode) 
+                                ){
+                                    sync_user;
+                                    target_classcode = cast_to(#ptr,fclasscode);
+                                    classes_display.reload;
+                                    target_classcode = "";
+                                }
+                            }
+                        }
+                    });      
+                    button {
+                        "margin" : "8px";
+                        "padding" : "4px";
+                        "border" : "none";
+                        "border-radius" : "8px";
+                        "background-color" : "rgb(60,100,200)";
+                        text "ADD CLASS" {"font-size" : "0.9rem"; "color" : "white"; text_theme;}
+                        "onclick" : capture(
+
+                        ){
+                            sync_user;
+                            string classlabel = unit_timestamp;
+
+                            ColCol database_classpool = database["Classes"];
+                            string classpath;
+                            database_classpool.try_lock_forever_then {
+                                classpath = database_classpool.add(char);
+                            }
+                            classpath = "web/electionmadness/classes/"+classlabel+".gsu";
+                            ColColCol newclass = usubunits.add(classpath);
+                                ColCol newclass_common = newclass.add("Common");
+                                    newclass_common.add(Ptr,"Sessions");
+                                ColCol newclass_users = newclass.add("Users");
+                            newclass.save;
+
+                            Ptr cache_classes = cache["Classes"]["Lookup"];
+                            Ptr database_classes = database_classpool["Lookup"];
+
+                            cache_classes.try_lock_forever_then {
+                                cache_classes[classlabel] = newclass;
+                            }
+                            database_classes.try_lock_forever_then {
+                                database_classes.put(classlabel,classpath);
+                            }
+                            database.save;
+
+                            user.myclasses.put(classlabel,0);
+                            class.save;
+                            classes_sidebar.reload;
+                        };
+                    }     
+                } 
+                div classes_display {
+                    background_theme;
+                    "display" : "flex";
+                    "flex" : "8";
+                    if(target_classcode.length>0) {
+                        "flex-direction" : "column";
+                        sync_class(target_classcode);
+                        div {
+                            "display" : "flex";
+                            "flex-direction" : "row";
+                            "align-items" : "center";
+                            "background-color" : "white";
+                            "border-bottom" : "1px solid rgb(197,197,197)";
+                            "width" : "100%";
+
+                            stateless template div myclass_tab(string label) {
+                                div {
+                                    "padding" : "16px 32px";
+                                    "height" : "100%";
+                                    "border-right" : "1px solid black";
+                                    text label {
+                                        "font-size" : "1rem";
+                                        "cursor" : "pointer";
+                                        text_theme;
+                                    }
+                                    hoverable_theme;
+                                    "onclick" : "
+                                        Array.from(getel('myclass_displays').children).forEach(e => {
+                                            if(e.id==='myclass_"+label+"') {
+                                                e.style.display = 'flex';
+                                            } else {
+                                                e.style.display = 'none';
+                                            }
+                                        });
+                                    ";
+                                }
+                            }
+                            myclass_tab("Overview");
+                            myclass_tab("Users");
+                        }
+                        div {
+                            "id" : "myclass_displays";
+                            div {
+                                "id" : "myclass_Overview";
+                                "display" : "flex";
+                                "flex-direction" : "column";
+                                text target_classcode {text_theme;}
+                                text "Join Link" {
+                                    "onclick" : "
+                                        const el = this;
+                                        navigator.clipboard.writeText('localhost:443/join?Class&AT"+target_classcode+"');
+                                        el.innerText = 'Copied!';
+                                        setTimeout(() => el.innerText = 'Join Link', 1200);
+                                    "; 
+                                    "cursor" : "pointer";
+                                    text_theme;
+                                }
+                            }
+                            div {
+                                "id" : "myclass_Users";
+                                "display" : "none";
+                                "flex-direction" : "row";
+
+                                class["Common"]["Sessions"].try_read_forever_then {
+                                    class["Common"]["Sessions"].cells((username,u) => {
+                                        div {
+                                            "margin" : "12px";
+                                            "border-radius" : "12px";
+                                            "box-shadow" : "0 4px 16px rgba(0,0,0,0.12)";
+                                            "padding" : "12px 8px";
+                                            card_theme;
+
+                                            text username {text_theme;}
+                                            u.as(Object).cells((k,v) => {
+                                                div {
+                                                    if(k=="votes") {
+                                                        v.do(candidate => {
+                                                            div {
+                                                                database.adopt(candidate);
+                                                                "display" : "flex";
+                                                                "flex-direction" : "row";
+                                                                text candidate.as(ColCol).label {text_theme;}
+                                                                text ":" {text_theme;}
+                                                                text candidate.label {text_theme;}
+                                                            }
+                                                        });
+                                                    } else if(k=="locked") {
+                                                        button {
+                                                            text (v?"UNLOCK":"LOCK");
+                                                            "data-istrue" : to_string(v);
+                                                            "onclick" : capture(
+                                                                string fclasscode ; js_lit(target_classcode),
+                                                                string fusercookie ; js_lit(u.label),
+                                                                string myval ; js_do("
+                                                                    if(this.dataset.istrue==='true') {
+                                                                        this.parentElement.children[0].innerText = 'LOCK';
+                                                                        this.dataset.istrue = 'false';
+                                                                    } else {
+                                                                        this.parentElement.children[0].innerText = 'UNLOCK';
+                                                                        this.dataset.istrue = 'true';
+                                                                    }
+                                                                    return this.dataset.istrue;
+                                                                ")
+                                                            ) {
+                                                                sync_class(fclasscode);
+                                                                Object fuser = class["Users"][fusercookie];
+                                                                fuser["locked"] = (myval=="true");
+                                                                class.save;
+                                                            }
+                                                        }
+                                                    } else if(k=="password") {
+                                                        "display" : "flex";
+                                                        "flex-direction" : "row";
+                                                        input {
+                                                            "placeholder" : "Reset password";
+                                                            "onchange" : capture(
+                                                                string fclasscode ; js_lit(target_classcode),
+                                                                string fusercookie ; js_lit(u.label),
+                                                                string myval ; "this.value"
+                                                            ) {
+                                                                sync_class(fclasscode);
+                                                                Object fuser = class["Users"][fusercookie];
+                                                                fuser["password"] = secure_hash(myval);
+                                                                dump_subunit(class,true);
+                                                                class.save;
+                                                            }
+                                                        }
+                                                    } else {
+                                                        "display" : "flex";
+                                                        "flex-direction" : "row";
+                                                        text k+": " {text_theme;}
+                                                        text to_string(v) {text_theme;}
+                                                    }
+                                                }
+                                            });
+                                        }
+                                    });
+                                }
+                            }
+                        }
+                       
+                    } else {
+                        "justify-content" : "center";
+                        "align-items" : "center";
+                        text "NO CLASS" {"font-size" : "1.2rem"; text_theme;}
+                    }
+                }
+            }
+        } else {      
+            text "Please log in or register" {text_theme;}
+            button {
+                text "To login" {text_theme;}
+                "onclick" : "window.location.href = '/login'";
+            }
+        }
+    } else {
+        text "Please log in or register" {text_theme;}
+        button {
+            text "To login" {text_theme;}
+            "onclick" : "window.location.href = '/login'";
+        }
     }
 }

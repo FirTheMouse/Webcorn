@@ -5323,3 +5323,73 @@ script read_file(project_path+"abvtt.js");
             emit_part(v.getStr);
         }
     }
+
+
+
+    Basic editor:
+
+
+     class["Users"].try_read_forever_then {
+            class["Users"].cells((usercookie,u) => {
+                u.cells((k,v) => {
+                    text k+":" {text_theme;}
+                    if(is_live(v)) {
+                        int vofv = type_of(*v);
+                        if(vofv==(#ptr)) {
+                            Ptr vptr = *v;
+                            if(getpool(vptr)==getpool(user)) {
+                                vptr.do(vval => {
+                                    text value_as_string(vval) {"margin-left" : "2px"; "border" : "1px black solid"; text_theme;}
+                                });
+                            } else {
+                                text "EXTERNAL" {text_theme;}
+                            }
+                            button {
+                                text "X";
+                                "onclick" : capture(
+                                    string fclasscode ; js_lit(target_classcode),
+                                    string fusercookie ; js_lit(usercookie),
+                                    string on_field ; js_lit(k)
+                                ) {
+                                    sync_class(fclasscode);
+                                    Object fuser = class["Users"][fusercookie];
+                                    fuser[on_field] = deadptr;
+                                }
+                            }
+                        } else if(vofv==(#bool)) {
+                            input {
+                                "type" : "checkbox";
+                                if(*v) {"checked" : "true";}
+                                "onchange" : capture(
+                                    string fclasscode ; js_lit(target_classcode),
+                                    string fusercookie ; js_lit(usercookie),
+                                    string on_field ; js_lit(k),
+                                    string myval ; "this.checked?'1':'0'"
+                                ) {
+                                    sync_class(fclasscode);
+                                    Object fuser = class["Users"][fusercookie];
+                                    fuser[on_field] = (myval=="1");
+                                }
+                            }
+                        } else {
+                            input {
+                                "value" : value_as_string(v);
+                                "onchange" : capture(
+                                    string fclasscode ; js_lit(target_classcode),
+                                    string fusercookie ; js_lit(usercookie),
+                                    string on_field ; js_lit(k),
+                                    string myval ; "this.value"
+                                ) {
+                                    sync_class(fclasscode);
+                                    Object fuser = class["Users"][fusercookie];
+                                    fuser[on_field] = from_string(myval);
+                                    dump_subunit(class,true);
+                                }
+                            }
+                        }
+                    } else {
+                        text "DEAD" {text_theme;}
+                    }
+                });
+            });
+     }

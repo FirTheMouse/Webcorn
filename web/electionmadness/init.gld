@@ -52,7 +52,7 @@ void add_us_map_data(ColCol emmap) {
 }
 
 
-bool reset = true;
+bool reset = false;
 ColColCol database = deadptr;
 
 if(reset) {
@@ -242,56 +242,50 @@ if(reset) {
 
     add_us_map_data(emmap);
 
+
+    ColColCol class_global = usubunits.add("web/electionmadness/classes/global.gsu");
+        class_global.clear_lock;
+        ColCol class_global_common = class_global.add("Common");
+            class_global_common.clear_lock;
+            class_global_common.add(Ptr,"Sessions").clear_lock;
+        ColCol class_global_users = class_global.add("Users");
+            class_global_users.clear_lock;
+            Object user_fir = class_global_users.Object(
+                "username": "Fir";
+                "password": secure_hash("fir");
+                "votes": [Ptr];
+                "locked": false;
+                "authourized": true;
+            ).register(generate_token);
+            class_global_common.Sessions.Fir = user_fir;
+    class_global.save;
+
+    ColColCol class_test = usubunits.add("web/electionmadness/classes/testing.gsu");
+        class_test.clear_lock;
+        ColCol class_test_common = class_test.add("Common");
+            class_test_common.clear_lock;
+            class_test_common.add(Ptr,"Sessions").clear_lock;
+        ColCol class_test_users = class_test.add("Users");
+            class_test_users.clear_lock;
+    class_test.save;
+
+    ColCol class_database = database["Classes"].add(string,"Lookup");
+    class_database.init(GLOBAL: "web/electionmadness/classes/global.gsu", testing: "web/electionmadness/classes/testing.gsu");
+    class_database.clear_lock;
+
     sub.save;
 } else {
     print("Loading database");
     tstart("database_load");
     database = load_subunit("web/electionmadness/data.gsu");
-    database.clear_lock;
-    //Since these will be used by multiple units
-        database.get("Users").clear_lock;
-        database[0].get("sessions").clear_lock;
-    for(int r=2;r<database.length;r++) {
-        database[r].clear_lock;
-    }
+    database.clear_all_locks;
     print("Database loaded in: ",tstop("database_load"));
 }
 
-ColColCol class_global = usubunits.add("web/electionmadness/classes/global.gsu");
-    class_global.clear_lock;
-    ColCol class_global_common = class_global.add("Common");
-        class_global_common.clear_lock;
-        class_global_common.add(Ptr,"Sessions").clear_lock;
-    ColCol class_global_users = class_global.add("Users");
-        class_global_users.clear_lock;
-        Object user_fir = class_global_users.Object(
-            "username": "Fir";
-            "password": secure_hash("fir");
-            "votes": [Ptr];
-            "locked": false;
-            "authourized": true;
-        ).register(generate_token);
-        class_global_common.Sessions.Fir = user_fir;
-class_global.save;
-dump_subunit(class_global,true);
-
-
-ColColCol class_test = usubunits.add("web/electionmadness/classes/testing.gsu");
-    class_test.clear_lock;
-    ColCol class_test_common = class_test.add("Common");
-        class_test_common.clear_lock;
-        class_test_common.add(Ptr,"Sessions").clear_lock;
-    ColCol class_test_users = class_test.add("Users");
-        class_test_users.clear_lock;
-class_test.save;
-
 ColColCol cache = usubunits.add("web/electionmadness/cache.gsu");
-    cache.clear_lock;
-    cache.add("Catchers").clear_lock;
-    cache.add("Storage").clear_lock;
+    cache.add("Catchers");
+    cache.add("Storage");
     ColCol classes = cache.add("Classes");
-        classes.clear_lock;
-        classes.add(Ptr,"Lookup").init(GLOBAL: class_global, testing: class_test);
+        classes.add(Ptr,"Lookup");
+cache.clear_all_locks;
 cache.save;
-
-database["Classes"].add(string,"Lookup").init(GLOBAL: "web/electionmadness/classes/global.gsu");

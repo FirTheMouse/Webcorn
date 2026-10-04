@@ -403,13 +403,19 @@ namespace Acorn {
             memset(&client_addr, 0, sizeof(client_addr));
             socklen_t client_len = sizeof(client_addr);
             int client_fd = accept(fd, (struct sockaddr*)&client_addr, &client_len);
-            if(client_fd == -1) { throw_error("accept failed"); return -1; }
+            if(client_fd == -1) { 
+                if(errno == EINTR || errno == ECONNABORTED) return -1;  // benign, retry quietly
+                if(errno == EMFILE || errno == ENFILE) usleep(10000);
+                throw_error("accept failed"); 
+                return -1; 
+            }
 
             //Read timeout
             struct timeval tv;
-            tv.tv_sec = 10;
+            tv.tv_sec = 3;
             tv.tv_usec = 0;
             setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+            setsockopt(client_fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 
             #if USE_TLS
                 g_ptr<tls_conn> conn = make<tls_conn>();
@@ -766,10 +772,13 @@ namespace Acorn {
                         } else {
                             print(red("webcorn:manage_sessions no global variable was declared to recive investment of: "+req[2]));
                         }
+                    } else if(cmd=="INFO") {
+                        print(unit_info());
                     } else {
                         print(red("webcorn:manage_sessions unrecognized command: "+cmd));
                     }
                     unit->types.live = true;
+                    unit->types.label = "";
                 }   
                 else if(has_queued) {
                     //print(green("Fuffiled a qeued request"));
@@ -1883,9 +1892,9 @@ namespace Acorn {
                 ctx.sub().source() = part;
             }
 
-            Acorn::recycle_column(types[propbin_col],plen-1);
-            Acorn::recycle_column(types[propbin_col],plen-2);
-            Acorn::recycle_column(types[propbin_col],plen-3);
+            Acorn::recycle_column(types[propbin_col],partsat);
+            Acorn::recycle_column(types[propbin_col],stylisticat);
+            Acorn::recycle_column(types[propbin_col],sctructuralat);
             recycle_column(strticket);
         }
 

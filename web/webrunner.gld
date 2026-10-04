@@ -20,10 +20,6 @@
 ##
 
 ##
-
-##
-
-##
     newstage posting;
     newstage fraging;
 
@@ -451,9 +447,9 @@ bool use_caching = true;
 
 if(!has_state) {
     cry("INVEST:database:data.gsu");
+    cry("INVEST:cache:cache.gsu");
     if(use_caching) {
             if(file_exists(project_path+"cache.gsu")) {
-            cry("INVEST:cache:cache.gsu");
             "cache_catcher" {
                 in htmlemiting {
                     Value v = ctx.node.value;
@@ -898,21 +894,23 @@ while(0<1) {
                 request_path = request_path.substr(0,arg_at);
             }
             string pure_request_path = request_path;
-            if(is_live(params)) {
-                params.recycle;
-            } else {
-                params = param_store.add(Ptr);
-            }
-            Ptr string req_args = split_str(request_arg,"@");
-            string req_label = "";
-            req_args.do(argy => {
-                if(req_label.length>0) {
-                    params[req_label] = from_string(argy);
-                    req_label = "";
-                } else {
-                    req_label = argy;
-                }
-            });
+
+            //Disabled for now because from_string has a memory leak fixed by the 0.7.6 prototype which I don't have ready for deployment yet
+            // if(is_live(params)) {
+            //     params.recycle;
+            // } else {
+            //     params = param_store.add(Ptr);
+            // }
+            // Ptr string req_args = split_str(request_arg,"@");
+            // string req_label = "";
+            // req_args.do(argy => {
+            //     if(req_label.length>0) {
+            //         params[req_label] = from_string(argy);
+            //         req_label = "";
+            //     } else {
+            //         req_label = argy;
+            //     }
+            // });
 
             page = route_search(twig);
             if(is_live(page)) {
@@ -1026,17 +1024,17 @@ while(0<1) {
                                 }
 
                                 bool should_emit_params = false;
-                                params.cells((k,v,indx) => {
-                                    if(indx==0) {
-                                        should_emit_params = true;
-                                        pure_request_path.append("?"+to_string(k)+"&AT"+to_string(v));
-                                    } else {
-                                        pure_request_path.append("&AT"+to_string(k)+"&AT"+to_string(v));
-                                    }
-                                });
-                                if(should_emit_params) {
-                                    response_body.append("@RUN history.pushState(null,'',"+js_lit(pure_request_path)+");");    
-                                }  
+                                // params.cells((k,v,indx) => {
+                                //     if(indx==0) {
+                                //         should_emit_params = true;
+                                //         pure_request_path.append("?"+to_string(k)+"&AT"+to_string(v));
+                                //     } else {
+                                //         pure_request_path.append("&AT"+to_string(k)+"&AT"+to_string(v));
+                                //     }
+                                // });
+                                // if(should_emit_params) {
+                                //     response_body.append("@RUN history.pushState(null,'',"+js_lit(pure_request_path)+");");    
+                                // }  
                             }
                         }
                     }
