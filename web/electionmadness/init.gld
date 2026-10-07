@@ -53,6 +53,9 @@ void add_us_map_data(ColCol emmap) {
 
 
 bool reset = false;
+
+if(unit_has_arg("--init")) {reset = true;}
+
 ColColCol database = deadptr;
 
 if(reset) {
@@ -83,7 +86,6 @@ if(reset) {
             "link": link;
             "party": party;
             "points": points;
-            "votes": [char];
         ).register(name);
     }
     void make_race(string race_name, string link, string name_a, string party_a, string points_a, string name_b, string party_b, string points_b) {
@@ -99,8 +101,8 @@ if(reset) {
     );
 
     make_race("TX-15","https://ballotpedia.org/Texas%27_15th_Congressional_District_election,_2026"
-        , "Bobby Pulido","Democrat","6"
-        , "Monica De La Cruz","Republican","4"
+        , "Bobby Pulido","Democrat","4"
+        , "Monica De La Cruz","Republican","6"
     );
 
     make_race("TX-35","https://ballotpedia.org/Texas%27_35th_Congressional_District_election,_2026"
@@ -159,8 +161,8 @@ if(reset) {
     );
 
     make_race("CA-LA Mayor","https://ballotpedia.org/Mayoral_election_in_Los_Angeles,_California_(2026)"
-        , "Karen Bass","Non-partisan","3"
-        , "Nithya Raman","Non-partisan","7"
+        , "Karen Bass","Non-partisan","6"
+        , "Nithya Raman","Non-partisan","4"
     );
 
     make_race("FL-27","https://ballotpedia.org/Florida%27s_27th_Congressional_District_election,_2026"
@@ -248,6 +250,7 @@ if(reset) {
         ColCol class_global_common = class_global.add("Common");
             class_global_common.clear_lock;
             class_global_common.add(Ptr,"Sessions").clear_lock;
+            class_global_common.add(int,"Tally").clear_lock;
         ColCol class_global_users = class_global.add("Users");
             class_global_users.clear_lock;
             Object user_fir = class_global_users.Object(
@@ -265,6 +268,7 @@ if(reset) {
         ColCol class_test_common = class_test.add("Common");
             class_test_common.clear_lock;
             class_test_common.add(Ptr,"Sessions").clear_lock;
+            class_test_common.add(int,"Tally").clear_lock;
         ColCol class_test_users = class_test.add("Users");
             class_test_users.clear_lock;
     class_test.save;
@@ -289,3 +293,4 @@ ColColCol cache = usubunits.add("web/electionmadness/cache.gsu");
         classes.add(Ptr,"Lookup");
 cache.clear_all_locks;
 cache.save;
+

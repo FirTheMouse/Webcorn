@@ -5393,3 +5393,222 @@ script read_file(project_path+"abvtt.js");
                 });
             });
      }
+
+
+
+
+
+
+
+
+     const personalities = {
+            map_user: {
+                think_time: () => 300 + Math.random() * 700,
+                tab_delay: () => 400 + Math.random() * 300,
+                vote_delay: () => 300 + Math.random() * 400,
+                use_map: true,
+            },
+            mobile_user: {
+                think_time: () => 500 + Math.random() * 1000,
+                tab_delay: () => 600 + Math.random() * 500,
+                vote_delay: () => 400 + Math.random() * 600,
+                use_map: false,
+            },
+            speedrunner: {
+                think_time: () => 50 + Math.random() * 50,
+                tab_delay: () => 80 + Math.random() * 50,
+                vote_delay: () => 60 + Math.random() * 40,
+                use_map: false,
+            },
+            map_speedrunner: {
+                think_time: () => 50 + Math.random() * 200,
+                tab_delay: () => 80 + Math.random() * 100,
+                vote_delay: () => 60 + Math.random() * 200,
+                scroll_speed: () => 50 + Math.random() * 50,
+                use_map: true,
+            },
+        };
+
+
+                Ptr& all_races = database[0]["races"];
+                for(int s=0;s<all_races.length;s++) {
+                    Header& race = all_races[s];
+                    div {
+                        "id" : race.label+"_tally";
+                        "height" : "55px";
+                        "width" : "90%";
+                        "border-radius" : "10px";
+                        "display" : "flex";
+                        "align-items" : "center";
+                        "justify-content" : "center";
+                        "overflow" : "hidden";
+
+                        "cursor" : "pointer";
+                        "onclick" : "
+                            const el = getel("+js_lit(race.label)+"+'_scroll_label');
+                            if(el) {el.scrollIntoView({ behavior: 'smooth', block: 'start' });}
+                        ";
+
+                        script "votes_locked = "+to_string(user.locked)+";";
+
+                        if(user.locked) {
+                            Ptr& candidates = race.ribbons;
+                            int vote_total = 0;
+                            for(int i=0;i<candidates.length;i++) {
+                                Ptr& vote = candidates[i];
+                                Ptr& candidate_votes = vote["votes"];
+                                int vote_count = candidate_votes.length;
+                                vote_total=vote_total+vote_count;
+                            }
+                            for(int i=0;i<candidates.length;i++) {
+                                div {
+                                    "display" : "flex";
+                                    "align-items" : "center";
+                                    "justify-content" : "center";
+                                    "height" : "100%";
+                                    Ptr& vote = candidates[i];
+                                    Ptr& party = vote["party"];
+                                    Ptr& candidate_votes = vote["votes"];
+                                    int vote_count = candidate_votes.length;
+                                    if(vote_count>0) {
+                                        "width" : to_string(compute_percent(vote_total,vote_count))+"%";
+                                        string party_str = value_as_string(party);
+                                        string party_color = color_of_party(party_str);
+                                        "background-color" : party_color;
+                                        "transition" : "transform 1.3s ease";
+                                        if(i==0) {
+                                            "transform" : "translateX(-100%)";
+                                        } else {
+                                            "transform" : "translateX(100%)";
+                                        }
+
+                                        string candidate = vote.label;
+                                        text candidate {
+                                            "flex" : "1";
+                                            "color" : "white";
+                                            "font-size" : "0.6rem";
+                                            "white-space" : "nowrap";
+                                            "font-weight" : "600";
+                                            "padding-left" : (i==0?"12px":"0px");
+                                            "padding-right" : (i==1?"12px":"0px");
+                                            "text-align" : (i==1?"right":"left");
+                                            text_theme;
+                                        }
+                                    } else {
+                                        "width" : "0%";
+                                    }
+                                }
+                            }       
+                        } else {
+                            Ptr& vote = get_vote(race.label);
+                            string candidate = "";
+                            string points = " ";
+                            if(is_live(vote)) {
+                                Ptr& party = vote["party"];
+                                string party_str = value_as_string(party);
+                                string party_color = color_of_party(party_str);
+                                "background-color" : party_color;
+                                candidate = vote.label;
+                                points = value_as_string(vote["points"]);
+                            } else {
+                                "background-color" : "gray";
+                            }
+
+                            text candidate {
+                                "flex" : "1";
+                                "color" : "white";
+                                "font-size" : "0.6rem";
+
+                                "font-weight" : "600";
+                                "padding-left" : "12px";
+                                text_theme;
+                            }
+
+                            text points {
+                                "color" : "white";
+                                "font-size" : "0.6rem";
+                                "font-weight" : "700";
+                                "background-color" : "rgba(0,0,0,0.25)";
+                                "height" : "100%";
+                                "display" : "flex";
+                                "align-items" : "center";
+                                "padding" : "0 16px";
+                                text_theme;
+                            }
+                        }
+                    }
+                }
+                if(user.locked) {
+                    string animate_tallies_script = "
+                        if(true) {
+                            const tallies = getel("+js_lit(capture_node(tally_display))+");
+                            Array.from(tallies.children).forEach((tally, i) => {
+                                Array.from(tally.children).forEach((candidate, s) => {
+                                    setTimeout(() => {
+                                        candidate.style.transform = 'translateX(0%)';
+                                    }, (i+1)*80);
+                                });
+                            });
+                        }
+                    ";
+                    script animate_tallies_script;
+                }
+
+
+Tab system for myclass
+
+div {
+                            "display" : "flex";
+                            "flex-direction" : "row";
+                            "align-items" : "center";
+                            "background-color" : "white";
+                            "border-bottom" : "1px solid rgb(197,197,197)";
+                            "width" : "100%";
+
+                            stateless template div myclass_tab(string label) {
+                                div {
+                                    "padding" : "16px 32px";
+                                    "height" : "100%";
+                                    "border-right" : "1px solid black";
+                                    text label {
+                                        "font-size" : "1rem";
+                                        "cursor" : "pointer";
+                                        text_theme;
+                                    }
+                                    hoverable_theme;
+                                    "onclick" : "
+                                        Array.from(getel('myclass_displays').children).forEach(e => {
+                                            if(e.id==='myclass_"+label+"') {
+                                                e.style.display = 'flex';
+                                            } else {
+                                                e.style.display = 'none';
+                                            }
+                                        });
+                                    ";
+                                }
+                            }
+                            myclass_tab("Overview");
+                            myclass_tab("Users");
+                        }
+                        div {
+                            "id" : "myclass_displays";
+                            div {
+                                "id" : "myclass_Overview";
+                                "display" : "flex";
+                                "flex-direction" : "column";
+                                text target_classcode {text_theme;}
+                                text "Join Link" {
+                                    "onclick" : "
+                                        const el = this;
+                                        navigator.clipboard.writeText('https://test.goldensystems.ca/join?"+target_classcode+"');
+                                        el.innerText = 'Copied!';
+                                        setTimeout(() => el.innerText = 'Join Link', 1200);
+                                    "; 
+                                    "cursor" : "pointer";
+                                    text_theme;
+                                }
+                            }
+                            div {
+                                "id" : "myclass_Users";
+                                "display" : "none";
+                                "flex-direction" : "row";

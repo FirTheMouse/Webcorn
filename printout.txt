@@ -1,5 +1,5 @@
 [:] Common [LOCK:1]
- 0 : Sessions ptr:32 G:0 | 
+ 0 : Sessions ptr:32 G:0 |  1 : Tally int:4 G:0 | 
 
 
 

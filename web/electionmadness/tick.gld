@@ -10,30 +10,42 @@ tstart("longterm_tick");
 while(!unit_shutdown_flag) {
     if(ttime_s("recent_tick")>300) {
         string backup_path = "web/electionmadness/backups/data_recent_"+to_string(recent_count)+".gsu";
-        database.label(backup_path);
-        database.save;
-        database.label("web/electionmadness/data.gsu");
-        print(unit_time+": Recent backup saved to ",backup_path);
+        copy_file("web/electionmadness/data.gsu",backup_path);
+        //print(unit_time+": Recent backup saved to ",backup_path);
+
+        list_files_in_directory("web/electionmadness/classes").do(file => {
+            string stripdot = file.substr(0,file.length-4);
+            copy_file("web/electionmadness/classes/"+file,"web/electionmadness/backups/"+stripdot+"_recent_"+to_string(recent_count)+".gsu");
+        });
+
         recent_count++;
         recent_count = recent_count%3;
         tstart("recent_tick");
     }
     if(ttime_s("hourly_tick")>3600) {
         string backup_path = "web/electionmadness/backups/data_hourly_"+to_string(hourly_count)+".gsu";
-        database.label(backup_path);
-        database.save;
-        database.label("web/electionmadness/data.gsu");
+        copy_file("web/electionmadness/data.gsu",backup_path);
         print(unit_time+": Hourly backup saved to ",backup_path);
+
+        list_files_in_directory("web/electionmadness/classes").do(file => {
+            string stripdot = file.substr(0,file.length-4);
+            copy_file("web/electionmadness/classes/"+file,"web/electionmadness/backups/"+stripdot+"_hourly_"+to_string(hourly_count)+".gsu");
+        });
+
         hourly_count++;
         hourly_count = hourly_count%24;
         tstart("hourly_tick");
     }
     if(ttime_s("longterm_tick")>259200) {
         string backup_path = "web/electionmadness/backups/data_longterm_"+to_string(longterm_count)+".gsu";
-        database.label(backup_path);
-        database.save;
-        database.label("web/electionmadness/data.gsu");
+        copy_file("web/electionmadness/data.gsu",backup_path);
         print(unit_time+": Long term backup saved to ",backup_path);
+
+        list_files_in_directory("web/electionmadness/classes").do(file => {
+            string stripdot = file.substr(0,file.length-4);
+            copy_file("web/electionmadness/classes/"+file,"web/electionmadness/backups/"+stripdot+"_longterm_"+to_string(longterm_count)+".gsu");
+        });
+
         longterm_count = (longterm_count+1)%4;
         tstart("longterm_tick");
     }

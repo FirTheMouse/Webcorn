@@ -27,6 +27,7 @@ For running webcorn (./webcorn)
     --files : directories to whiteliest, only goes one directory deep, seperated by commas
     --script : a script to run on startup
     --units : how many units to startup, this is needed for Webcorn
+    --init : restart in an init.gld that has this
 
 For running Hazel (./hazel)
 

@@ -1039,16 +1039,17 @@ while(0<1) {
                         }
                     }
                 }
-            } else {
-                params.cells((k,v,indx) => {
-                    if(indx==0) {
-                        pure_request_path.append("?"+to_string(k)+"@"+to_string(v));
-                    } else {
-                        pure_request_path.append("@"+to_string(k)+"@"+to_string(v));
-                    }
-                });
-                response_body.append("<script>history.replaceState(null,'',"+js_lit(pure_request_path)+");</script>");
-            }
+            } 
+            // else {
+            //     params.cells((k,v,indx) => {
+            //         if(indx==0) {
+            //             pure_request_path.append("?"+to_string(k)+"@"+to_string(v));
+            //         } else {
+            //             pure_request_path.append("@"+to_string(k)+"@"+to_string(v));
+            //         }
+            //     });
+            //     response_body.append("<script>history.replaceState(null,'',"+js_lit(pure_request_path)+");</script>");
+            // }
         }
 
         if(response.length==0) {

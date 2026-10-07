@@ -65,10 +65,9 @@ inlined input_theme {
 inlined air_input_theme {
     "border" : "none";
     "border-bottom" : "2px solid rgb(200,200,200)";
-    "border-radius" : "0px";
     "background-color" : "transparent";
-    "padding" : "8px 0px";
-    input_theme;
+    "padding" : "0px 4px";
+    text_theme;
 }
 inlined form_input_theme {
     air_input_theme;
@@ -90,6 +89,13 @@ inlined form_select_theme {
     "-webkit-appearance" : "none";
 }
 
+inlined standard_button_theme {
+    "border" : "none";
+    "border-radius" : "8px";
+    "padding" : "6px";
+    text_theme;
+}
+
 
 inlined hoverable_theme {
     "background-color" : "transparent";
@@ -102,6 +108,34 @@ inlined skeleton_pulse {
     "background-size" : "200% 100%";
     "animation" : "skeleton_pulse 1.5s infinite";
 }
+
+
+inlined popup_background_theme {
+    "position" : "fixed";
+    "top" : "0";
+    "left" : "0";
+    "width" : "100%";
+    "height" : "100%";
+    "background-color" : "rgba(0,0,0,0.4)";
+    "z-index" : "1000";
+    "display" : "flex";
+    "justify-content" : "center";
+    "align-items" : "center";
+    "onclick" : "event.stopPropagation();";
+}
+
+inlined popup_panel_theme {
+    "background-color" : "white";
+    "border-radius" : "12px";
+    "padding" : "24px";
+    "display" : "flex";
+    "flex-direction" : "column";
+    "gap" : "16px";
+    "align-items" : "center";
+    "box-shadow" : "0 8px 32px rgba(0,0,0,0.2)";
+    "onclick" : "event.stopPropagation();";
+}
+
 
 ##
     Ptr int tally_by_state;
@@ -140,12 +174,7 @@ inlined skeleton_pulse {
             }
         }
     }
-    global void sync_user() {
-        string classcode = get_cookie(current_request,"classcode");
-        if(classcode.length==0) {
-            classcode = "GLOBAL";
-        }
-        sync_class(classcode);
+    global void sync_user_no_class() {
         user = deadptr;
         if(is_live(class)) {
             guestid = get_cookie(current_request,"guestid");
@@ -160,6 +189,14 @@ inlined skeleton_pulse {
         } else {
             print(red("Class "+classcode+" was not found"));
         }
+    }
+    global void sync_user() {
+        string classcode = get_cookie(current_request,"classcode");
+        if(classcode.length==0) {
+            classcode = "GLOBAL";
+        }
+        sync_class(classcode);
+        sync_user_no_class;
     }
     global void sync_with_database() {
         if(!has_state) {
@@ -217,21 +254,23 @@ inlined skeleton_pulse {
                     if(race.id===racelabel) {
                         const candidates = race.children;
                         let mycolor = null;
+                        let mypoints = null;
                         for(let i=0;i<candidates.length;i++) {
                             const candidate_btn = candidates[i].children[3];
                             if(candidates[i].dataset.candidate===candidate) {
                                 candidate_btn.style.backgroundColor = 'gray';
                                 mycolor = candidates[i].dataset.mycolor;
+                                mypoints = candidates[i].dataset.mypoints;
                             } else {
                                 candidate_btn.style.backgroundColor = candidates[i].dataset.mycolor;
                             }
                         }
 
                         const tally = getel(racelabel+'_tally');
-                        if(tally) {
+                        if(tally&&tally.dataset.islocked=='false') {
                             tally.style.backgroundColor = mycolor;
-                            tally.children[1].innerText = candidate;
-                            tally.children[2].innerText = '0'; //Replace later
+                            tally.children[0].innerText = candidate;
+                            tally.children[1].innerText = mypoints;
                         }
 
                         const race_state = racelabel.split('-')[0];
@@ -360,25 +399,40 @@ inlined skeleton_pulse {
         }
     }   
 
+    global void compute_class_tally() {
+        if(is_live(class)) {
+            Ptr class_tally = class["Common"]["Tally"];
+            ColCol users = class["Users"];
+            class_tally.try_lock_forever_then {
+                class_tally.clear;
+                users.try_read_forever_then {
+                    users.cells((key,uptr) => {
+                        Object u = uptr;
+                        if(u.locked) {
+                            u.votes.do(casted => {
+                                class_tally[to_string(casted)]++;
+                            });
+                        }
+                    });
+                }
+            }
+            users.try_read_forever_then {
+                class.save;
+            }
+        } else {
+            print(red("Must have syncd a class before computing class tally"));
+        }
+    }
+
     global void lock_in_votes() {
         sync_with_database;
         if(is_live(user)) {
             if(is_voting_finished) {
-                user.votes.cells((race_label,candidate) => {
-                    ColCol race = candidate;
-                    Ptr tally = candidate.as(Object).votes;
-                    race.try_lock_forever_then {
-                        if(!(tally.has(guestid))) {
-                            tally.put(guestid,'T');
-                        }
-                    }
-                });
                 ColCol users = user;
                 users.try_read_forever_then {
                     user.locked = true;
-                    class.save;
                 }
-                database.save;
+                compute_class_tally;
             } else {
                 print("User ",user.label," attemped to lock in votes before voting was finished");
             }
@@ -466,6 +520,10 @@ route login {
                 user_registered = user.?password;
             }   
         }
+        bool isprof = false;
+        if(request_arg=="prof") {
+            isprof = true;
+        }
 
         div {
             "display" : "flex";
@@ -473,32 +531,38 @@ route login {
                 div {
                     "flex" : "1";
                     "display" : "flex";
-                    "flex-direction" : "column";
+                    "flex-direction" : "column-reverse";
                     "justify-content" : "center";
                     "align-items" : "center";
+                    "position" : "relative"; 
                         if(!is_live(user)) {
                             div {
                                 "id" : "login_title";
                                 "opacity" : "1";
+                                "position" : "absolute"; 
                                 "transition" : "opacity 0.6s ease, transform 0.8s ease";
                                 "transform-origin" : "center bottom";
-                                text "Election Madness" {"font-size" : "80px"; "font-weight" : "800"; text_theme;}
+                                text "Election Madness" {"font-size" : "min(80px, 10vw)"; "font-weight" : "800"; text_theme;}
                                 text "Made with TwigSnap" {"text-align" : "center"; "font-size" : "12px"; "font-weight" : "600"; text_theme;}
                                 script "
                                     setTimeout(() => {
                                         const title = getel('login_title');
                                         const body = getel('login_body');
+                                        const tab = getel('class_tab');
                                         title.style.opacity = '0';
                                         title.style.transform = 'scale(4)';
                                         setTimeout(() => {
                                             title.style.display = 'none';
                                             body.style.opacity = '1';
+                                            tab.style.opacity = '1';
                                         }, 400);
                                         body.style.transition = 'opacity 0.4s ease';
+                                        tab.style.transition = 'opacity 0.4s ease';
                                     }, 800);
                                 ";
                             }
                         }
+
                         div {
                             "id" : "login_body";
                             "opacity" : (is_live(user)?"100":"0");
@@ -516,33 +580,14 @@ route login {
                             card_theme;
                             "border-radius" : "12px";
                             "box-shadow" : "0 4px 24px rgba(0,0,0,0.08)";
-
-
-
-                            div login_buttons {
+                  
+                            hoisted div login_buttons {
                                 "display" : "flex";
                                 "justify-content" : "center";
                                 "align-items" : "center";
                                 "flex-direction" : "column";
                                 "width" : "100%";
                                 "height" : "100%";
-
-                                if(is_live(class)) {
-                                    text class.label {
-                                        text_theme;
-                                    }
-                                    button {
-                                        text "leave" {text_theme;}
-                                        "onclick" : capture{
-                                            response.append("HTTP/1.1 200 OK\r\n");
-                                            response.append("Content-Type: text/html\r\n");
-                                            response.append("Set-Cookie: classcode=; path=/; SameSite=Lax; Max-Age=0\r\n");
-                                            user_registered = false;
-                                            login_buttons.reload;
-                                        };
-                                    }
-                                }
-                                
                                 
                                 div {
                                     "display" : "flex";
@@ -553,7 +598,9 @@ route login {
                                     if(!user_registered) {
                                         string login_behaviour = capture(
                                             string given_username ; "getel('username').value",
-                                            string given_password ; "getel('password').value"
+                                            string given_password ; "getel('password').value",
+                                            string req_arg ; js_lit(request_arg),
+                                            js_do("apply_theme(this,"+js_lit(skeleton_pulse.emit)+");")
                                         ) {
                                             sync_user;
                                             Ptr sessions = class[0]["Sessions"];
@@ -566,7 +613,7 @@ route login {
                                                         response.append("Content-Type: text/html\r\n");
                                                         response.append("Set-Cookie: guestid="+(user.label)+"; path=/; HttpOnly; Secure; SameSite=Lax\r\n");
                                                         emit_js("
-                                                            window.location.href = "+(redirected_from.length==0?"'/'":js_lit(redirected_from))+";
+                                                            window.location.href = "+(req_arg.length>0?"'/myclass'":"'/'")+";
                                                         ");
                                                     } else {
                                                         result = "Wrong password";
@@ -578,6 +625,7 @@ route login {
                                             if(result.length>0) {
                                                 emit_js("
                                                     const btn = getel('login');
+                                                    btn.style.background = 'rgb(230, 230, 230)';
                                                     btn.children[0].innerText='"+result+"';
                                                     setTimeout(() => {
                                                         btn.children[0].innerText = 'Login';
@@ -588,7 +636,9 @@ route login {
 
                                         string register_behaviour = capture(
                                             string given_username ; "getel('username').value",
-                                            string given_password ; "getel('password').value"
+                                            string given_password ; "getel('password').value",
+                                            string req_arg ; js_lit(request_arg),
+                                            js_do("apply_theme(this,"+js_lit(skeleton_pulse.emit)+");")
                                         ) {
                                             sync_user;
                                             Ptr sessions = class[0]["Sessions"];
@@ -616,7 +666,7 @@ route login {
                                                                 sessions.put(given_username, user);
                                                                 result = "Registered";
                                                                 emit_js("
-                                                                    window.location.href = "+(redirected_from.length==0?"'/'":js_lit(redirected_from))+";
+                                                                    window.location.href = "+(req_arg.length>0?"'/myclass'":"'/'")+";
                                                                 ");
                                                                 class.save;
                                                             }
@@ -626,6 +676,7 @@ route login {
                                             }
                                             emit_js("
                                                 const btn = getel('login');
+                                                btn.style.background = 'rgb(230, 230, 230)';
                                                 btn.children[0].innerText='"+result+"';
                                                 setTimeout(() => {
                                                     btn.children[0].innerText = 'Register';
@@ -675,12 +726,16 @@ route login {
                                     }
                                     
                                     if(user_registered) {
-                                        loginbtn("Back",capture{
+                                        loginbtn("Back",capture(
+                                            string req_arg ; js_lit(request_arg)
+                                        ){
                                             emit_js("
-                                                window.location.href = "+(redirected_from.length==0?"'/'":js_lit(redirected_from))+";
+                                                window.location.href = "+(req_arg.length>0?"'/myclass'":"'/'")+";
                                             ");
                                         });
-                                        loginbtn("Logout",capture{
+                                        loginbtn("Logout",capture(
+                                            js_do("apply_theme(this,"+js_lit(skeleton_pulse.emit)+");")
+                                        ){
                                             response.append("HTTP/1.1 200 OK\r\n");
                                             response.append("Content-Type: text/html\r\n");
                                             response.append("Set-Cookie: guestid=; path=/; SameSite=Lax; Max-Age=0\r\n");
@@ -690,7 +745,7 @@ route login {
                                     } else {
                                         loginbtn("Guest",capture{
                                             emit_js("
-                                                window.location.href = "+(redirected_from.length==0?"'/'":js_lit(redirected_from))+";
+                                                window.location.href = '/';
                                             ");
                                         });
                                         loginbtn("Log In","toggle_login_card('Login',true);");
@@ -783,6 +838,110 @@ route login {
                                 }
                             }
                         }
+
+                        div {
+                            "id" : "class_tab";
+                            "opacity" : (is_live(user)?"100":"0");
+                            "transition" : "opacity 0.4s ease";
+                            "width" : "100%";
+                            "display" : "flex";
+                            "flex-direction" : "column";
+                            "align-items" : "center";
+
+                            div {
+                                "background-color" : "rgb(60,100,200)";
+                                "border-radius" : "12px 12px 0 0";
+                                "width" : "80%";
+                                "max-width" : "450px";
+                                "height" : "30px";
+                                text "Class" {"text-align" : "center"; "font-size" : "0.9rem"; "margin" : "5px"; "color" : "white"; text_theme;}
+
+                                "onclick" : "
+                                    const body = getel("+js_lit(capture_node(class_tab_body))+");
+                                    if(body.style.height === '0px') {
+                                        body.style.height = '50px';
+                                    } else {
+                                        body.style.height = '0px';
+                                    }
+                                ";
+                            }
+
+
+                            static string classcode_cookie = get_cookie(current_request,"classcode");                                
+                            div class_tab_body {
+                                if(classcode_cookie.length==0) {
+                                    classcode_cookie = "GLOBAL";
+                                }
+                                "overflow-y" : "hidden";
+                                "transition" : "height 0.6s ease";
+                                "height" : "50px";
+                                card_theme;
+                                "width" : "80%";
+                                "max-width" : "450px";
+                                "display" : "flex";
+                                "flex-direction" : "row";
+                                "justify-content" : "center";
+                                "gap" : "8px";
+                                "padding" : "8px";
+                                button {
+                                    "flex" : "1";
+                                    "border" : "none";
+                                    "border-radius" : "8px";
+                                    "background-color" : "rgb(60,100,200)";
+                                    text "leave" {"margin" : "5px"; "color" : "white"; text_theme;}
+                                    "onclick" : capture(
+                                        js_do("apply_theme(this,"+js_lit(skeleton_pulse.emit)+");")
+                                    ){
+                                        response.append("HTTP/1.1 200 OK\r\n");
+                                        response.append("Content-Type: text/html\r\n");
+                                        response.append("Set-Cookie: classcode=; path=/; SameSite=Lax; Max-Age=0\r\n");
+                                        sync_class("GLOBAL");
+                                        sync_user_no_class;
+                                        user_registered = is_live(user);
+                                        classcode_cookie = "";
+                                        class_tab_body.reload;
+                                        login_buttons.reload;
+                                    };
+                                }
+                                input {
+                                    "flex" : "1";
+                                    "id" : "class_select_input";
+                                    "value" : (is_live(class)?classcode_cookie:"NOT FOUND");
+                                    "border" : "none";
+                                    "background-color" : "transparent";
+                                    "border-bottom" : "1px solid black";
+                                    "padding" : "0px 3px";
+                                    text_theme;
+                                }
+                                button {
+                                    "flex" : "1";
+                                    "border" : "none";
+                                    "border-radius" : "8px";
+                                    "background-color" : "rgb(60,100,200)";
+                                    text "join" {"margin" : "5px"; "color" : "white"; text_theme;}
+                                    "onclick" : capture(
+                                        string newclasscode ; "getel('class_select_input').value",
+                                        string oldclasscode ; js_lit(classcode_cookie),
+                                        js_do("apply_theme(this,"+js_lit(skeleton_pulse.emit)+");")
+                                    ){
+                                        sync_class(newclasscode);
+                                        if(is_live(class)) {
+                                            response.append("HTTP/1.1 200 OK\r\n");
+                                            response.append("Content-Type: text/html\r\n");
+                                            response.append("Set-Cookie: classcode="+newclasscode+"; path=/; SameSite=Lax\r\n");
+                                            sync_user_no_class;
+                                            user_registered = is_live(user);
+                                            classcode_cookie = newclasscode;
+                                            class_tab_body.reload;
+                                            login_buttons.reload;
+                                        } else {
+                                            class_tab_body.reload;
+                                        }
+                                    };
+                                }
+                            }
+                        }
+
                 }
         }
     }
@@ -858,10 +1017,12 @@ stateless template div render_race(Header& race, bool is_visible) {
             string image_str = value_as_string(image_t);
             string party_color = color_of_party(party_str);
             Ptr& outervotes = rbn["votes"];
+            string points_str = value_as_string(rbn["points"]);
 
             div {
                 "data-candidate" : candidate;
                 "data-mycolor" : party_color;
+                "data-mypoints" : points_str;
                 "flex" : "1";
                 "display" : "flex";
                 "flex-direction" : "column";
@@ -902,7 +1063,6 @@ stateless template div render_race(Header& race, bool is_visible) {
                         }
                     }
                 }
-                string points_str = value_as_string(rbn["points"]);
                 link candidate+" ("+points_str+")" {
                     "font-size" : "13px";
                     "font-weight" : "800";
@@ -974,20 +1134,10 @@ stateless template div render_races(Ptr& races) {
         "overflow" : "hidden";
         "box-shadow" : "0 4px 16px rgba(0,0,0,0.12)";
         card_theme;
-
-        int first_viable_race = -1;
         div {
             "display" : "flex";
             "flex-direction" : "row";
             "border-bottom" : "1px solid rgba(0,0,0,0.08)";
-
-            for(int s=0;s<races.length;s++) {
-                setsidx(races,s);
-                Header& race = races[s];
-                if((!voted_in(race.label))&&first_viable_race<0) {
-                    first_viable_race = s;
-                }
-            }
 
             for(int s=0;s<races.length;s++) {
                 setsidx(races,s);
@@ -998,7 +1148,7 @@ stateless template div render_races(Ptr& races) {
                     "border-left" : "none";
                     "border-top" : "none";
                     "border-right" : "none";
-                    "border-bottom" : (s==first_viable_race?"2px solid rgb(172,57,147)":"2px solid transparent");
+                    "border-bottom" : (s==0?"2px solid rgb(172,57,147)":"2px solid transparent");
                     "border-radius" : "0";
                     "padding" : "10px 16px";
                     "cursor" : "pointer";
@@ -1050,7 +1200,7 @@ stateless template div render_races(Ptr& races) {
         div {
             for(int s=0;s<races.length;s++) {
                 Header& race = races[s];
-                render_race(race,s==first_viable_race);
+                render_race(race,s==0);
             }
         }
     }
@@ -1728,7 +1878,6 @@ route "" {
             "onclick" : "getel('instructions').scrollIntoView({ behavior: 'smooth', block: 'center' });";
         }
         
-
         div {
             "id" : "tally_board";
             "position" : "relative";
@@ -1761,110 +1910,113 @@ route "" {
                 "align-items" : "center";
                 "gap" : "5px";
                 "overflow-y" : "auto";
-                Ptr& all_races = database[0]["races"];
-                for(int s=0;s<all_races.length;s++) {
-                    Header& race = all_races[s];
-                    div {
-                        "id" : race.label+"_tally";
-                        "height" : "55px";
-                        "width" : "90%";
-                        "border-radius" : "10px";
-                        "display" : "flex";
-                        "align-items" : "center";
-                        "justify-content" : "center";
-                        "overflow" : "hidden";
 
-                        "cursor" : "pointer";
-                        "onclick" : "
-                            const el = getel("+js_lit(race.label)+"+'_scroll_label');
-                            if(el) {el.scrollIntoView({ behavior: 'smooth', block: 'start' });}
-                        ";
+                Ptr votecount = class["Common"]["Tally"];
+                votecount.try_read_forever_then {
+                    Ptr& all_races = database[0]["races"];
+                    for(int s=0;s<all_races.length;s++) {
+                        Header& race = all_races[s];
+                        div {
+                            "id" : race.label+"_tally";
+                            "height" : "55px";
+                            "width" : "90%";
+                            "border-radius" : "10px";
+                            "display" : "flex";
+                            "align-items" : "center";
+                            "justify-content" : "center";
+                            "overflow" : "hidden";
 
-                        script "votes_locked = "+to_string(user.locked)+";";
 
-                        if(user.locked) {
-                            Ptr& candidates = race.ribbons;
-                            int vote_total = 0;
-                            for(int i=0;i<candidates.length;i++) {
-                                Ptr& vote = candidates[i];
-                                Ptr& candidate_votes = vote["votes"];
-                                int vote_count = candidate_votes.length;
-                                vote_total=vote_total+vote_count;
-                            }
-                            for(int i=0;i<candidates.length;i++) {
-                                div {
+                            "cursor" : "pointer";
+                            "onclick" : "
+                                const el = getel("+js_lit(race.label)+"+'_scroll_label');
+                                if(el) {el.scrollIntoView({ behavior: 'smooth', block: 'start' });}
+                            ";
+
+                            if(user.locked) {
+                                "data-islocked" : "true";
+                                Ptr& candidates = race.ribbons;
+                                int vote_total = 0;
+                                for(int i=0;i<candidates.length;i++) {
+                                    Ptr& vote = candidates[i];
+                                    int vote_count = votecount[to_string(vote)];
+                                    vote_total=vote_total+vote_count;
+                                }
+                                for(int i=0;i<candidates.length;i++) {
+                                    div {
+                                        "display" : "flex";
+                                        "align-items" : "center";
+                                        "justify-content" : "center";
+                                        "height" : "100%";
+                                        Ptr& vote = candidates[i];
+                                        Ptr& party = vote["party"];
+                                        int vote_count = votecount[to_string(vote)];
+                                        if(vote_count>0) {
+                                            "width" : to_string(compute_percent(vote_total,vote_count))+"%";
+                                            string party_str = value_as_string(party);
+                                            string party_color = color_of_party(party_str);
+                                            "background-color" : party_color;
+                                            "transition" : "transform 1.3s ease";
+                                            if(i==0) {
+                                                "transform" : "translateX(-100%)";
+                                            } else {
+                                                "transform" : "translateX(100%)";
+                                            }
+
+                                            string candidate = vote.label;
+                                            text candidate {
+                                                "flex" : "1";
+                                                "color" : "white";
+                                                "font-size" : "0.6rem";
+                                                "white-space" : "nowrap";
+                                                "font-weight" : "600";
+                                                "padding-left" : (i==0?"12px":"0px");
+                                                "padding-right" : (i==1?"12px":"0px");
+                                                "text-align" : (i==1?"right":"left");
+                                                text_theme;
+                                            }
+                                        } else {
+                                            "width" : "0%";
+                                        }
+                                    }
+                                }       
+                            } else {
+                                "data-islocked" : "false";
+                                Ptr& vote = get_vote(race.label);
+                                string candidate = "";
+                                string points = " ";
+                                if(is_live(vote)) {
+                                    Ptr& party = vote["party"];
+                                    string party_str = value_as_string(party);
+                                    string party_color = color_of_party(party_str);
+                                    "background-color" : party_color;
+                                    candidate = vote.label;
+                                    points = value_as_string(vote["points"]);
+                                } else {
+                                    "background-color" : "gray";
+                                }
+
+                                text candidate {
+                                    "flex" : "1";
+                                    "color" : "white";
+                                    "font-size" : "0.6rem";
+
+                                    "font-weight" : "600";
+                                    "padding-left" : "12px";
+                                    text_theme;
+                                }
+
+                                text points {
+                                    "color" : "white";
+                                    "font-size" : "0.6rem";
+                                    "font-weight" : "700";
+                                    "background-color" : "rgba(0,0,0,0.25)";
+                                    "height" : "100%";
                                     "display" : "flex";
                                     "align-items" : "center";
-                                    "justify-content" : "center";
-                                    "height" : "100%";
-                                    Ptr& vote = candidates[i];
-                                    Ptr& party = vote["party"];
-                                    Ptr& candidate_votes = vote["votes"];
-                                    int vote_count = candidate_votes.length;
-                                    if(vote_count>0) {
-                                        "width" : to_string(compute_percent(vote_total,vote_count))+"%";
-                                        string party_str = value_as_string(party);
-                                        string party_color = color_of_party(party_str);
-                                        "background-color" : party_color;
-                                        "transition" : "transform 1.3s ease";
-                                        if(i==0) {
-                                            "transform" : "translateX(-100%)";
-                                        } else {
-                                            "transform" : "translateX(100%)";
-                                        }
-
-                                        string candidate = vote.label;
-                                        text candidate {
-                                            "flex" : "1";
-                                            "color" : "white";
-                                            "font-size" : "0.6rem";
-                                            "white-space" : "nowrap";
-                                            "font-weight" : "600";
-                                            "padding-left" : (i==0?"12px":"0px");
-                                            "padding-right" : (i==1?"12px":"0px");
-                                            "text-align" : (i==1?"right":"left");
-                                            text_theme;
-                                        }
-                                    } else {
-                                        "width" : "0%";
-                                    }
+                                    "padding" : "0 16px";
+                                    text_theme;
                                 }
-                            }       
-                        } else {
-                            Ptr& vote = get_vote(race.label);
-                            string candidate = "";
-                            string points = " ";
-                            if(is_live(vote)) {
-                                Ptr& party = vote["party"];
-                                string party_str = value_as_string(party);
-                                string party_color = color_of_party(party_str);
-                                "background-color" : party_color;
-                                candidate = vote.label;
-                                points = value_as_string(vote["points"]);
-                            } else {
-                                "background-color" : "gray";
-                            }
-
-                            text candidate {
-                                "flex" : "1";
-                                "color" : "white";
-                                "font-size" : "0.6rem";
-
-                                "font-weight" : "600";
-                                "padding-left" : "12px";
-                                text_theme;
-                            }
-
-                            text points {
-                                "color" : "white";
-                                "font-size" : "0.6rem";
-                                "font-weight" : "700";
-                                "background-color" : "rgba(0,0,0,0.25)";
-                                "height" : "100%";
-                                "display" : "flex";
-                                "align-items" : "center";
-                                "padding" : "0 16px";
-                                text_theme;
                             }
                         }
                     }
@@ -1914,6 +2066,7 @@ route "" {
                             apply_theme(tally,"+js_lit(skeleton_pulse.emit)+");
                         });
                         getel('register_prompt').style.display = 'flex';
+                        votes_locked = true;
                     ";
                 }
                 div {
@@ -2049,6 +2202,8 @@ route "" {
             }
         }
     }
+    
+
 
     script "
         Object.entries(voted_for).forEach(([racelabel, candidate]) => {
@@ -2249,6 +2404,575 @@ route "" {
         //simulate_user();
     ";
 }
+
+route myclass {
+    sync_user;
+    if(is_live(user)) {
+        if(user.?password) {
+            standard_header;
+            top_bar("/myclass");
+            if(!user.?myclasses) {
+                user.as(ColCol).try_lock_forever_then {
+                    user.myclasses = user.as(ColCol).add(int);
+                    class.save;
+                }
+            }
+            string target_classcode = "";
+            div {
+                "display" : "flex";
+                "min-height" : "100vh";
+                div classes_sidebar {
+                    "flex" : "1";
+                    "padding" : "12px";
+                    "display" : "flex";
+                    "justify-content" : "start";
+                    "align-items" : "center";
+                    "flex-direction" : "column";
+                    card_theme;
+                    user.myclasses.keys(classcode => {
+                        div {
+                            text classcode {
+                                "id" : classcode+"_click_text";
+                                "margin" : "8px";
+                                "font-size" : "0.9rem";
+                                text_theme;
+                                "onclick" : capture(
+                                    js_do("Array.from(this.parentElement.parentElement.children).forEach(e => {if(e.children[0].style.color!=='white') {e.children[0].style.color='black';}});  this.style.color = 'blue';"),
+                                    string fclasscode ; js_lit(classcode) 
+                                ){
+                                    sync_user;
+                                    if(!is_live(user)) {
+                                       print(red("A dead user invoked a myclass capture targeting ",fclasscode));
+                                    } else if(!user.?myclasses) {
+                                        print(red("User ",user.label," invoked a myclass capture without visiting the page first, targeting ",fclasscode));
+                                    } else {
+                                        if(user.myclasses.has(fclasscode)) {
+                                            target_classcode = cast_to(#ptr,fclasscode);
+                                            classes_display.reload;
+                                            target_classcode = "";
+                                        } else {
+                                            print(red("User ",user.label," attempted to load class ",fclasscode," which they did not own"));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });      
+                    button {
+                        "margin" : "8px";
+                        "padding" : "4px";
+                        "border" : "none";
+                        "border-radius" : "8px";
+                        "background-color" : "rgb(60,100,200)";
+                        text "ADD CLASS" {"font-size" : "0.9rem"; "color" : "white"; text_theme;}
+                        "onclick" : "getel('add_class_panel').style.display = 'flex'";
+                    }     
+                } 
+                div {
+                    "id" : "add_class_panel";
+                    "display" : "none";
+                    popup_background_theme;
+                    div {
+                        popup_panel_theme;
+                        input {
+                            "id" : "add_class_input";
+                            "placeholder" : "Enter class name";
+                            "border" : "none";
+                            "background-color" : "transparent";
+                            "border-bottom" : "1px solid black";
+                            "padding" : "0px 3px";
+                            text_theme;
+                        }
+                        div {
+                            "display" : "flex";
+                            "gap" : "8px";
+                            "width" : "100%";
+                            button {
+                                "flex" : "1";
+                                "border" : "none";
+                                "border-radius" : "8px";
+                                "background-color" : "rgb(151, 151, 151)";
+                                text "Cancel" {"margin" : "5px"; "color" : "black"; text_theme;}
+                                "onclick" : "getel('add_class_panel').style.display = 'none'";
+                            } 
+                            button {
+                                "flex" : "1";
+                                "border" : "none";
+                                "border-radius" : "8px";
+                                "background-color" : "rgb(60,100,200)";
+                                "id" : "add_class_btn";
+                                text "Add" {"margin" : "5px"; "color" : "white"; text_theme;}
+                                "onclick" : capture(
+                                    string classlabel ; "getel('add_class_input').value",
+                                    js_do("apply_theme(this,"+js_lit(skeleton_pulse.emit)+");")
+                                ){
+                                    if(!string_is_safe_filename(classlabel)) {
+                                        emit_js("
+                                            const inpt = getel('add_class_input');
+                                            inpt.value = 'INVALID FILENAME';
+                                            setTimeout(()=>{
+                                                inpt.value = '';
+                                                getel('add_class_btn').style.background = 'rgb(60,100,200)';
+                                            },600);
+                                        ");
+                                    } else {
+                                        sync_user;
+                                        if(!is_live(user)) {
+                                            print(red("An invalid user attempted to create a class called ",classlabel));
+                                            emit_js("getel('add_class_input').value = 'PLEASE LOG IN AGAIN';");
+                                        } else if(!user.?myclasses) {
+                                            print(red("A user invoked class creation without visiting the route for a class called ",classlabel));
+                                            emit_js("getel('add_class_input').value = 'RELOAD THE MYCLASS PAGE';");
+                                        } else {
+                                            ColCol database_classpool = database["Classes"];
+                                            Ptr database_classes = database_classpool["Lookup"];
+
+                                            bool name_is_taken = false;
+                                            database_classpool.try_read_forever_then {
+                                                database_classes.try_read_forever_then {
+                                                    name_is_taken = database_classes.has(classlabel);
+                                                }
+                                            }
+                                            if(name_is_taken) {
+                                                emit_js("
+                                                    const inpt = getel('add_class_input');
+                                                    inpt.value = 'NAME TAKEN';
+                                                    setTimeout(()=>{
+                                                        inpt.value = '';
+                                                        getel('add_class_btn').style.background = 'rgb(60,100,200)';
+                                                    },600);
+                                                ");
+                                            } else {
+                                                Ptr cache_classes = cache["Classes"]["Lookup"];
+                                                string classpath;
+                                                database_classpool.try_lock_forever_then {
+                                                    database_classes.try_lock_forever_then {
+                                                        if(database_classes.has(classlabel)) {
+                                                            name_is_taken = true;
+                                                        } else {
+                                                            classpath = database_classpool.add(char);
+                                                            classpath = "web/electionmadness/classes/"+classlabel+".gsu";
+                                                            database_classes.put(classlabel,classpath);
+                                                        }
+                                                    }
+                                                }
+                                                if(name_is_taken) {
+                                                    emit_js("
+                                                        const inpt = getel('add_class_input');
+                                                        inpt.value = 'NAME TAKEN';
+                                                        setTimeout(()=>{
+                                                            inpt.value = '';
+                                                            getel('add_class_btn').style.background = 'rgb(60,100,200)';
+                                                        },600);
+                                                    ");
+                                                } else {
+                                                    ColColCol newclass = usubunits.add(classpath);
+                                                        ColCol newclass_common = newclass.add("Common");
+                                                            newclass_common.add(Ptr,"Sessions");
+                                                            newclass_common.add(int,"Tally");
+                                                        ColCol newclass_users = newclass.add("Users");
+                                                    newclass.clear_all_locks;
+                                                    newclass.save;
+
+                                                    cache_classes.try_lock_forever_then {
+                                                        cache_classes[classlabel] = newclass;
+                                                    }
+                                                    database.save;
+                                                    
+                                                    user.as(ColCol).try_read_forever_then {
+                                                        user.myclasses.put(classlabel,0);
+                                                        class.save;
+                                                    }
+                                                    classes_sidebar.reload;
+
+                                                    emit_js("
+                                                        getel('add_class_panel').style.display = 'none'; 
+                                                        getel('add_class_btn').style.background = 'rgb(60,100,200)'; 
+                                                        getel('add_class_input').value='';
+                                                        getel('"+classlabel+"'+'_click_text').click();
+                                                    ");
+                                                }
+                                            }
+                                        }
+                                    }
+                                };
+                            }
+                        }
+                    }
+                }
+                div classes_display {
+                    background_theme;
+                    "display" : "flex";
+                    "flex" : "8";
+                    if(target_classcode.length>0) {
+                        "flex-direction" : "column";
+                        sync_class(target_classcode);
+                        div {
+                            string join_link = "https://test.goldensystems.ca/join?"+target_classcode;
+                            "display" : "flex"; 
+                            "flex-direction" : "row";
+                            "justify-content" : "space-between";
+                            "padding" : "8px";
+                            div {
+                                "display" : "flex"; 
+                                "flex-direction" : "row";
+                                text "Join link:" {"font-size" : "1rem"; text_theme;}
+                                text join_link {
+                                    "font-size" : "1rem";
+                                    "onclick" : "
+                                        const el = this;
+                                        navigator.clipboard.writeText("+js_lit(join_link)+");
+                                        el.innerText = 'Copied!';
+                                        setTimeout(() => el.innerText = "+js_lit(join_link)+", 1200);
+                                    "; 
+                                    "cursor" : "pointer";
+                                    "margin" : "0px 8px";
+                                    text_theme;
+                                }
+                            }
+                            button {
+                                "background-color" : "white";
+                                standard_button_theme;
+                                text "Refresh" {"font-size" : "1rem";}
+                                "onclick" : capture(
+                                    string fclasscode ; js_lit(target_classcode)
+                                ){
+                                    target_classcode = cast_to(#ptr,fclasscode);
+                                    classes_display.reload;
+                                    target_classcode = "";
+                                }
+                            }
+                        }
+                        div {
+                            "display" : "flex";
+                            "flex-direction" : "row";
+
+                            class["Common"]["Sessions"].try_read_forever_then {
+                                class["Common"]["Sessions"].cells((username,u) => {
+                                    div {
+                                        "margin" : "12px";
+                                        "border-radius" : "12px";
+                                        "box-shadow" : "0 4px 16px rgba(0,0,0,0.12)";
+                                        "padding" : "12px 8px";
+                                        card_theme;
+
+                                        text username {text_theme;}
+                                        Object uobj = u;
+                                        uobj.cells((k,v) => {
+                                            div {
+                                                if(k=="votes") {
+                                                    div {
+                                                        "display" : "flex";
+                                                        "flex-direction" : "row";
+                                                        "align-items" : "center";
+                                                        "justify-content" : "space-between";
+                                                        text "Votes" {"font-size" : "0.9rem"; "color" : "black"; text_theme;}
+                                                        if(uobj.?locked) {
+                                                            bool islocked = uobj.locked;
+                                                            button {
+                                                                "background-color" : "gainsboro";
+                                                                standard_button_theme;
+                                                                text (islocked?"UNLOCK":"LOCK");
+                                                                "data-istrue" : to_string(islocked);
+                                                                "onclick" : capture(
+                                                                    string fclasscode ; js_lit(target_classcode),
+                                                                    string fusername ; js_lit(username),
+                                                                    string myval ; js_do("
+                                                                        if(this.dataset.istrue==='true') {
+                                                                            this.parentElement.children[0].innerText = 'LOCK';
+                                                                            this.dataset.istrue = 'false';
+                                                                        } else {
+                                                                            this.parentElement.children[0].innerText = 'UNLOCK';
+                                                                            this.dataset.istrue = 'true';
+                                                                        }
+                                                                        return this.dataset.istrue;
+                                                                    ")
+                                                                ) {
+                                                                    sync_user;
+                                                                    if(!is_live(user)) {
+                                                                        print(red("A dead user invoked a myclass capture targeting ",fclasscode));
+                                                                    } else if(!user.?myclasses) {
+                                                                        print(red("User ",user.label," invoked a myclass capture without visiting the page first, targeting ",fclasscode," and user ",fusername));
+                                                                    } else {
+                                                                        if(user.myclasses.has(fclasscode)) {
+                                                                            sync_class(fclasscode);
+                                                                            if(!is_live(class)) {
+                                                                                print(red("Attempted to modify class ",fclasscode," which was dead"));
+                                                                            } else {
+                                                                                Object fuser = class["Common"]["Sessions"][fusername];
+                                                                                fuser["locked"] = (myval=="true");
+                                                                                compute_class_tally;
+                                                                            }
+                                                                        } else {
+                                                                            print(red("User ",user.label," attempted to edit the data of user ",fusername," in class ",fclasscode," which they did not own"));
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                    div {
+                                                        "height" : "20%";
+                                                        "overflow-y" : "scroll";
+                                                        "border" : "1px solid black";
+                                                        "border-radius" : "8px";
+                                                        "margin" : "8px";
+                                                        v.do(candidate => {
+                                                            div {
+                                                                database.adopt(candidate);
+                                                                "display" : "flex";
+                                                                "flex-direction" : "row";
+                                                                text candidate.as(ColCol).label {text_theme;}
+                                                                text ":" {"margin" : "0px 5px"; text_theme;}
+                                                                text candidate.label {text_theme;}
+                                                            }
+                                                        });
+                                                    }
+                                                } else if(k=="locked") {
+                                                    
+                                                } else if(k=="password") {
+                                                    "display" : "flex";
+                                                    "flex-direction" : "row";
+                                                    input {
+                                                        "placeholder" : "Reset password";
+                                                        air_input_theme;
+                                                    }
+                                                    button {
+                                                        "background-color" : "gainsboro";
+                                                        standard_button_theme;
+                                                        text "CONFIRM";
+                                                        "onclick" : capture(
+                                                            string fclasscode ; js_lit(target_classcode),
+                                                            string fusername ; js_lit(username),
+                                                            string myval ; "this.previousElementSibling.value",
+                                                            js_do("this.previousElementSibling.value=''")
+                                                        ) {
+                                                            sync_user;
+                                                            if(!is_live(user)) {
+                                                                print(red("A dead user invoked a myclass capture targeting ",fclasscode));
+                                                            } else if(!user.?myclasses) {
+                                                                print(red("User ",user.label," invoked a myclass capture without visiting the page first, targeting ",fclasscode," and user ",fusername));
+                                                            } else if(myval.length==0) {
+                                                                print("Empty password reset ignored");
+                                                            } else {
+                                                                if(user.myclasses.has(fclasscode)) {
+                                                                    sync_class(fclasscode);
+                                                                    if(!is_live(class)) {
+                                                                        print(red("Attempted to modify class ",fclasscode," which was dead"));
+                                                                    } else {
+                                                                        Object fuser = class["Common"]["Sessions"][fusername];
+                                                                        user.as(ColCol).try_read_forever_then {
+                                                                            fuser["password"] = secure_hash(myval);
+                                                                            class.save;
+                                                                        }
+                                                                    }
+                                                                } else {
+                                                                    print(red("User ",user.label," attempted to edit the data of user ",fusername," in class ",fclasscode," which they did not own"));
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                } else {
+                                                    "display" : "flex";
+                                                    "flex-direction" : "row";
+                                                    text k {text_theme;}
+                                                    text ":" {"margin" : "0px 5px"; text_theme;}
+                                                    text to_string(v) {text_theme;}
+                                                }
+                                            }
+                                        });
+                                    }
+                                });
+                            }
+                        }
+                    } else {
+                        "justify-content" : "center";
+                        "align-items" : "center";
+                        text "NO CLASS" {"font-size" : "1.2rem"; text_theme;}
+                    }
+                }
+            }
+        } else {      
+            "display": "flex";
+            "align-items" : "center";
+            "justify-content": "center";
+            "flex-direction" : "column";
+            text "Please log in or register" {"font-size" : "2rem"; text_theme;}
+            button {
+                "background-color" : "gainsboro";
+                standard_button_theme;
+                text "To login" {"font-size" : "1.2rem";}
+                "onclick" : "window.location.href = '/login'";
+            }
+        }
+    } else {
+        "display": "flex";
+        "align-items" : "center";
+        "justify-content": "center";
+        "flex-direction" : "column";
+        text "Please log in or register" {"font-size" : "2rem"; text_theme;}
+        button {
+            "background-color" : "gainsboro";
+            standard_button_theme;
+            text "To login" {"font-size" : "1.2rem";}
+            "onclick" : "window.location.href = '/login'";
+        }
+    }
+}
+
+
+
+route admin {
+    sync_user;
+    if(is_live(user)) {
+        if(user.?authourized) {
+            standard_header;
+            top_bar("/admin");
+            text "Welcome to the admin page";
+
+            Ptr string files = list_files_in_directory(project_path).filter(f => f.ends(".gsu"));
+            files.do(f => {
+                string sub_label = project_path+f;
+                ColColCol sub = load_subunit(sub_label);
+                div {   
+                    "id" : sub_label;             
+                    div {
+                        text sub_label {
+                            text_theme;
+                        }  
+                    }                          
+                    div {
+                        sub.do((pool, idx) => {
+                            div {
+                                if(idx<2) {
+                                    div {
+                                        text to_string(idx) {
+                                            "text-align" : "center";
+                                            "white-space" : "pre";
+                                            "margin" : "2px";
+                                            text_theme;
+                                        }
+                                        string poollabel = pool.label;
+                                        string poolkey = pool.key;
+                                        if(poolkey.length>0) {
+                                            if(poolkey==poollabel) {
+                                                poollabel="[:] "+poollabel;
+                                            } else {
+                                                poollabel=poolkey+": "+poollabel;
+                                            }
+                                        }
+                                        if(pool.tag>0) {
+                                            poollabel+=" ["+labels(pool.tag)+"]";
+                                        }
+                                        text poollabel {
+                                            "text-align" : "center";
+                                            "white-space" : "pre";
+                                            "margin" : "5px";
+                                            text_theme;
+                                        }
+
+                                        button {
+                                            text "SHOW/HIDE";
+                                            "onclick" : capture(
+                                                js_do("this.parentElement.parentElement.children[1].id = 'temp_frag_target';");
+                                            ){
+                                                ctx.source = "FRAG temp_frag_target <div><p>nothing</p></div>";
+                                            }
+                                        }
+                                    }
+                                    
+                                    div {
+                                        "display" : "flex";
+                                        "flex-direction" : "row";
+                                        pool.do((col, cidx) => {
+                                            div {
+                                                "display" : "flex";
+                                                "flex-direction" : "column";
+                                                "transition" : "background-color 0.2s ease";
+                                                div {
+                                                    text to_string(cidx) {
+                                                        "text-align" : "center";
+                                                        "white-space" : "pre";
+                                                        "margin" : "2px";
+                                                        text_theme;
+                                                    }
+                                                    string collabel = col.label;
+                                                    string colkey = col.key;
+                                                    if(colkey.length>0) {
+                                                        if(colkey==collabel) {
+                                                            collabel="[:] "+collabel;
+                                                        } else {
+                                                            collabel=colkey+": "+collabel;
+                                                        }
+                                                    }
+                                                    collabel+=" ["+labels(col.tag)+"]";
+                                                    text collabel {
+                                                        "text-align" : "center";
+                                                        "white-space" : "pre";
+                                                        "margin" : "5px";
+                                                        text_theme;
+                                                    }
+                                                }
+                                                div {
+                                                    col.do(e => {
+                                                        div {
+                                                            "border" : "1px solid black";
+                                                            "white-space" : "pre";
+                                                            string colval = to_string(e);
+                                                            string colkey = (&e).celllabel;
+                                                            if(colkey.length>0) {
+                                                                if(colkey==colval) {
+                                                                    colval="[:] "+colval;
+                                                                } else {
+                                                                    colval=colkey+": "+colval;
+                                                                }
+                                                            }
+
+                                                            if(is_value_ptr(e)) {
+                                                                string jsstr = "let el = getel("+js_lit(sub_label)+")";
+                                                                e.fields.do((t,onT) => {
+                                                                    if((onT>0)&&(t==0)) {
+                                                                        break;
+                                                                    } else {
+                                                                        jsstr+=".children[1].children["+to_string(t)+"]";
+                                                                    }
+                                                                });
+                                                                "onclick" : jsstr+"; el.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'center' });";
+                                                                "onmouseenter" : jsstr+"; el.style.backgroundColor='blue';";
+                                                                "onmouseleave" : jsstr+"; setTimeout(()=>{el.style.backgroundColor='white';},100);";
+                                                            }
+
+                                                            text colval {
+                                                                "margin" : "3px";
+                                                                text_theme;
+                                                            }
+                                                        }
+                                                    });
+                                                }
+                                            }
+                                        });
+                                    }
+                                } else {
+                                    div {
+
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }
+                sub.clear;
+            });
+        } else {      
+            print(user.label," attempted unauthorized access to the admin route in unit ",unit_uid," on ",unit_standard_time); 
+            script "window.location.href = '/';";
+        }
+    } else {
+        print("A guest attempted to access the admin route in unit ",unit_uid," on ",unit_standard_time); 
+        script "window.location.href = '/';";
+    }
+}
+
 
 route faqs {
     standard_header;
@@ -2507,405 +3231,6 @@ route contacts {
                 "onclick" : "window.location.href='mailto:electionmadness2020@gmail.com'";
                 text_theme;
             }
-        }
-    }
-}
-
-route admin {
-    sync_user;
-    if(is_live(user)) {
-        if(user.?authourized) {
-            standard_header;
-            top_bar("/admin");
-            text "Welcome to the admin page";
-
-            Ptr string files = list_files_in_directory(project_path).filter(f => f.ends(".gsu"));
-            files.do(f => {
-                string sub_label = project_path+f;
-                ColColCol sub = load_subunit(sub_label);
-                div {   
-                    "id" : sub_label;             
-                    div {
-                        text sub_label {
-                            text_theme;
-                        }  
-                    }                          
-                    div {
-                        sub.do((pool, idx) => {
-                            div {
-                                if(idx<2) {
-                                    div {
-                                        text to_string(idx) {
-                                            "text-align" : "center";
-                                            "white-space" : "pre";
-                                            "margin" : "2px";
-                                            text_theme;
-                                        }
-                                        string poollabel = pool.label;
-                                        string poolkey = pool.key;
-                                        if(poolkey.length>0) {
-                                            if(poolkey==poollabel) {
-                                                poollabel="[:] "+poollabel;
-                                            } else {
-                                                poollabel=poolkey+": "+poollabel;
-                                            }
-                                        }
-                                        if(pool.tag>0) {
-                                            poollabel+=" ["+labels(pool.tag)+"]";
-                                        }
-                                        text poollabel {
-                                            "text-align" : "center";
-                                            "white-space" : "pre";
-                                            "margin" : "5px";
-                                            text_theme;
-                                        }
-
-                                        button {
-                                            text "SHOW/HIDE";
-                                            "onclick" : capture(
-                                                js_do("this.parentElement.parentElement.children[1].id = 'temp_frag_target';");
-                                            ){
-                                                ctx.source = "FRAG temp_frag_target <div><p>nothing</p></div>";
-                                            }
-                                        }
-                                    }
-                                    
-                                    div {
-                                        "display" : "flex";
-                                        "flex-direction" : "row";
-                                        pool.do((col, cidx) => {
-                                            div {
-                                                "display" : "flex";
-                                                "flex-direction" : "column";
-                                                "transition" : "background-color 0.2s ease";
-                                                div {
-                                                    text to_string(cidx) {
-                                                        "text-align" : "center";
-                                                        "white-space" : "pre";
-                                                        "margin" : "2px";
-                                                        text_theme;
-                                                    }
-                                                    string collabel = col.label;
-                                                    string colkey = col.key;
-                                                    if(colkey.length>0) {
-                                                        if(colkey==collabel) {
-                                                            collabel="[:] "+collabel;
-                                                        } else {
-                                                            collabel=colkey+": "+collabel;
-                                                        }
-                                                    }
-                                                    collabel+=" ["+labels(col.tag)+"]";
-                                                    text collabel {
-                                                        "text-align" : "center";
-                                                        "white-space" : "pre";
-                                                        "margin" : "5px";
-                                                        text_theme;
-                                                    }
-                                                }
-                                                div {
-                                                    col.do(e => {
-                                                        div {
-                                                            "border" : "1px solid black";
-                                                            "white-space" : "pre";
-                                                            string colval = to_string(e);
-                                                            string colkey = (&e).celllabel;
-                                                            if(colkey.length>0) {
-                                                                if(colkey==colval) {
-                                                                    colval="[:] "+colval;
-                                                                } else {
-                                                                    colval=colkey+": "+colval;
-                                                                }
-                                                            }
-
-                                                            if(is_value_ptr(e)) {
-                                                                string jsstr = "let el = getel("+js_lit(sub_label)+")";
-                                                                e.fields.do((t,onT) => {
-                                                                    if((onT>0)&&(t==0)) {
-                                                                        break;
-                                                                    } else {
-                                                                        jsstr+=".children[1].children["+to_string(t)+"]";
-                                                                    }
-                                                                });
-                                                                "onclick" : jsstr+"; el.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'center' });";
-                                                                "onmouseenter" : jsstr+"; el.style.backgroundColor='blue';";
-                                                                "onmouseleave" : jsstr+"; setTimeout(()=>{el.style.backgroundColor='white';},100);";
-                                                            }
-
-                                                            text colval {
-                                                                "margin" : "3px";
-                                                                text_theme;
-                                                            }
-                                                        }
-                                                    });
-                                                }
-                                            }
-                                        });
-                                    }
-                                } else {
-                                    div {
-
-                                    }
-                                }
-                            }
-                        });
-                    }
-                }
-                sub.clear;
-            });
-        } else {      
-            print(user.label," attempted unauthorized access to the admin route in unit ",unit_uid," on ",unit_standard_time); 
-            script "window.location.href = '/';";
-        }
-    } else {
-        print("A guest attempted to access the admin route in unit ",unit_uid," on ",unit_standard_time); 
-        script "window.location.href = '/';";
-    }
-}
-
-route myclass {
-    sync_user;
-    if(is_live(user)) {
-        if(user.?password) {
-            standard_header;
-            top_bar("/myclass");
-            if(!user.?myclasses) {
-                user.as(ColCol).try_lock_forever_then {
-                    user.myclasses = user.as(ColCol).add(int);
-                }
-            }
-            static string target_classcode = "";
-            div {
-                "display" : "flex";
-                "min-height" : "100vh";
-                div classes_sidebar {
-                    "flex" : "1";
-                    "padding" : "12px";
-                    "display" : "flex";
-                    "justify-content" : "start";
-                    "align-items" : "center";
-                    "flex-direction" : "column";
-                    card_theme;
-                    user.myclasses.keys(classcode => {
-                        sync_class(classcode);
-                        div {
-                            text classcode {
-                                "margin" : "8px";
-                                "font-size" : "0.9rem";
-                                text_theme;
-                                "onclick" : capture(
-                                    js_do("Array.from(this.parentElement.parentElement.children).forEach(e => {if(e.children[0].style.color!=='white') {e.children[0].style.color='black';}});  this.style.color = 'blue';"),
-                                    string fclasscode ; js_lit(classcode) 
-                                ){
-                                    sync_user;
-                                    target_classcode = cast_to(#ptr,fclasscode);
-                                    classes_display.reload;
-                                    target_classcode = "";
-                                }
-                            }
-                        }
-                    });      
-                    button {
-                        "margin" : "8px";
-                        "padding" : "4px";
-                        "border" : "none";
-                        "border-radius" : "8px";
-                        "background-color" : "rgb(60,100,200)";
-                        text "ADD CLASS" {"font-size" : "0.9rem"; "color" : "white"; text_theme;}
-                        "onclick" : capture(
-
-                        ){
-                            sync_user;
-                            string classlabel = unit_timestamp;
-
-                            ColCol database_classpool = database["Classes"];
-                            string classpath;
-                            database_classpool.try_lock_forever_then {
-                                classpath = database_classpool.add(char);
-                            }
-                            classpath = "web/electionmadness/classes/"+classlabel+".gsu";
-                            ColColCol newclass = usubunits.add(classpath);
-                                ColCol newclass_common = newclass.add("Common");
-                                    newclass_common.add(Ptr,"Sessions");
-                                ColCol newclass_users = newclass.add("Users");
-                            newclass.save;
-
-                            Ptr cache_classes = cache["Classes"]["Lookup"];
-                            Ptr database_classes = database_classpool["Lookup"];
-
-                            cache_classes.try_lock_forever_then {
-                                cache_classes[classlabel] = newclass;
-                            }
-                            database_classes.try_lock_forever_then {
-                                database_classes.put(classlabel,classpath);
-                            }
-                            database.save;
-
-                            user.myclasses.put(classlabel,0);
-                            class.save;
-                            classes_sidebar.reload;
-                        };
-                    }     
-                } 
-                div classes_display {
-                    background_theme;
-                    "display" : "flex";
-                    "flex" : "8";
-                    if(target_classcode.length>0) {
-                        "flex-direction" : "column";
-                        sync_class(target_classcode);
-                        div {
-                            "display" : "flex";
-                            "flex-direction" : "row";
-                            "align-items" : "center";
-                            "background-color" : "white";
-                            "border-bottom" : "1px solid rgb(197,197,197)";
-                            "width" : "100%";
-
-                            stateless template div myclass_tab(string label) {
-                                div {
-                                    "padding" : "16px 32px";
-                                    "height" : "100%";
-                                    "border-right" : "1px solid black";
-                                    text label {
-                                        "font-size" : "1rem";
-                                        "cursor" : "pointer";
-                                        text_theme;
-                                    }
-                                    hoverable_theme;
-                                    "onclick" : "
-                                        Array.from(getel('myclass_displays').children).forEach(e => {
-                                            if(e.id==='myclass_"+label+"') {
-                                                e.style.display = 'flex';
-                                            } else {
-                                                e.style.display = 'none';
-                                            }
-                                        });
-                                    ";
-                                }
-                            }
-                            myclass_tab("Overview");
-                            myclass_tab("Users");
-                        }
-                        div {
-                            "id" : "myclass_displays";
-                            div {
-                                "id" : "myclass_Overview";
-                                "display" : "flex";
-                                "flex-direction" : "column";
-                                text target_classcode {text_theme;}
-                                text "Join Link" {
-                                    "onclick" : "
-                                        const el = this;
-                                        navigator.clipboard.writeText('localhost:443/join?Class&AT"+target_classcode+"');
-                                        el.innerText = 'Copied!';
-                                        setTimeout(() => el.innerText = 'Join Link', 1200);
-                                    "; 
-                                    "cursor" : "pointer";
-                                    text_theme;
-                                }
-                            }
-                            div {
-                                "id" : "myclass_Users";
-                                "display" : "none";
-                                "flex-direction" : "row";
-
-                                class["Common"]["Sessions"].try_read_forever_then {
-                                    class["Common"]["Sessions"].cells((username,u) => {
-                                        div {
-                                            "margin" : "12px";
-                                            "border-radius" : "12px";
-                                            "box-shadow" : "0 4px 16px rgba(0,0,0,0.12)";
-                                            "padding" : "12px 8px";
-                                            card_theme;
-
-                                            text username {text_theme;}
-                                            u.as(Object).cells((k,v) => {
-                                                div {
-                                                    if(k=="votes") {
-                                                        v.do(candidate => {
-                                                            div {
-                                                                database.adopt(candidate);
-                                                                "display" : "flex";
-                                                                "flex-direction" : "row";
-                                                                text candidate.as(ColCol).label {text_theme;}
-                                                                text ":" {text_theme;}
-                                                                text candidate.label {text_theme;}
-                                                            }
-                                                        });
-                                                    } else if(k=="locked") {
-                                                        button {
-                                                            text (v?"UNLOCK":"LOCK");
-                                                            "data-istrue" : to_string(v);
-                                                            "onclick" : capture(
-                                                                string fclasscode ; js_lit(target_classcode),
-                                                                string fusercookie ; js_lit(u.label),
-                                                                string myval ; js_do("
-                                                                    if(this.dataset.istrue==='true') {
-                                                                        this.parentElement.children[0].innerText = 'LOCK';
-                                                                        this.dataset.istrue = 'false';
-                                                                    } else {
-                                                                        this.parentElement.children[0].innerText = 'UNLOCK';
-                                                                        this.dataset.istrue = 'true';
-                                                                    }
-                                                                    return this.dataset.istrue;
-                                                                ")
-                                                            ) {
-                                                                sync_class(fclasscode);
-                                                                Object fuser = class["Users"][fusercookie];
-                                                                fuser["locked"] = (myval=="true");
-                                                                class.save;
-                                                            }
-                                                        }
-                                                    } else if(k=="password") {
-                                                        "display" : "flex";
-                                                        "flex-direction" : "row";
-                                                        input {
-                                                            "placeholder" : "Reset password";
-                                                            "onchange" : capture(
-                                                                string fclasscode ; js_lit(target_classcode),
-                                                                string fusercookie ; js_lit(u.label),
-                                                                string myval ; "this.value"
-                                                            ) {
-                                                                sync_class(fclasscode);
-                                                                Object fuser = class["Users"][fusercookie];
-                                                                fuser["password"] = secure_hash(myval);
-                                                                dump_subunit(class,true);
-                                                                class.save;
-                                                            }
-                                                        }
-                                                    } else {
-                                                        "display" : "flex";
-                                                        "flex-direction" : "row";
-                                                        text k+": " {text_theme;}
-                                                        text to_string(v) {text_theme;}
-                                                    }
-                                                }
-                                            });
-                                        }
-                                    });
-                                }
-                            }
-                        }
-                       
-                    } else {
-                        "justify-content" : "center";
-                        "align-items" : "center";
-                        text "NO CLASS" {"font-size" : "1.2rem"; text_theme;}
-                    }
-                }
-            }
-        } else {      
-            text "Please log in or register" {text_theme;}
-            button {
-                text "To login" {text_theme;}
-                "onclick" : "window.location.href = '/login'";
-            }
-        }
-    } else {
-        text "Please log in or register" {text_theme;}
-        button {
-            text "To login" {text_theme;}
-            "onclick" : "window.location.href = '/login'";
         }
     }
 }
