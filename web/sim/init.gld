@@ -1,0 +1,948 @@
+if(unit_has_arg("--init")) {
+    print("Sim Reseting");
+    Object deadobj = deadptr;
+    string scriptcode = `
+        Ptr randcell() {
+            ColCol grid = database.Grid;
+            Ptr& cell = grid[randi(0,grid.length-1)][randi(0,grid[0].length-1)];
+            return &cell;
+        }
+        global int roll_save_for(Object actor) {
+            int& energy = actor.Energy;
+            int saveroll = randi(0,20);
+            int score = saveroll+energy;
+            if(actor.UseAdrenaline) {
+                energy = energy-1;
+                score = score+3;
+            } else {
+                int injury = 0;
+                score = score-injury;
+            }
+            return score;
+        }
+        global void place_in(Object tomove, Ptr place) {
+            string placekind = place.as(ColCol).label;
+            if(is_live(tomove.Inside)) {
+                string insidekind = tomove.Inside.as(ColCol).label;
+                Ptr with = tomove.Inside.as(Object).With;
+                if(with.has(tomove.label)) {
+                    with.take(tomove.label);
+                } else {
+                    print(red(tomove.label," is not in ",tomove.Inside.label,"(",tomove.Inside,") as expected"));
+                    print_col(with);
+                }
+            }
+            tomove.Inside = place;
+            Object part = place;
+            part.With.put(tomove.label,tomove);
+        }
+        global void force_react_in(Object actor, Ptr place, string reactkind, int reaction_phase) {
+            string placekind = place.as(ColCol).label;
+            ColCol grid = database.Grid;
+            ColCol actions = database.Actions;
+            ColCol states = database.States;
+            Object part = place;
+            Object movetarget = deadptr;
+            part.With.do_back(withptr => {
+                Object other = withptr;
+                if(cast_to_Ptr(other)!=cast_to_Ptr(actor)) {
+                    if(actions.has(reactkind)) {
+                        Object actee = other;
+                        string acteekind = other.as(ColCol).label;
+                        string acteestatekind = actee.State.label;
+                        Node ttroot = compile(*actions[reactkind]);
+                        execut ttroot;
+                    } else {
+                        print(red("Missing react kind: "),reactkind);
+                    }
+                }
+            });
+            part.Parts.do_back(subpartptr => {
+                Object subpart = subpartptr;
+                force_react_in(actor,subpart,reactkind,reaction_phase);
+            });
+        }
+        global Object root_part_owner(Object part) {
+            if(part.?Owner) {
+                if(part.Owner.?AllParts) {
+                    return part.Owner;
+                } else {
+                    return root_part_owner(part.Owner);
+                }
+            } else {
+                print(red("Part ",part.label," has no owner!"));
+                return deadptr;
+            }
+        }
+        global int tally_part_capability(Object part, Object actor) {
+            int capability = part.Capability;
+            int total_capeff = 0;
+            int total_pain = 0;
+            part.Conditions.do(condition => {
+                int capeff = condition.as(Object).CapabilityEffect;
+                total_capeff = total_capeff+capeff;
+                if(!actor.UseAdrenaline) {
+                    int pain = condition.as(Object).Pain;
+                    total_pain = total_pain+pain;
+                }
+            });
+            if(capability<0) {
+                capability = min(0,capability+total_capeff);
+            } else {
+                capability = max(0,capability+total_capeff);
+            }
+            capability = capability-total_pain;
+            part.Parts.do_back(subpartptr =>{
+                Object subpart = subpartptr;
+                capability=capability+tally_part_capability(subpart,actor);
+            });
+            return capability;
+        }
+        global void proc_parts(Object part, Object actor) {
+            if(part.?Proc) {
+                Node partroot = compile(part.Proc);
+                execut partroot;
+            }
+            for(int i=part.Parts.length-1;i>=0;i=i-1) {
+                proc_parts(part.Parts.get(i),actor);
+            }
+        }
+        global void increase_bloodflow_part_proc(Object part, int by) {
+            part.CirculateIn.do(from => {
+                repeat(by) {
+                    from.CirculateOut.push(part);
+                }
+            });
+        }
+        global void standard_part_proc(Object part) {
+            if(part.?Conditions) {
+                int healing = 0;
+                part.Conditions.do(v => {
+                    Object condition = v;
+                    int& pain = condition.Pain;
+                    int& capeff = condition.CapabilityEffect;
+                    if(!condition.?Permanent) {
+                        if(capeff>0) {
+                            if(condition.?Heals) {
+                                healing=healing+1;
+                            }
+                            capeff = max(0,capeff-1);
+                        }
+                        pain = max(0,pain-1);
+                    }
+                });
+                part.Conditions.do(v => {
+                    Object condition = v;
+                    int& pain = condition.Pain;
+                    int& capeff = condition.CapabilityEffect;
+                    if(!condition.?Permanent) {
+                        if(capeff<0) {
+                            if(healing>0) {
+                                healing=healing-1;
+                                capeff = min(0,capeff+1);
+                            }
+                        }
+                    }
+                });
+
+                Ptr circto = deadptr;
+                if(part.?CirculateOut) {
+                    circto = part.CirculateOut;
+                }
+
+                part.Conditions.do_back((v,indx) => {
+                    Object condition = v;
+                    int& pain = condition.Pain;
+                    int& capeff = condition.CapabilityEffect;
+                    string conditionkind = condition.label;
+
+                    if(condition.?Temporary) {
+                        recycle(part.Conditions.take(indx));
+                    } else if(capeff==0&&(pain==0)) {
+                        recycle(part.Conditions.take(indx));
+                    } else if(is_live(circto)) {
+                        if(conditionkind=="Bloodflow") {
+                            Object target = *circto;
+                            target.Conditions.push(part.Conditions.take(indx));
+                            setsidx(circto,getsidx(circto)+1);
+                            if(getsidx(circto)>=circto.length) {
+                                setsidx(circto,0);
+                            }
+                        }
+                    }
+                });
+
+                if(is_live(circto)) {
+                    circto.do_back((v,indx)=>{
+                        if((&v).celllabel.length==0) {
+                            circto.take(indx);
+                        }
+                    });
+                }
+            }
+        }
+        global Object add_condition(Object part, string name, int capability_effect, int pain) {
+            Object condition = database.Conditions.Object(
+                CapabilityEffect: capability_effect,
+                Pain: pain,
+            );
+            condition.label(name);
+            part.Conditions.push(condition);
+            return condition;
+        }
+
+        global Object on_log_line = deadptr;
+
+        global Object log_thing(int severity, string msg) {
+            Object obj = database.Logs.Object(
+                Severity: severity, 
+                Children: [Object]
+            );
+            obj.label(msg);
+            if(is_live(on_log_line)) {
+                on_log_line.Children.push(obj);
+            }
+            return obj;
+        }
+        global Object log_scripted_thing(int severity, string msg, string logscript) {
+            Object obj = log_thing(severity,msg);
+            obj.Script = logscript;
+            return obj;
+        }
+
+        global Object log_root;
+
+        if(database.Logs.length>0) {
+            log_root = database.Logs.get(0);
+        } else {
+            log_root = log_thing(0,"Log");
+        }
+        on_log_line = log_root;
+
+        global string color_of_severity(int severity) {
+            if(severity==0) { return "rgb(219, 219, 219)"; }
+            else if(severity==1) { return "rgb(50, 182, 24)"; }
+            else if(severity==2) { return "rgb(200,140,0)"; }
+            else if(severity==3) { return "rgb(210,60,60)"; }
+            else if(severity==4) { return "rgb(159, 28, 28)"; }
+            else { return "rgb(145,90,180)"; }
+        }
+        global static Ptr Ptr scripts_to_run;
+
+        global void step_sim {
+            print("==STEPPING==");
+            ColCol grid = database.Grid;
+            ColCol actions = database.Actions;
+            ColCol states = database.States;
+            on_log_line = log_thing(0,"==TURN "+to_string(log_root.Children.length)+"==");
+            Object movetarget = deadptr;
+
+            database.Things.cells((thingname,thingptr) => {
+                Object actor = thingptr;
+                Ptr current_state = actor.State;
+                if(is_live(current_state)) {
+                    string actorkind = actor.as(ColCol).label;
+                    Ptr acts = actor.Acts;
+                    acts.clear;
+                    Node troot = compile(*current_state);
+                    execut(troot);
+                }
+            });
+            database.Animals.cells((animalname,animalptr) => {
+                Object actor = animalptr;
+                string actorkind = actor.as(ColCol).label;
+                Ptr cow_actions = actions;
+
+                actor.Parts.do(part => {proc_parts(part,actor);});
+
+                Ptr& acts = actor.Acts;
+                Ptr desired_act = deadptr;
+                if(acts.length==0) {
+                    desired_act = actor.State;
+                } else {
+                    int energy = actor.Energy;
+                    for(int i=0;i<10;i++) {
+                        if(i<energy) {
+                            acts.push(actions["move"]);
+                        } else {
+                            acts.push(actions["rest"]);
+                        }
+                    }
+                    int hunger = actor.Hunger;
+                    for(int i=0;i<hunger;i++) {
+                        acts.push(actions["shift"]);
+                    }
+                    desired_act = acts.rand;
+                    actor.State = desired_act;
+                }
+                if(is_live(desired_act)) {
+                    Node troot = compile(*desired_act);
+                    acts.clear;
+                    execut(troot);
+                } else {
+                    print(red(actor.label," had a dead state"));
+                }
+            });
+            database.People.cells((personname,personptr) => {
+                Object actor = personptr;
+                    actor.Parts.do(part => {proc_parts(part,actor);});
+                string actorkind = actor.as(ColCol).label;
+                Ptr current_state = actor.State;
+                Ptr acts = actor.Acts;
+                acts.clear;
+                Node troot = compile(*current_state);
+                execut(troot);
+            });
+        }
+    `;
+    ColColCol sub = usubunits.add(project_path+"data.gsu");
+    ColCol common = sub.add("Common");
+        Ptr flags = common.add(bool,"Flags");
+            flags.put("WorldView",false);
+    ColCol partstore = sub.add("Parts");
+        Object part_registry_target = deadptr;
+        Object add_structural_part(Object owner, string name) {
+            Object part = partstore.Object(
+                Conditions: [Object],
+                With: [Object],
+                Parts: [Object],
+                Owner: owner,
+            );
+            part.label(name);
+            owner.Parts.put(name, part);
+            if(is_live(part_registry_target)) {
+                part_registry_target.AllParts.put(name,part);
+            }
+            return part;
+        }
+        Object add_part(Object owner, string name) {
+            Object part = partstore.Object(
+                Injury: 0,
+                Capability: 0,
+                Conditions: [Object],
+                With: [Object],
+                Parts: [Object],
+                Covers: [Object],
+                Owner: owner,
+                Inside: deadobj,
+                Proc: `standard_part_proc(part)`
+            );
+            part.label(name);
+            owner.Parts.put(name, part);
+            if(is_live(part_registry_target)) {
+                part_registry_target.AllParts.put(name,part);
+            }
+            return part;
+        }
+        void cover_part(Object outer, Object inner) {
+            outer.Covers.put(inner.label, inner);
+            inner.Inside = outer;
+        }
+        void circulate_part(Object from, Object to) {
+            if(!from.?CirculateOut) {from.CirculateOut = partstore.add(Object);}
+            if(!to.?CirculateIn) {to.CirculateIn = partstore.add(Object);}
+            from.CirculateOut.put(to.label, to);
+            to.CirculateIn.put(from.label, from);
+        }
+        void connect_part(Object from, Object to) {
+            if(!from.?Connects) {from.Connects = partstore.add(Object);}
+            if(!to.?Connects) {to.Connects = partstore.add(Object);}
+            from.Connects.put(to.label, to);
+            to.Connects.put(from.label, from);
+        }
+    ColCol conditions = sub.add("Conditions");
+    ColCol things = sub.add("Things");
+    ColCol animals = sub.add("Animals");
+        int r_num = randi(3,6);
+        for(int i=0;i<r_num;i++) {
+            Object animal = animals.Object(
+                X: 10,
+                Y: randi(10,75),
+                Scale: 50,
+                TokenImg: project_path+"files/Animals.webp",
+                AnatomyImg: project_path+"files/Animals_Anatomy.webp",
+                Energy: randi(0,5),
+                Hunger: randi(0,10),
+                With: [Object],
+                Acts: [Ptr],
+                Parts: [Object],
+                AllParts: [Object],
+                Inside: deadobj,
+            ).register("Cow_"+to_string(i));
+            animal.State = deadptr;
+                part_registry_target = animal;
+                Object legpart = add_part(animal,"Leg");
+                    Object forehoof = add_part(legpart,"Forehoof");
+                    Object forehoof = add_part(legpart,"Hindhoof");
+        }
+    ColCol people = sub.add("People");
+        void create_human_leg(Object pelvis, string side) {
+            Object thigh = add_part(pelvis, side+"Thigh");
+            Object shin = add_part(thigh, side+"Shin");
+            Object foot = add_part(shin, side+"Foot");
+
+            connect_part(pelvis,thigh);
+            connect_part(thigh,shin);
+            connect_part(shin,foot);
+
+            circulate_part(pelvis,thigh);
+            circulate_part(thigh,shin);
+            circulate_part(shin,foot);
+        }
+        void create_human_arm(Object shoulder, string side) {
+            Object upper = add_part(shoulder, side+"UpperArm");
+            Object lower = add_part(upper, side+"LowerArm");
+            Object hand = add_part(lower, side+"Hand");
+
+            connect_part(shoulder,upper);
+            connect_part(upper,lower);
+            connect_part(lower,hand);
+
+            circulate_part(shoulder,upper);
+            circulate_part(upper,lower);
+            circulate_part(lower,hand);
+        }
+        for(int i=0;i<2;i++) {
+            Object person = people.Object(
+                X: 10,
+                Y: randi(10,75),
+                Scale: 10,
+                TokenImg: project_path+"files/People.webp",
+                AnatomyImg: project_path+"files/People_Anatomy.webp",
+                Energy: 3,
+                Hunger: 0,
+                Injury: 0,
+                UseAdrenaline: false,
+                With: [Object],
+                Acts: [Ptr],
+                Parts: [Object],
+                AllParts: [Object],
+                Inside: deadobj,
+                ShowAnatomy: false,
+            ).register("Person_"+to_string(i));
+            person.State = deadptr;
+
+            part_registry_target = person;
+
+            Object chest = add_part(person, "Chest");
+                Object leftshoulder = add_part(chest, "LeftShoulder");
+                    connect_part(chest,leftshoulder);
+                    circulate_part(chest,leftshoulder);
+                    create_human_arm(leftshoulder, "Left");
+                Object rightshoulder = add_part(chest, "RightShoulder");
+                    connect_part(chest,rightshoulder);
+                    circulate_part(chest,rightshoulder);
+                    create_human_arm(rightshoulder, "Right");
+
+                Object heart = add_part(chest, "Heart");
+                    cover_part(chest, heart);
+                    heart.Proc = `
+                        int capability = tally_part_capability(part,actor);
+                        if(capability>0) {
+                            repeat(capability) {
+                                Object cond = add_condition(part,"Bloodflow",3,0);
+                                cond.Heals = true;
+                            }
+                        }
+                        standard_part_proc(part); 
+                    `;
+                    circulate_part(heart,chest);
+                Object lungs = add_part(chest, "Lungs");
+                    cover_part(chest, lungs);
+                    lungs.Suppourts = partstore.add(Object).init(heart);
+                    lungs.Proc = `
+                        int capability = tally_part_capability(part,actor); 
+                        if(capability>0) {
+                            part.Suppourts.do(subpart => {
+                                add_condition(subpart,"Oxygen",capability,0);
+                            });
+                        }
+                        standard_part_proc(part); 
+                    `;
+
+            Object belly = add_part(chest, "Belly");
+                connect_part(chest,belly);
+                circulate_part(chest,belly);
+                Object liver = add_part(belly, "Liver");
+                    circulate_part(belly,liver);
+                    cover_part(belly, liver);
+                Object kidneys = add_part(belly, "Kidneys");
+                    circulate_part(belly,kidneys);
+                    cover_part(belly, kidneys);
+
+            Object pelvis = add_part(belly, "Pelvis");
+                connect_part(belly,pelvis);
+                circulate_part(belly,pelvis);
+                create_human_leg(pelvis, "Left");
+                create_human_leg(pelvis, "Right");
+
+            Object neck = add_part(chest, "Neck");
+                connect_part(chest,neck);
+            Object head = add_part(neck, "Head");
+                connect_part(neck,head);
+
+            Object brain = add_part(head, "Brain");
+                cover_part(head,brain);
+            Object face = add_part(head, "Face");
+                connect_part(neck,face);
+                connect_part(head,face);
+
+            Object eyes = add_part(face, "Eyes");
+                connect_part(face,eyes);
+            Object nose = add_part(face, "Nose");   
+                connect_part(face,nose);
+
+            Object mouth = add_part(face, "Mouth");
+                connect_part(face,mouth);
+                mouth.Capability = 2;
+                mouth.Suppourts = partstore.add(Object).init(lungs);
+                mouth.Proc = `
+                    int capability = tally_part_capability(part,actor);
+                    if(capability>0) {
+                        part.Suppourts.do(subpart => {
+                            add_condition(subpart,"Airflow",capability,0);
+                        });
+                    }
+                    standard_part_proc(part);  
+                `;
+            Object throat = add_part(neck, "Throat");
+                connect_part(mouth,throat);
+                cover_part(neck, throat);
+            Object stomach = add_part(belly, "Stomach");
+                connect_part(throat,stomach);
+                cover_part(belly, stomach);
+                stomach.Capability = 0;
+                stomach.Proc = `
+                    part.With.do(withptr => {
+                        Object content = withptr;
+                        if(content.?AllParts) {
+                            if(content.get("AllParts").has("Mouth")) {
+                                Object cond = add_condition(content["AllParts"]["Mouth"],"BadAir",0-20,0);
+                                cond.Temporary = true;
+                            }
+                        }
+                    });
+                    standard_part_proc(part);  
+                `;
+            Object intestines = add_part(belly, "Intestines");
+                connect_part(stomach,intestines);
+                cover_part(belly, intestines);
+
+            Object part = deadptr;
+            Object actor = person;
+            part = actor["AllParts"]["Chest"]; part.X = 51; part.Y = 20;
+            part = actor["AllParts"]["Pelvis"]; part.X = 50; part.Y = 47;
+            part = actor["AllParts"]["LeftThigh"]; part.X = 45; part.Y = 50;
+            part = actor["AllParts"]["LeftShin"]; part.X = 44; part.Y = 75;
+            part = actor["AllParts"]["LeftFoot"]; part.X = 44; part.Y = 90;
+            part = actor["AllParts"]["RightThigh"]; part.X = 55; part.Y = 50;
+            part = actor["AllParts"]["RightShin"]; part.X = 56; part.Y = 75;
+            part = actor["AllParts"]["RightFoot"]; part.X = 56; part.Y = 90;
+            part = actor["AllParts"]["LeftShoulder"]; part.X = 44; part.Y = 19;
+            part = actor["AllParts"]["LeftUpperArm"]; part.X = 41; part.Y = 28;
+            part = actor["AllParts"]["LeftLowerArm"]; part.X = 37; part.Y = 39;
+            part = actor["AllParts"]["LeftHand"]; part.X = 33; part.Y = 47;
+            part = actor["AllParts"]["RightShoulder"]; part.X = 58; part.Y = 20;
+            part = actor["AllParts"]["RightUpperArm"]; part.X = 60; part.Y = 27;
+            part = actor["AllParts"]["RightLowerArm"]; part.X = 64; part.Y = 37;
+            part = actor["AllParts"]["RightHand"]; part.X = 67; part.Y = 46;
+            part = actor["AllParts"]["Heart"]; part.X = 51; part.Y = 27;
+            part = actor["AllParts"]["Lungs"]; part.X = 51; part.Y = 23;
+            part = actor["AllParts"]["Belly"]; part.X = 50; part.Y = 40;
+            part = actor["AllParts"]["Liver"]; part.X = 47; part.Y = 32;
+            part = actor["AllParts"]["Kidneys"]; part.X = 51; part.Y = 44;
+            part = actor["AllParts"]["Neck"]; part.X = 51; part.Y = 17;
+            part = actor["AllParts"]["Head"]; part.X = 50; part.Y = 11;
+            part = actor["AllParts"]["Brain"]; part.X = 49; part.Y = 9;
+            part = actor["AllParts"]["Face"]; part.X = 52; part.Y = 12;
+            part = actor["AllParts"]["Eyes"]; part.X = 53; part.Y = 11;
+            part = actor["AllParts"]["Nose"]; part.X = 55; part.Y = 12;
+            part = actor["AllParts"]["Mouth"]; part.X = 54; part.Y = 14;
+            part = actor["AllParts"]["Throat"]; part.X = 52; part.Y = 16;
+            part = actor["AllParts"]["Stomach"]; part.X = 52; part.Y = 34;
+            part = actor["AllParts"]["Intestines"]; part.X = 54; part.Y = 40;
+        }
+    part_registry_target = deadptr;
+    ColCol grid = sub.add("Grid");
+    ColCol gridstore = sub.add("GridStore");
+        int grid_x = 3;
+        int grid_y = 3;
+        for(int c=0;c<grid_y;c++) {
+            Ptr gridcol = grid.add(Object);
+            for(int r=0;r<grid_x;r++) {
+                Object gridcell  = gridstore.Object(
+                    Parts: [Object],
+                    With: [Object],
+                    Conditions: [Object],
+                    Proc: `standard_part_proc(part);`,
+                );
+                gridcell.label(to_string(r)+"-"+to_string(c));
+                gridcol.push(gridcell);
+                gridcell.Gridpos = gridcol|S=r;
+            }
+        }
+    ColCol maps = sub.add("Maps");
+        Object pasture = maps.Object(
+            AnatomyImg: project_path+"files/Pasture.jpg",
+            With: [Object],
+            Parts: [Object],
+            AllParts: [Object],
+        ).register("MainPasture");
+
+        int pasture_scale = 3;
+
+        part_registry_target = pasture;
+
+        for(int c=0;c<pasture_scale;c++) {
+            for(int r=0;r<pasture_scale;r++) {
+                Object cell = add_structural_part(pasture,to_string(r)+"-"+to_string(c));
+
+                //3
+                // cell.X = (16+r*33);
+                // cell.Y = (16+c*33);
+                //10
+                // cell.X = (5+r*10);
+                // cell.Y = (5+c*10);
+                cell.X = (16+r*33);
+                cell.Y = (16+c*33);
+                if(r>0) {
+                    Object left = pasture["AllParts"][to_string(r-1)+"-"+to_string(c)];
+                    connect_part(cell,left);
+                    if(c>0) {
+                        Object leftabove = pasture["AllParts"][to_string(r-1)+"-"+to_string(c-1)];
+                        connect_part(cell,leftabove);
+                    }
+                }
+                if(c>0) {
+                    Object above = pasture["AllParts"][to_string(r)+"-"+to_string(c-1)];
+                    connect_part(cell,above);
+                    if(r<(pasture_scale-1)) {
+                        Object aboveleft = pasture["AllParts"][to_string(r+1)+"-"+to_string(c-1)];
+                        connect_part(cell,aboveleft);
+                    }
+                }
+            }
+        }
+
+        animals.cells((k,v) => {
+            Object cell = pasture["AllParts"][to_string(randi(0,pasture_scale-1))+"-"+to_string(randi(0,pasture_scale-1))];
+            cell.With.put(k,v);
+            v.as(Object).Inside = cell;
+        });
+        people.cells((k,v) => {
+            Object cell = pasture["AllParts"][to_string(randi(0,pasture_scale-1))+"-"+to_string(randi(0,pasture_scale-1))];
+            cell.With.put(k,v);
+            v.as(Object).Inside = cell;
+        });
+
+    ColCol states = sub.add("States");
+
+    ColCol actions = sub.add("Actions");
+       actions.add(string,"recover").init(
+            `
+                string statelabel = actor.State.label;
+                int& energy = actor.Energy;
+                int& injury = actor.Injury;
+                int step = getsidx(actor.State);
+                bool stuck = is_live(actor.Inside);
+                string carrier = "";
+                if(stuck) {
+                    Object inside = actor.Inside;
+                    carrier = inside.label;
+                }
+
+
+                int score = roll_save_for(actor);
+                int stepfactor = step*3;
+                score = score-stepfactor;
+                int margin = score - 10;
+
+                if(margin>=0) {
+                    if(step==0) {
+                        log_thing(1,(actor.label)+" is getting  up");
+                        actor.State = states[actor.as(ColCol).label]["recovering"];
+                        acts["Rest"] = actions["rest"];
+                        acts["Move"] = actions["move"];
+                    } else {
+                        if(margin>=8) {
+                            log_thing(1,(actor.label)+" greatly improved their situation in "+statelabel);
+                            setsidx(actor.State,max(step-2,0));
+                        } else {
+                            log_thing(1,(actor.label)+" improved their situation in "+statelabel);
+                            setsidx(actor.State,max(step-1,0));
+                        }
+                    }
+                } else if(margin>=-5) {
+                    log_thing(2,(actor.label)+" struggled without gaining any ground");
+                } else {
+                    injury = injury+1;
+                    log_thing(3,(actor.label)+" slipped and made it worse");
+                }
+                energy = energy-1;
+            `
+        );
+        actions.add(string,"nothing").init(
+            `
+                int rand_num = randi(0,2);
+                if(rand_num==0) {
+                    log_thing(0,(actor.label)+" did nothing");
+                } else if(rand_num==1) {
+                    log_thing(0,(actor.label)+" stared at the sky");
+                } else if(rand_num==2) {
+                    log_thing(0,(actor.label)+" daydreamed");
+                }
+                actor.State = states[actor.as(ColCol).label]["nothing"];
+            `
+        );
+        actions.add(string,"rest").init(
+            `
+                if(actorkind=="People") {
+                    random(
+                        log_thing(0,(actor.label)+" sat down");
+                        log_thing(0,(actor.label)+" laid down");
+                        log_thing(0,(actor.label)+" crouched");
+                    );
+                } else if(actorkind=="Animals") {
+                    random(
+                        log_thing(0,(actor.label)+" folded their legs");
+                        log_thing(0,(actor.label)+" thumped down");
+                        log_thing(0,(actor.label)+" lowered onto their belly");
+                    );
+                } else {
+                    log_thing(0,(actor.label)+" rested");
+                }
+                actor.State = states[actorkind]["resting"];
+            `
+        );
+        actions.add(string,"shift").init(
+            `
+                actor.X = min(max(actor.X+(randi(0,20)-10),0),45);
+                actor.Y = min(max(actor.Y+(randi(0,20)-10),0),75);
+                log_scripted_thing(0,(actor.label)+" shifted","flip("+js_lit(actor.label)+",300);");
+                acts.push(actions["shift"]);
+            `
+        );
+        
+        actions.add(string,"move").init("move_act(actor,movetarget);");
+        scriptcode.append(`
+            global void move_act(Object actor, Object movetarget) {
+                ColCol grid = database.Grid;
+                ColCol actions = database.Actions;
+                ColCol states = database.States;
+                string actorkind = actor.as(ColCol).label;
+                if(actor.Energy>1) {
+                    if(is_live(movetarget)) {
+                        string insidecalled = actor.Inside.label;
+                        string targetcalled = movetarget.label;
+                        log_scripted_thing(0,(actor.label)+" moved from "+insidecalled+" to "+targetcalled,"flip("+js_lit(actor.label)+",600);");
+                        place_in(actor,movetarget);
+                        actor["Acts"]["Move"] = actions["move"];
+                        //actor.Energy = actor.Energy-1;
+                    } else {
+                        Object moveto = actor.Inside.Connects.rand;
+                        if(is_live(moveto)) {
+                            string insidecalled = actor.Inside.label;
+                            string targetcalled = moveto.label;
+
+                            log_thing(0,(actor.label)+" is leaving "+insidecalled);
+                            if(actorkind=="Animals") {
+                                actor.Parts.do(part => {force_react_in(actor,part,"react_animal_move",0);});
+                                force_react_in(actor,actor.Inside,"react_animal_move",0);
+                            }
+                            log_scripted_thing(0,(actor.label)+" arrived at "+targetcalled,"flip("+js_lit(actor.label)+",600);");
+                            place_in(actor,moveto);
+                            actor["Acts"]["Move"] = actions["move"];
+                            //actor.Energy = actor.Energy-1;
+                            if(actorkind=="Animals") {
+                                actor.Parts.do(part => {force_react_in(actor,part,"react_animal_move",1);});
+                                force_react_in(actor,actor.Inside,"react_animal_move",1);
+                            }
+                        } else {
+                            print(red(actor.label," attempted to move to an invalid position from ",actor.Inside.label));
+                        }
+                    }
+                } else {
+                    log_thing(0,(actor.label)+" is too tired to move");
+                }
+                actor["Acts"]["Rest"] = actions["rest"];
+            }
+        `);
+
+    ColCol StateStore = sub.add("StateStore");
+    Ptr cowstates = states.add("Animals",Ptr);
+        cowstates.put("nothing",
+            StateStore.add(string,"nothing").init(
+            `
+                log_thing(0,(actor.label)+" did nothing");
+                acts.push(actions["nothing"]);
+            `
+            )
+        );
+        cowstates.put("resting",StateStore.add(string,"resting").init(
+            'log_thing(0,(actor.label)+" rested"); actor.Energy = actor.Energy+2; if(randi(0,2)==2){log_thing(0,"Then "+(actor.label)+" got up"); repeat(2){acts.push(actions["move"]);}}',
+        ));
+
+        animals.cells((k,v) => {
+            v.as(Object).State = cowstates["nothing"];
+        });
+
+    Ptr personstates = states.add("People",Ptr);
+        personstates.put("nothing",
+            StateStore.add(string,"nothing").init(
+            `
+                log_thing(0,(actor.label)+" did nothing");
+                acts["Move"] = actions["move"];
+                acts["Rest"] = actions["rest"];
+                acts["Nothing"] = actions["nothing"];
+            `
+            )
+        );
+        personstates.put("recovering",
+            StateStore.add(string,"recovering").init(
+            `
+                log_thing(0,(actor.label)+" is recovering");
+                acts["Move"] = actions["move"];
+                acts["Rest"] = actions["rest"];
+                acts["Nothing"] = actions["nothing"];
+            `
+            )
+        );
+        personstates.put("resting",
+            StateStore.add(string,"resting").init(
+            `
+                log_thing(0,(actor.label)+" is resting");
+                if(actor.Energy<10) {
+                    actor.Energy = actor.Energy+1;
+                }
+                acts["Move"] = actions["move"];
+                acts["Rest"] = actions["rest"];
+                acts["Nothing"] = actions["nothing"];
+            `
+            )
+        );
+        
+
+        actions.add(string,"react_animal_move").init("react_animal_move(actor,actee,reaction_phase);");
+        scriptcode.append(
+            `  
+            global void react_animal_move(Object actor, Object actee, int reaction_phase) {
+                string acteekind = actee.as(ColCol).label;
+                ColCol grid = database.Grid;
+                ColCol actions = database.Actions;
+                ColCol states = database.States;
+                if(acteekind=="Animals") {
+
+                } else {       
+                    Object inside = actee.Inside;
+                    string insidekind = inside.as(ColCol).label;          
+                    if(insidekind=="Parts") {
+                        int luckroll = randi(0,8);
+                        if(reaction_phase==0) {
+                            if(luckroll>getsidx(actee.State)) {
+                                log_thing(1,(actee.label)+" was left behind as "+(actor.label)+" moved");
+                                place_in(actee,actor.Inside);
+                                setsidx(actee.State,0);
+                            }
+                        } else {
+                            luckroll = luckroll-3;
+                            if(luckroll>getsidx(actee.State)) {
+                                log_thing(1,(actee.label)+" was flung from "+(actor.label)+"'s hoof while it was moving");
+                                place_in(actee,actor.Inside);
+                                setsidx(actee.State,0);
+                                actee.Injury = actee.Injury+1;
+                            } else {
+                                log_thing(3,(actee.label)+" is crushed further beneath "+(actor.label)+"'s hoof as it lands");
+                                setsidx(actee.State,min(getsidx(actee.State)+1,actee.State.length-1));
+                                actee["Acts"]["Struggle"] = actions["recover"];
+                                actee.Injury = actee.Injury+3;
+                            }
+                        }
+                    } else {
+                        int margin = roll_save_for(actee)-10;
+                        if(reaction_phase==0) {
+                            if(margin>=0) {
+                                log_scripted_thing(2,(actee.label)+" dodged out of the way of "+(actor.label)+"'s hoof","getel("+js_lit(actee.label)+").style.color = 'green';");
+                            } else if(margin>=-5) {
+                                log_scripted_thing(3,(actee.label)+" was hit by "+(actor.label)+"'s hoof, knocking them to the ground","getel("+js_lit(actee.label)+").style.color = 'red';");
+                                actee["Acts"]["Get up"] = actions["recover"];
+                                actee.State = states[acteekind]["impacted"];
+                                actee.Injury = actee.Injury+1;
+                            } else {
+                                log_scripted_thing(4,(actee.label)+" was struck by "+(actor.label)+"'s hoof, causing serious injury","getel("+js_lit(actee.label)+").style.color = 'red';");
+                                actee["Acts"]["Struggle"] = actions["recover"];
+                                actee.State = states[acteekind]["impacted"];
+                                actee.Injury = actee.Injury+3;
+                            }
+                        } else {
+                            if(margin>=0) {
+                                log_scripted_thing(2,(actee.label)+" dodged out of the way of "+(actor.label)+"'s hoof as it landed","getel("+js_lit(actee.label)+").style.color = 'green';");
+                            } else if(margin>=-2) {
+                                log_scripted_thing(3,(actee.label)+" was thrown back by "+(actor.label)+"'s hoof as it landed","getel("+js_lit(actee.label)+").style.color = 'red';");
+                                actee["Acts"]["Get up"] = actions["recover"];
+                                actee.State = states[acteekind]["impacted"];
+                            } else {
+                                log_scripted_thing(4,(actee.label)+" was pinned beneath "+(actor.label)+"'s hoof","getel("+js_lit(actee.label)+").style.color = 'red';");
+                                actee["Acts"]["Struggle"] = actions["recover"];
+                                actee.State = states[acteekind]["impacted"];
+                                setsidx(actee.State,1);
+                                place_in(actee,actor.Parts.Leg);
+                            }
+                        }
+                    }
+                }
+            }
+            `
+        );
+
+        personstates.put("impacted",
+            StateStore.add(string,"impacted").init(
+            `
+                log_thing(0,(actor.label)+" is on the ground");
+                acts["Get up"] = actions["recover"];
+                acts["Relax"] = actions["rest"];
+            `,
+            `
+                Object inside = actor.Inside;
+                log_thing(0,(actor.label)+" is stuck to "+(inside.label));
+                acts["Struggle"] = actions["recover"];
+            `,
+            `
+                Object inside = actor.Inside;
+                log_thing(0,(actor.label)+" is ground beneath "+(inside.label));
+                actor.Injury = actor.Injury+1;
+                acts["Struggle"] = actions["recover"];
+            `
+            )
+        );
+
+        people.cells((k,v) => {
+            v.as(Object).State = personstates["nothing"];
+        });
+
+
+
+
+
+    ColCol logs = sub.add("Logs");
+
+
+    sub.clear_all_locks;
+    sub.save;
+
+    write_file(project_path+"script.gld",scriptcode);
+} else {
+    print("Loading database");
+    tstart("database_load");
+    ColColCol database = load_subunit(project_path+"data.gsu");
+    database.clear_all_locks;
+    print("Database loaded in: ",tstop("database_load"));
+}
+
+ColColCol cache = usubunits.add(project_path+"cache.gsu");
+    cache.add("Catchers");
+    cache.add("Storage");
+    ColCol classes = cache.add("Classes");
+        classes.add(Ptr,"Lookup");
+cache.clear_all_locks;
+cache.save;
+

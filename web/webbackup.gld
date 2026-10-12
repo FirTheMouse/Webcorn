@@ -5612,3 +5612,502 @@ div {
                                 "id" : "myclass_Users";
                                 "display" : "none";
                                 "flex-direction" : "row";
+                            }
+                        }
+
+Login page:
+
+
+
+route login {
+    div {
+        standard_header;
+        background_theme;
+
+        response.append("HTTP/1.1 200 OK\r\n");
+        response.append("Content-Type: text/html\r\n");
+        response.append("Cache-Control: no-store\r\n");
+        sync_user;
+        bool user_registered = false;
+        if(is_live(user)) {
+            user.as(ColCol).try_read_forever_then {
+                user_registered = user.?password;
+            }   
+        }
+        bool isprof = false;
+        if(request_arg=="prof") {
+            isprof = true;
+        }
+
+        div {
+            "display" : "flex";
+            "min-height" : "100vh";
+                div {
+                    "flex" : "1";
+                    "display" : "flex";
+                    "flex-direction" : "column-reverse";
+                    "justify-content" : "center";
+                    "align-items" : "center";
+                    "position" : "relative"; 
+                        if(!is_live(user)) {
+                            div {
+                                "id" : "login_title";
+                                "opacity" : "1";
+                                "position" : "absolute"; 
+                                "transition" : "opacity 0.6s ease, transform 0.8s ease";
+                                "transform-origin" : "center bottom";
+                                text "Election Madness" {"font-size" : "min(80px, 10vw)"; "font-weight" : "800"; text_theme;}
+                                text "Made with TwigSnap" {"text-align" : "center"; "font-size" : "12px"; "font-weight" : "600"; text_theme;}
+                                script "
+                                    setTimeout(() => {
+                                        const title = getel('login_title');
+                                        const body = getel('login_body');
+                                        const tab = getel('class_tab');
+                                        title.style.opacity = '0';
+                                        title.style.transform = 'scale(4)';
+                                        setTimeout(() => {
+                                            title.style.display = 'none';
+                                            body.style.opacity = '1';
+                                            tab.style.opacity = '1';
+                                        }, 400);
+                                        body.style.transition = 'opacity 0.4s ease';
+                                        tab.style.transition = 'opacity 0.4s ease';
+                                    }, 800);
+                                ";
+                            }
+                        }
+
+                        div {
+                            "id" : "login_body";
+                            "opacity" : (is_live(user)?"100":"0");
+                            "transition" : "opacity 0.4s ease";
+                            "display" : "flex";
+                            "justify-content" : "center";
+                            "align-items" : "center";
+                            "flex-direction" : "column";
+                            "width" : "100%";
+                            "max-width" : "700px";
+                            "height" : "auto";
+                            "min-height" : "120px";
+                            "padding" : "40px";
+                            "gap" : "12px";
+                            card_theme;
+                            "border-radius" : "12px";
+                            "box-shadow" : "0 4px 24px rgba(0,0,0,0.08)";
+                  
+                            hoisted div login_buttons {
+                                "display" : "flex";
+                                "justify-content" : "center";
+                                "align-items" : "center";
+                                "flex-direction" : "column";
+                                "width" : "100%";
+                                "height" : "100%";
+                                
+                                div {
+                                    "display" : "flex";
+                                    "width" : "100%";
+                                    "padding" : "10px";
+                                    "gap" : "12px";
+
+                                    if(!user_registered) {
+                                        string login_behaviour = capture(
+                                            string given_username ; "getel('username').value",
+                                            string given_password ; "getel('password').value",
+                                            string req_arg ; js_lit(request_arg),
+                                            js_do("apply_theme(this,"+js_lit(skeleton_pulse.emit)+");")
+                                        ) {
+                                            sync_user;
+                                            Ptr sessions = class[0]["Sessions"];
+                                            string result = "";
+                                            sessions.try_read_forever_then {
+                                                if(sessions.has(given_username)) {
+                                                    user = sessions[given_username];
+                                                    if(user.password==secure_hash(given_password)) {
+                                                        response.append("HTTP/1.1 200 OK\r\n");
+                                                        response.append("Content-Type: text/html\r\n");
+                                                        response.append("Set-Cookie: guestid="+(user.label)+"; path=/; HttpOnly; Secure; SameSite=Lax\r\n");
+                                                        emit_js("
+                                                            window.location.href = "+(req_arg.length>0?"'/myclass'":"'/'")+";
+                                                        ");
+                                                    } else {
+                                                        result = "Wrong password";
+                                                    }
+                                                } else {
+                                                    result = "Username not found";
+                                                }
+                                            }
+                                            if(result.length>0) {
+                                                emit_js("
+                                                    const btn = getel('login');
+                                                    btn.style.background = 'rgb(230, 230, 230)';
+                                                    btn.children[0].innerText='"+result+"';
+                                                    setTimeout(() => {
+                                                        btn.children[0].innerText = 'Login';
+                                                    }, 600);
+                                                "); 
+                                            }
+                                        };
+
+                                        string register_behaviour = capture(
+                                            string given_username ; "getel('username').value",
+                                            string given_password ; "getel('password').value",
+                                            string req_arg ; js_lit(request_arg),
+                                            js_do("apply_theme(this,"+js_lit(skeleton_pulse.emit)+");")
+                                        ) {
+                                            sync_user;
+                                            Ptr sessions = class[0]["Sessions"];
+                                            bool username_avaliable = true;
+                                            string result = "";
+                                            sessions.try_read_forever_then {
+                                                if(sessions.has(given_username)) {
+                                                    username_avaliable = false;
+                                                    result = "Username not avaliable";
+                                                }
+                                            }
+                                            if(username_avaliable) {
+                                                sync_with_database;
+                                                ColCol userlock = user;
+                                                string hashed_password = secure_hash(given_password);
+                                                sessions.try_lock_forever_then {
+                                                    if(sessions.has(given_username)) {
+                                                        result = "Username not avaliable";
+                                                    } else {
+                                                        userlock.try_lock_forever_then {
+                                                            if(user.?password) {
+                                                                result = "Already registered";
+                                                            } else {
+                                                                user.password = hashed_password;
+                                                                sessions.put(given_username, user);
+                                                                result = "Registered";
+                                                                emit_js("
+                                                                    window.location.href = "+(req_arg.length>0?"'/myclass'":"'/'")+";
+                                                                ");
+                                                                class.save;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            emit_js("
+                                                const btn = getel('login');
+                                                btn.style.background = 'rgb(230, 230, 230)';
+                                                btn.children[0].innerText='"+result+"';
+                                                setTimeout(() => {
+                                                    btn.children[0].innerText = 'Register';
+                                                }, 600);
+                                            "); 
+                                        };
+                                        
+                                        script "
+                                            function expand_login_card(card) {
+                                                if(card.style.height === '0px') {
+                                                    card.style.height = 'auto';
+                                                    const h = card.scrollHeight;
+                                                    card.style.height = '0px';
+                                                    requestAnimationFrame(() => {
+                                                        card.style.height = h + 'px';
+                                                    });
+                                                }
+                                            }
+                                            function toggle_login_card(new_label, is_login) {
+                                                const card = getel('login_card');
+                                                const btn = getel('login');
+                                                btn.onclick = is_login ? function() { "+login_behaviour+" } : function() { "+register_behaviour+" };
+                                                if(btn.children[0].innerText !== new_label) {
+                                                    btn.children[0].innerText = new_label;
+                                                    expand_login_card(card);
+                                                } else {
+                                                    if(card.style.height === '0px') {
+                                                        expand_login_card(card);
+                                                    } else {
+                                                        card.style.height = '0px';
+                                                    }
+                                                }
+                                            }
+                                        ";
+                                    }
+
+                                    stateless template div loginbtn(string label, string behaviour) {
+                                        button {
+                                            "border" : "none";
+                                            "border-radius" : "8px";
+                                            "width" : "50%";
+                                            "height" : "35px";
+                                            "background-color" : "rgb(60,100,200)";
+                                            text label {"margin" : "5px"; "color" : "white"; text_theme;}
+                                            "onclick" : behaviour;
+                                        }
+                                    }
+                                    
+                                    if(user_registered) {
+                                        loginbtn("Back",capture(
+                                            string req_arg ; js_lit(request_arg)
+                                        ){
+                                            emit_js("
+                                                window.location.href = "+(req_arg.length>0?"'/myclass'":"'/'")+";
+                                            ");
+                                        });
+                                        loginbtn("Logout",capture(
+                                            js_do("apply_theme(this,"+js_lit(skeleton_pulse.emit)+");")
+                                        ){
+                                            response.append("HTTP/1.1 200 OK\r\n");
+                                            response.append("Content-Type: text/html\r\n");
+                                            response.append("Set-Cookie: guestid=; path=/; SameSite=Lax; Max-Age=0\r\n");
+                                            user_registered = false;
+                                            login_buttons.reload;
+                                        });
+                                    } else {
+                                        loginbtn("Guest",capture{
+                                            emit_js("
+                                                window.location.href = '/';
+                                            ");
+                                        });
+                                        loginbtn("Log In","toggle_login_card('Login',true);");
+                                        loginbtn("Register","toggle_login_card('Register',false);");
+                                    }
+                                }
+                                div {
+                                    "width" : "100%";
+                                    "display" : "flex";
+                                    "flex-direction" : "column";
+                                    "align-items" : "center";
+                                    "gap" : "8px";
+                                    div {
+                                        "id" : "login_card";
+                                        "display" : "flex";
+                                        "justify-content" : "center";
+                                        "align-items" : "end";
+                                        "flex-direction" : "column";
+                                        "height" : "0px";
+                                        "overflow" : "hidden";
+                                        "transition" : "height 0.5s ease";
+                                        "gap" : "12px";
+                                        
+                                        inlined login_input_theme {
+                                            "border-top" : "none";
+                                            "border-left" : "none";
+                                            "border-right" : "none";
+                                            "border-bottom" : "2px solid rgb(200,200,200)";
+                                            "border-radius" : "0px";
+                                            "background-color" : "transparent";
+                                            "padding" : "8px 0px";
+                                            input_theme;
+                                        }
+        
+                                        div {
+                                            "display" : "flex";
+                                            "align-items" : "center";
+                                            "width" : "100%";
+                                            "gap" : "7px";
+                                                text "Username:" {
+                                                    "width" : "70px";
+                                                    "font-size" : "14px";
+                                                    "flex-shrink" : "0";
+                                                    text_theme;
+                                                }
+                                                input {
+                                                    "id" : "username";
+                                                    "flex" : "1";
+                                                    login_input_theme;
+                                                }
+                                        }
+
+                                        div {
+                                            "display" : "flex";
+                                            "align-items" : "center";
+                                            "width" : "100%";
+                                            "gap" : "8px";
+                                                text "Password:" {
+                                                    "width" : "70px";
+                                                    "font-size" : "14px";
+                                                    "flex-shrink" : "0";
+                                                    text_theme;
+                                                }
+                                                input {
+                                                    "id" : "password";
+                                                    "type" : "password";
+                                                    "flex" : "1";
+                                                    login_input_theme;
+                                                }
+                                        }
+
+                                        button {
+                                            "id" : "login";
+                                            text "Login" {
+                                                "margin" : "5px";
+                                                "font-size" : "14px";
+                                                text_theme;
+                                            }
+                                            "width" : "75%";
+                                            "border" : "none";
+                                            "border-radius" : "4px";
+                                            "background-color" : "rgb(230, 230, 230)";
+                                        }
+                                    }
+                                }
+                                if(!user_registered) {
+                                    if(is_live(user)) {
+                                        script "toggle_login_card('Register',false)";
+                                    }
+                                }
+                            }
+                        }
+
+                        div {
+                            "id" : "class_tab";
+                            "opacity" : (is_live(user)?"100":"0");
+                            "transition" : "opacity 0.4s ease";
+                            "width" : "100%";
+                            "display" : "flex";
+                            "flex-direction" : "column";
+                            "align-items" : "center";
+
+                            div {
+                                "background-color" : "rgb(60,100,200)";
+                                "border-radius" : "12px 12px 0 0";
+                                "width" : "80%";
+                                "max-width" : "450px";
+                                "height" : "30px";
+                                text "Class" {"text-align" : "center"; "font-size" : "0.9rem"; "margin" : "5px"; "color" : "white"; text_theme;}
+
+                                "onclick" : "
+                                    const body = getel("+js_lit(capture_node(class_tab_body))+");
+                                    if(body.style.height === '0px') {
+                                        body.style.height = '50px';
+                                    } else {
+                                        body.style.height = '0px';
+                                    }
+                                ";
+                            }
+
+
+                            static string classcode_cookie = get_cookie(current_request,"classcode");                                
+                            div class_tab_body {
+                                if(classcode_cookie.length==0) {
+                                    classcode_cookie = "GLOBAL";
+                                }
+                                "overflow-y" : "hidden";
+                                "transition" : "height 0.6s ease";
+                                "height" : "50px";
+                                card_theme;
+                                "width" : "80%";
+                                "max-width" : "450px";
+                                "display" : "flex";
+                                "flex-direction" : "row";
+                                "justify-content" : "center";
+                                "gap" : "8px";
+                                "padding" : "8px";
+                                button {
+                                    "flex" : "1";
+                                    "border" : "none";
+                                    "border-radius" : "8px";
+                                    "background-color" : "rgb(60,100,200)";
+                                    text "leave" {"margin" : "5px"; "color" : "white"; text_theme;}
+                                    "onclick" : capture(
+                                        js_do("apply_theme(this,"+js_lit(skeleton_pulse.emit)+");")
+                                    ){
+                                        response.append("HTTP/1.1 200 OK\r\n");
+                                        response.append("Content-Type: text/html\r\n");
+                                        response.append("Set-Cookie: classcode=; path=/; SameSite=Lax; Max-Age=0\r\n");
+                                        sync_class("GLOBAL");
+                                        sync_user_no_class;
+                                        user_registered = is_live(user);
+                                        classcode_cookie = "";
+                                        class_tab_body.reload;
+                                        login_buttons.reload;
+                                    };
+                                }
+                                input {
+                                    "flex" : "1";
+                                    "id" : "class_select_input";
+                                    "value" : (is_live(class)?classcode_cookie:"NOT FOUND");
+                                    "border" : "none";
+                                    "background-color" : "transparent";
+                                    "border-bottom" : "1px solid black";
+                                    "padding" : "0px 3px";
+                                    text_theme;
+                                }
+                                button {
+                                    "flex" : "1";
+                                    "border" : "none";
+                                    "border-radius" : "8px";
+                                    "background-color" : "rgb(60,100,200)";
+                                    text "join" {"margin" : "5px"; "color" : "white"; text_theme;}
+                                    "onclick" : capture(
+                                        string newclasscode ; "getel('class_select_input').value",
+                                        string oldclasscode ; js_lit(classcode_cookie),
+                                        js_do("apply_theme(this,"+js_lit(skeleton_pulse.emit)+");")
+                                    ){
+                                        sync_class(newclasscode);
+                                        if(is_live(class)) {
+                                            response.append("HTTP/1.1 200 OK\r\n");
+                                            response.append("Content-Type: text/html\r\n");
+                                            response.append("Set-Cookie: classcode="+newclasscode+"; path=/; SameSite=Lax\r\n");
+                                            sync_user_no_class;
+                                            user_registered = is_live(user);
+                                            classcode_cookie = newclasscode;
+                                            class_tab_body.reload;
+                                            login_buttons.reload;
+                                        } else {
+                                            class_tab_body.reload;
+                                        }
+                                    };
+                                }
+                            }
+                        }
+
+                }
+        }
+    }
+
+    script "
+        function type_into(el, text, callback) {
+            let i = 0;
+            function type_next() {
+                if(!el.isConnected) { simulate_user(); return; }
+                if(i < text.length) {
+                    el.value += text[i];
+                    i++;
+                    setTimeout(type_next, 40 + Math.random() * 80);
+                } else {
+                    callback && callback();
+                }
+            }
+            type_next();
+        }
+
+        function simulate_user() {
+            const buttons = getel('login_body').querySelectorAll('button');
+            const logout_btn = Array.from(buttons).find(b => b.innerText.trim() === 'Logout');
+            if(logout_btn) {
+                setTimeout(() => {
+                    logout_btn.click();
+                    const poll = setInterval(() => {
+                        if(!logout_btn.isConnected) {
+                            clearInterval(poll);
+                            setTimeout(simulate_user, 100);
+                        }
+                    }, 50);
+                }, 600);
+            } else {
+                const username = 'bot_' + Math.random().toString(36).slice(2, 12);
+                const password = Math.random().toString(36).substr(2, 12);
+                setTimeout(() => {
+                    if(getel('login_card').style.height === '0px') {
+                        toggle_login_card('Register', false);
+                    }
+                    type_into(getel('username'), username, () => {
+                        setTimeout(() => {
+                            type_into(getel('password'), password, () => {
+                                setTimeout(() => {
+                                    getel('login').click();
+                                }, 300);
+                            });
+                        }, 200);
+                    });
+                }, 600);
+            }
+        }
+        //simulate_user();
+    ";
+}

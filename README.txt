@@ -25,7 +25,7 @@ For running webcorn (./webcorn)
     --private : disables guests and forces login
     --debug : turns debug features on, namely no terminate handler, and Thistle will auto-log in as Fir.
     --files : directories to whiteliest, only goes one directory deep, seperated by commas
-    --script : a script to run on startup
+    --script : a script to append to all twigcodes
     --units : how many units to startup, this is needed for Webcorn
     --init : restart in an init.gld that has this
 
@@ -58,6 +58,7 @@ Standard production launch:
 ulimit -n 65536 && cmake --build build && ./hazel ./webcorn --port=443 --project=web/electionmadness/ --tls=cert --verbosity=0 --units=8
 
 cmake --build build && ./webcorn --port=443 --project=web/electionmadness/ --units=2 --verbosity=3
+cmake --build build && ./webcorn --port=443 --project=web/sim/ --units=1 --init
 
 ./hazel ./webcorn --port=443 --project=web/electionmadness/ --tls=test.goldensystems.ca --verbosity=3 --units=2
 

@@ -19,10 +19,10 @@ if(arg_tls.length!=0) {
 }
 
 int log_verbosity = 0;
-string arg_verbosity = unit_get_arg("--verbosity=");
+global string arg_verbosity = unit_get_arg("--verbosity=");
 if(arg_verbosity.length!=0) {log_verbosity = stoi(arg_verbosity);}
 
-string project_path = "";
+global string project_path = "";
 string arg_path = unit_get_arg("--project=");
 if(arg_path.length!=0) {project_path = arg_path;}
 
@@ -30,15 +30,15 @@ if(log_verbosity>3) {
     print("project path: ",project_path);
 }
 
-string arg_scriptcode = unit_get_arg("--script=");
-if(arg_scriptcode.length!=0) {
-    Node scriptroot = compile(read_file(arg_scriptcode));
-    execut scriptroot;
+string arg_initcode = unit_get_arg("--script=");
+if(arg_initcode.length!=0) {
+    Node initroot = compile(read_file(arg_initcode));
+    execut initroot;
 } else if(project_path.length>0) {
-    string potential_scriptpath = project_path+"init.gld";
-    if(file_exists(potential_scriptpath)) {
-        Node scriptroot = compile(read_file(potential_scriptpath));
-        execut scriptroot;
+    string potential_initpath = project_path+"init.gld";
+    if(file_exists(potential_initpath)) {
+        Node initroot = compile(read_file(potential_initpath));
+        execut initroot;
     }
 }
 

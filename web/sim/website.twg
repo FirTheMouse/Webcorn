@@ -1,0 +1,789 @@
+
+inlined text_theme {
+    "font-size" : "0.76rem";
+    "font-weight" : "600";
+    "color" : "rgb(80,80,80)";
+    "font-family" : "system-ui, sans-serif";
+}
+inlined air_input_theme {
+    "border" : "none";
+    "border-bottom" : "2px solid rgb(200,200,200)";
+    "background-color" : "transparent";
+    "padding" : "0px 4px";
+    text_theme;
+}
+inlined standard_button_theme {
+    "border" : "none";
+    "border-radius" : "8px";
+    "padding" : "6px";
+    text_theme;
+}
+
+inlined hoverable_theme {
+    "background-color" : "transparent";
+    "transition" : "background-color 0.15s ease";
+    "onmouseenter" : "if(this.style.backgroundColor==='transparent')this.style.backgroundColor='rgba(0,0,0,0.04)'";
+    "onmouseleave" : "if(this.style.backgroundColor==='rgba(0, 0, 0, 0.04)')this.style.backgroundColor='transparent'";
+}
+inlined skeleton_pulse {
+    "background" : "linear-gradient(90deg, rgb(60,60,60) 25%, rgb(80,80,80) 50%, rgb(60,60,60) 75%)";
+    "background-size" : "200% 100%";
+    "animation" : "skeleton_pulse 1.5s infinite";
+}
+
+inlined popup_background_theme {
+    "position" : "fixed";
+    "top" : "0";
+    "left" : "0";
+    "width" : "100%";
+    "height" : "100%";
+    "background-color" : "rgba(0,0,0,0.4)";
+    "z-index" : "1000";
+    "display" : "flex";
+    "justify-content" : "center";
+    "align-items" : "center";
+    "onclick" : "event.stopPropagation();";
+}
+
+inlined popup_panel_theme {
+    "background-color" : "white";
+    "border-radius" : "12px";
+    "padding" : "24px";
+    "display" : "flex";
+    "flex-direction" : "column";
+    "gap" : "16px";
+    "align-items" : "center";
+    "box-shadow" : "0 8px 32px rgba(0,0,0,0.2)";
+    "onclick" : "event.stopPropagation();";
+}
+
+void standard_header {
+    html '<meta name="viewport" content="width=device-width, initial-scale=1">';
+    style "
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html { font-size: 17px; }
+        @media (min-width: 560px) {
+            html { font-size: 20px; }
+        }
+        @keyframes skeleton_pulse { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    ";
+    script read_file("web/webcorn.js");
+    script "
+        var thing_pos = {};
+        function thing_key(el) {
+            return el.dataset.view + ':' + el.dataset.thing;
+        }
+
+        function snap_all() {
+            thing_pos = {};
+
+            document.querySelectorAll('.thing').forEach(el => {
+                thing_pos[thing_key(el)] = el.getBoundingClientRect();
+            });
+        }
+
+        function flip(id, ms) {
+            document.querySelectorAll('.thing').forEach(el => {
+                if(el.dataset.thing !== id) return;
+
+                const old = thing_pos[thing_key(el)];
+                if(!old) return;
+
+                const now = el.getBoundingClientRect();
+                const dx = old.left - now.left;
+                const dy = old.top - now.top;
+
+                if(dx === 0 && dy === 0) return;
+
+                el.style.zIndex = '10';
+
+                const a = el.animate(
+                    [
+                        {transform: `translate(${dx}px, ${dy}px)`},
+                        {transform: 'translate(0,0)'}
+                    ],
+                    {duration: ms || 500, easing: 'ease-in-out'}
+                );
+
+                a.onfinish = () => {
+                    el.style.zIndex = '';
+                };
+            });
+        }
+    ";
+}
+
+void print_log(Object logline) {
+    div {
+        "margin-left" : "14px";
+        if(!logline.?Resolved) {
+            if(logline.?Script) {
+                scripts_to_run;
+                scripts_to_run.push(logline.Script);
+                logline.Resolved = deadptr;
+            }
+        }
+        bool has_kids = logline.Children.length>0;
+        string logmsg = logline.label;
+        text logmsg {
+            "color" : color_of_severity(logline.Severity);
+            "cursor" : (has_kids?"pointer":"default");
+            if(has_kids) {
+                "onclick" : "
+                    const kids = this.parentElement.children[1];
+                    kids.style.display = (kids.style.display==='none') ? 'block' : 'none';
+                ";
+            }
+            text_theme;
+        }
+        if(has_kids) {
+            div {
+                for(int i=0;i<logline.Children.length;i++) {
+                    print_log(logline.Children.get(i));
+                }
+            }
+        }
+    }
+}
+
+##
+    global string selector_selected_part = "";
+##
+stateless template div render_part_selector(string imgpath, Object actor) {
+    div {
+        "height" : "100vh";
+        "width" : "100vw";
+        "display" : "flex"; "flex-direction" : "column";
+        div {
+            "position" : "relative";
+            "display" : "inline-block";
+            img {
+                "src" : project_path+"files/"+imgpath;
+                "id" : "selector_img";
+                "display" : "block";
+                "width" : "100%";
+                "height" : "auto";
+                "onclick" : capture(
+                    string jsret ; js_do("
+                        const img = getel('selector_img');
+                        const e = window.event;
+                        const rect = img.getBoundingClientRect();
+
+                        const xPct = ((e.clientX - rect.left) / rect.width) * 100;
+                        const yPct = ((e.clientY - rect.top) / rect.height) * 100;
+                        
+                        return Math.round(xPct)+','+Math.round(yPct);
+                    ")
+                ) {
+                    int comma_at = jsret.find(",");
+                    if(selector_selected_part.length>0) {
+                        print("part = actor[\"AllParts\"][\""+selector_selected_part+"\"]; part.X = ",jsret.substr(0,comma_at),"; part.Y = ",jsret.substr(comma_at+1),";");
+                        selector_selected_part = "";
+                    }
+                }
+            }
+            actor.AllParts.cells((partname,partptr) => {
+                Object partobj = partptr;
+                if(partobj.?X) {
+                    div {
+                        "position" : "absolute";
+                        "left" : to_string(partobj.X)+"%";
+                        "top" : to_string(partobj.Y)+"%";
+                        "transform" : "translate(-50%, -50%)";
+
+                        "width" : "8px";
+                        "height" : "8px";
+                        "border-radius" : "50%";
+                        "background-color" : "red";
+                        "border" : "1px solid white";
+                        "pointer-events" : "none";
+                        "z-index" : "2";
+
+                        text partname {"color" : "blue"; "font-size" : "0.6rem"; text_theme;}
+                    }
+                }
+            });
+        }
+        div {
+            "margin-bottom" : "-200px";
+            "width" : "100%";
+            "overflow-x" : "scroll";
+            "display" : "flex";
+            actor.AllParts.cells((partname,partptr) => {
+                Object partobj = partptr;
+                button {
+                    "margin" : "5px";
+                    if(partobj.?X) {
+                        "background-color" : "gray";
+                    } else {
+                        "background-color" : "dodgerblue";
+                    }
+                    standard_button_theme;
+                    text partname;
+                    "onclick" : capture(
+                        string fpartname ; js_lit(partname),
+                        js_do("this.style.backgroundColor = 'gray';")
+                    ){                    
+                        selector_selected_part = fpartname;
+                    };
+
+                }   
+            });
+        }
+    }
+}
+
+
+
+stateless template div render_anatomy(Object actor, Object frompart) {
+    div {
+        "height" : "100vh";
+        "width" : "100vw";
+        "display" : "flex"; "flex-direction" : "column";
+        div {
+            "position" : "relative";
+            "display" : "inline-block";
+            img {
+                "src" : actor.AnatomyImg;
+                "id" : "selector_img";
+                "display" : "block";
+                "width" : "100%";
+                "height" : "auto";
+            }
+            svg {
+                "position" : "absolute";
+                "left" : "0";
+                "top" : "0";
+                "width" : "100%";
+                "height" : "100%";
+                "viewBox" : "0 0 100 100";
+                "preserveAspectRatio" : "none";
+                "pointer-events" : "none";
+                actor.AllParts.cells((partname,partptr) => {
+                    Object part = partptr;
+                    if(part.?X) {
+                        if(!is_live(frompart)) {
+                            part.Parts.do(subpartptr => {
+                                Object subpart = subpartptr;
+                                if(subpart.?X) {
+                                    path {
+                                        "d" : "M "+to_string(part.X)+" "+to_string(part.Y)+" L "+to_string(subpart.X)+" "+to_string(subpart.Y);
+                                        "stroke" : "cyan";
+                                        "stroke-width" : "5";
+                                        "vector-effect" : "non-scaling-stroke";
+                                        "fill" : "none";
+                                    }
+                                }
+                            });
+                        }
+                        if(part.?Connects) {
+                            bool do_render = !is_live(frompart);
+                            if(!do_render) {
+                                if(frompart==part) {
+                                    do_render = true;
+                                }
+                            } 
+                            if(do_render) {
+                                part.Connects.do(subpartptr => {
+                                    Object subpart = subpartptr;
+                                    if(subpart.?X) {
+                                        path {
+                                            "d" : "M "+to_string(part.X)+" "+to_string(part.Y)+" L "+to_string(subpart.X)+" "+to_string(subpart.Y);
+                                            "stroke" : "green";
+                                            "stroke-width" : "3";
+                                            "vector-effect" : "non-scaling-stroke";
+                                            "fill" : "none";
+                                        }
+                                    }
+                                });
+                            }
+                        }
+                        if(!is_live(frompart)) {
+                            if(part.?CirculateOut) {
+                                part.CirculateOut.do(subpartptr => {
+                                    Object subpart = subpartptr;
+                                    if(subpart.?X) {
+                                        path {
+                                            "d" : "M "+to_string(part.X)+" "+to_string(part.Y)+" L "+to_string(subpart.X)+" "+to_string(subpart.Y);
+                                            "stroke" : "red";
+                                            "stroke-width" : "4";
+                                            "vector-effect" : "non-scaling-stroke";
+                                            "fill" : "none";
+                                        }
+                                    }
+                                });
+                            }
+                            if(part.?Covers) {
+                                part.Covers.do(subpartptr => {
+                                    Object subpart = subpartptr;
+                                    if(subpart.?X) {
+                                        path {
+                                            "d" : "M "+to_string(part.X)+" "+to_string(part.Y)+" L "+to_string(subpart.X)+" "+to_string(subpart.Y);
+                                            "stroke" : "yellow";
+                                            "stroke-width" : "1";
+                                            "stroke-dasharray" : "5,4";
+                                            "vector-effect" : "non-scaling-stroke";
+                                            "fill" : "none";
+                                        }
+                                    }
+                                });
+                            }
+                        }
+                    }
+                });
+            }
+            actor.AllParts.cells((partname,partptr) => {
+                Object part = partptr;
+                if(part.?X) {
+                    bool do_render = !is_live(frompart);
+                    if(!do_render) {
+                        if(frompart==part) {
+                            do_render = true;
+                        } else if(frompart.Connects.has(part.label)) {
+                            do_render = true;
+                        }
+                    } 
+                    if(do_render) {
+                        div {
+                            "position" : "absolute";
+                            "left" : to_string(part.X)+"%";
+                            "top" : to_string(part.Y)+"%";
+                            "transform" : "translate(-50%, -50%)";
+
+                            "width" : "12px";
+                            "height" : "12px";
+                            "border-radius" : "50%";
+                            "background-color" : "red";
+                            "border" : "1px solid white";
+                            "pointer-events" : "auto";
+                            "z-index" : "2";
+
+                            if(is_live(frompart)) {
+                                "class" : "movment_node";
+                                "data-nodeto" : capture_ptr(part);
+                            }
+
+                            "onclick" : "this.children[0].style.display = 'flex';";
+
+                            div {
+                                "display" : "none";
+                                "onclick" : "event.stopPropagation(); this.style.display = 'none';";
+
+                                "flex-direction" : "column";
+                                "align-items" : "center";
+                                "padding" : "12px";
+                                "gap" : "5px";
+                                "border-radius" : "12px";
+                                "box-shadow" : "0 4px 24px rgba(0,0,0,0.08)";
+                                "background-color" : "rgb(229, 226, 226)";
+
+                                "width" : "240px";
+
+                                text partname {text_theme;}
+                                                        
+                                div {
+                                    "width" : "100%";
+                                    "min-width" : "0";
+                                    "max-width" : "100%";
+                                    "overflow-x" : "auto";
+                                    "overflow-y" : "auto";
+                                    "border" : "1px solid #465064";
+                                    "border-radius" : "6px";
+
+                                    table {
+                                        "width" : "max-content";
+                                        "min-width" : "100%";
+                                        "table-layout" : "auto";
+                                        "border-collapse" : "collapse";
+                                        "white-space" : "nowrap";
+                                        "font-size" : "0.7rem";
+                                        row {
+                                            "background-color" : "#344157";
+                                            "font-weight" : "bold";
+                                            column {
+                                                "padding" : "4px 8px";
+                                                "white-space" : "nowrap";
+                                                text "Condition";
+                                            }
+                                            column {
+                                                "padding" : "4px 8px";
+                                                "white-space" : "nowrap";
+                                                text "CE";
+                                            }
+                                            column {
+                                                "padding" : "4px 8px";
+                                                "white-space" : "nowrap";
+                                                text "PN";
+                                            }
+                                            column {
+                                                "padding" : "4px 8px";
+                                                "white-space" : "nowrap";
+                                                text "Other";
+                                            }
+                                        }
+                                        part.Conditions.do(condptr => {
+                                            Object cond = condptr;
+                                            row {
+                                                "border-bottom" : "1px solid #394355";
+                                                column {
+                                                    "padding" : "4px 5px";
+                                                    "overflow-wrap" : "anywhere";
+                                                    text cond.label;
+                                                }
+                                                column {
+                                                    "padding" : "4px 5px";
+                                                    "text-align" : "center";
+                                                    text to_string(cond.CapabilityEffect);
+                                                }
+                                                column {
+                                                    "padding" : "4px 5px";
+                                                    "text-align" : "center";
+                                                    text to_string(cond.Pain);
+                                                }
+                                                string readout = "";
+                                                cond.cells((k,v) => {
+                                                    if(k=="CapabilityEffect") {
+                                                    } else if(k=="Pain") {
+                                                    } else {
+                                                        readout.append(k);
+                                                        readout.append("=");
+                                                        readout.append(to_string(v)+" ");
+                                                    }
+                                                });
+                                                column {
+                                                    "padding" : "4px 5px";
+                                                    "overflow-wrap" : "anywhere";
+                                                    text readout;
+                                                }
+                                            }
+                                        });
+                                    }
+                                }
+                            }
+
+                            part.With.cells((thingname,thingptr) => {
+                                Object thing = thingptr;
+                                img {
+                                    "data-thing" : thing.label;
+                                    "data-view" : actor.label;
+                                    "class" : "thing"; 
+                                    string thingkind = thing.as(ColCol).label;
+                                    "src" : thing.TokenImg;
+                                    "position" : "absolute";
+                                    "left" : to_string(thing.X)+"%";
+                                    "top" : to_string(thing.Y)+"%";
+                                    "width" : to_string(thing.Scale)+"px";
+                                    "height" : to_string(thing.Scale)+"px";
+                                }
+                            });
+                        }
+                    }
+                }
+            });
+        }
+    }
+}
+
+route "" {
+    standard_header;
+    div full_display {
+        "display" : "flex"; "flex-direction" : "row";
+        "position" : "relative";
+
+        //render_part_selector("People_Anatomy.webp",database.People.get(0));
+
+        div {
+            "display" : "flex"; "flex-direction" : "column";
+            div {
+                button {
+                    "background-color" : "darkgray";
+                    standard_button_theme;
+                    text "Worldview" {"color" : "white"};
+                    "onclick" : capture(){
+                        bool& b = database["Common"]["Flags"]["WorldView"];
+                        b = !b;
+                        full_display.reload;
+                    };
+                }
+                if(database["Common"]["Flags"]["WorldView"]) {
+                    render_anatomy(database["Maps"]["MainPasture"],deadptr);
+                }
+            }
+            button {
+                "background-color" : "forestgreen";
+                standard_button_theme;
+                text "Step" {"color" : "white"};
+                "margin-left" : "12px";
+                "onclick" : capture(
+                    js_do("apply_theme(this,"+js_lit(skeleton_pulse.emit)+");"),
+                    js_do("snap_all();")
+                ){
+                    step_sim();
+                    full_display.reload;
+                    scripts_to_run.do(item => {
+                        emit_js(cast_to(#string,item));
+                    }); 
+                    scripts_to_run.clear;
+                    on_log_line = log_root;
+                };
+            }
+            div people_display {
+                "display" : "flex"; "flex-direction" : "row";
+                "padding" : "8px";
+                "gap" : "8px";
+                database.People.cells((personname,personptr) => {
+                    Object person = personptr;
+                    div {
+                        "width" : "120px";
+                        "display" : "flex"; "flex-direction" : "column";
+                        "align-items" : "center";
+                        "padding" : "12px";
+                        "gap" : "5px";
+                        "border-radius" : "12px";
+                        "box-shadow" : "0 4px 24px rgba(0,0,0,0.08)";
+                        "background-color" : "rgb(229, 226, 226)";
+                        text personname {
+                            "font-size" : "1.0rem";
+                            text_theme;
+                        }
+                        person.cells((k,v) => {
+                            if(k=="Acts") {
+
+                            } else if(k=="State") {
+                                div {
+                                    "display" : "flex";
+                                    "width" : "80%";
+                                    "justify-content" : "center";
+                                    div {
+                                        "padding" : "5px";
+                                        "background-color" : "forestgreen";
+                                        "border-radius" : "4px";
+                                        text v.label;
+                                    }
+                                    div {
+                                        "padding" : "5px";
+                                        "background-color" : "purple";
+                                        "border-radius" : "4px";
+                                        text to_string(getsidx(v));
+                                    }
+                                    "color" : "white";
+                                    text_theme;
+                                }
+                            } else if(k=="Inside") {
+                                if(is_live(v)) {
+                                    div {
+                                        "display" : "flex";
+                                        "width" : "80%";
+                                        "padding" : "5px";
+                                        "justify-content" : "center";
+                                        text v.label;
+                                        "color" : "white";
+                                        "background-color" : "maroon";
+                                        "border-radius" : "4px";
+                                        text_theme;
+                                    }
+                                }
+                            } else if(k=="UseAdrenaline") {
+                                div {
+                                    "display" : "flex";
+                                    "align-items" : "center";
+                                    "gap" : "6px";
+                                    text "Adrenaline" {text_theme;}
+                                    input {
+                                        "type" : "checkbox";
+                                        if(v) {
+                                            "checked" : "checked";
+                                        }
+                                        "onchange" : capture(
+                                            string pptr ; js_lit(capture_ptr(person))
+                                        ) {
+                                            Object actor = retrive_ptr(pptr);
+                                            bool& addrstate = actor.UseAdrenaline;
+                                            addrstate = !addrstate;
+                                        }
+                                    }
+                                }
+                            } else if(k=="ShowAnatomy") {
+                                button {
+                                    standard_button_theme;
+                                    text "Show anatomy";
+                                    "onclick" : capture(
+                                        string pptr ; js_lit(capture_ptr(person))
+                                    ) {
+                                        Object actor = retrive_ptr(pptr);
+                                        bool& showstate = actor.ShowAnatomy;
+                                        showstate = !showstate;
+                                        people_display.reload;
+                                    }
+                                }
+                            } else {
+                                if(false) {
+                                div {
+                                    "display" : "flex";
+                                    "width" : "100%";
+                                    "justify-content" : "start";
+                                    text_theme;
+                                    text k+":";
+                                    text to_string(v);
+                                }
+                                }
+                            }
+                        });
+                        text "Actions" {
+                            "font-size" : "0.9rem";
+                            text_theme;
+                        }
+                        button {
+                            text "Suffocate";
+                            "onclick" : capture(
+                                string pptr ; js_lit(capture_ptr(person))
+                            ) {
+                                Object actor = retrive_ptr(pptr);
+                                Object other = database["People"]["Person_1"];
+                                place_in(actor,other["AllParts"]["Stomach"]);
+
+                                full_display.reload;
+                            }
+                        }
+                        div {
+                            "gap" : "5px";
+                            "display" : "flex"; "flex-direction" : "column";
+                            person.Acts.cells((actname,act) => {
+                                button {
+                                    "background-color" : "dodgerblue";
+                                    standard_button_theme;
+                                    text actname;
+                                    if(actname=="Move") {
+                                        "onclick" : capture(
+                                            string actptr ; js_lit(capture_ptr(act)),
+                                            string pptr ; js_lit(capture_ptr(person)),
+                                            js_do("apply_theme(this,"+js_lit(skeleton_pulse.emit)+");"),
+                                            js_do("snap_all();"),
+                                            string fmovetarget; js_do("
+                                                return (async () => {
+                                                    const nodes = document.querySelectorAll('.movment_node');
+
+                                                    nodes.forEach(node => {
+                                                        if(node.dataset.nodeto==="+js_lit(capture_ptr(person.Inside))+") {
+                                                            node.style.border = '8px solid green';
+                                                        } else {
+                                                            node.style.border = '3px solid green';
+                                                        }
+                                                    });
+
+                                                    const result = await new Promise(resolve => {
+                                                        const handler = (e) => {
+                                                            const node = e.target.closest('.movment_node');
+                                                            if(!node) return;
+
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+
+                                                            document.removeEventListener('click', handler, true);
+                                                            resolve(node.getAttribute('data-nodeto'));
+                                                        };
+
+                                                        document.addEventListener('click', handler, true);
+                                                    });
+
+                                                    nodes.forEach(node => {
+                                                        node.style.border = 'none';
+                                                    });
+
+                                                    return result;
+                                                })();
+                                            ")
+                                        ) {
+
+                                            ColCol grid = database.Grid;
+                                            ColCol actions = database.Actions;
+                                            ColCol states = database.States;
+                                            string act_str = *retrive_ptr(actptr);
+                                            Object actor = retrive_ptr(pptr);
+                                            string actorkind = actor.as(ColCol).label;
+                                            Ptr acts = actor.Acts;
+                                            acts.clear;
+
+                                            Object movetarget = retrive_ptr(fmovetarget);
+
+                                            Node tttroot = compile(act_str);
+                                            execut tttroot;
+                                            full_display.reload;
+
+                                            scripts_to_run.do(item => {
+                                                emit_js(cast_to(#string,item));
+                                            }); 
+                                            scripts_to_run.clear;
+                                            on_log_line = log_root;
+                                        }
+                                    } else {
+                                        "onclick" : capture(
+                                            string actptr ; js_lit(capture_ptr(act)),
+                                            string pptr ; js_lit(capture_ptr(person)),
+                                            js_do("apply_theme(this,"+js_lit(skeleton_pulse.emit)+");"),
+                                            js_do("snap_all();")
+                                        ){
+                                            ColCol grid = database.Grid;
+                                            ColCol actions = database.Actions;
+                                            ColCol states = database.States;
+                                            string act_str = *retrive_ptr(actptr);
+                                            Object actor = retrive_ptr(pptr);
+                                            string actorkind = actor.as(ColCol).label;
+                                            Ptr acts = actor.Acts;
+                                            acts.clear;
+                                            Node tttroot = compile(act_str);
+                                            execut tttroot;
+                                            full_display.reload;
+
+                                            scripts_to_run.do(item => {
+                                                emit_js(cast_to(#string,item));
+                                            }); 
+                                            scripts_to_run.clear;
+                                            on_log_line = log_root;
+                                            
+                                        }
+                                    }
+                                }
+                            });
+                        }
+                    }
+                    if(person.ShowAnatomy) {
+                        render_anatomy(person,deadptr);
+                    }
+                    if(is_live(person.Inside)){
+                        if(database["Common"]["Flags"]["WorldView"]) {
+                            string insidekind = root_part_owner(person.Inside).as(ColCol).label;
+                            if(insidekind!="Maps") {
+                                render_anatomy(root_part_owner(person.Inside),person.Inside);
+                            }
+                        } else {
+                            render_anatomy(root_part_owner(person.Inside),person.Inside);
+                        }
+                    }
+                });
+            }
+        }
+        div {
+            "position" : "fixed";
+            "bottom" : "0";
+            "right" : "0";
+            "width" : "30vw";
+            "height" : "70vh";
+            "z-index" : "100";
+
+            "display" : "flex";
+            "flex-direction" : "column-reverse";
+            "overflow-y" : "auto";
+
+            "padding" : "12px";
+            "border" : "1px solid gainsboro";
+            "background-color" : "rgba(2, 2, 2, 0.08)";
+
+            print_log(log_root);
+        }
+    }
+}

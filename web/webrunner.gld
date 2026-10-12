@@ -559,6 +559,18 @@ if(arg_whitelist.length!=0) {
     }
 }
 
+string arg_scriptcode = unit_get_arg("--script=");
+if(arg_scriptcode.length!=0) {
+    Node scriptroot = compile(read_file(arg_scriptcode));
+    execut scriptroot;
+} else if(project_path.length>0) {
+    string potential_scriptpath = project_path+"script.gld";
+    if(file_exists(potential_scriptpath)) {
+        Node scriptroot = compile(read_file(potential_scriptpath));
+        execut scriptroot;
+    }
+}
+
 global int cfd = 0;
 global func ws_disconnect_function = deadptr;
 global func ws_post_function = deadptr;

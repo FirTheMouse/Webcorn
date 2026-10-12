@@ -117,22 +117,23 @@ function read_run_response(response) {
     return to_return;
 }
 
-function run(ptr, ...captures) {
-    const body = [ptr, ...captures].join('@'); //@ is the delmiter we use for runs
+async function run(ptr, ...captures) {
+    captures = await Promise.all(captures);
+
+    const body = [ptr, ...captures].join('@');
 
     if(window.ws && window.ws.readyState === WebSocket.OPEN) {
-        window.ws.send('RUN '+body);
-        return Promise.resolve();
+        window.ws.send('RUN ' + body);
+        return;
     }
 
-    return fetch(window.location.pathname, {
+    const response = await fetch(window.location.pathname, {
         method: 'RUN',
         body: body
-    }).then(r => r.text()).then(response => {
-        return read_run_response(response);
     });
-}
 
+    return read_run_response(await response.text());
+}
 function emit_reload(el) {
     fetch(window.location.pathname, {
         method: 'JSRELOAD',

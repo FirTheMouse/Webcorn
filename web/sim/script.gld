@@ -1,0 +1,403 @@
+
+        Ptr randcell() {
+            ColCol grid = database.Grid;
+            Ptr& cell = grid[randi(0,grid.length-1)][randi(0,grid[0].length-1)];
+            return &cell;
+        }
+        global int roll_save_for(Object actor) {
+            int& energy = actor.Energy;
+            int saveroll = randi(0,20);
+            int score = saveroll+energy;
+            if(actor.UseAdrenaline) {
+                energy = energy-1;
+                score = score+3;
+            } else {
+                int injury = 0;
+                score = score-injury;
+            }
+            return score;
+        }
+        global void place_in(Object tomove, Ptr place) {
+            string placekind = place.as(ColCol).label;
+            if(is_live(tomove.Inside)) {
+                string insidekind = tomove.Inside.as(ColCol).label;
+                Ptr with = tomove.Inside.as(Object).With;
+                if(with.has(tomove.label)) {
+                    with.take(tomove.label);
+                } else {
+                    print(red(tomove.label," is not in ",tomove.Inside.label,"(",tomove.Inside,") as expected"));
+                    print_col(with);
+                }
+            }
+            tomove.Inside = place;
+            Object part = place;
+            part.With.put(tomove.label,tomove);
+        }
+        global void force_react_in(Object actor, Ptr place, string reactkind, int reaction_phase) {
+            string placekind = place.as(ColCol).label;
+            ColCol grid = database.Grid;
+            ColCol actions = database.Actions;
+            ColCol states = database.States;
+            Object part = place;
+            Object movetarget = deadptr;
+            part.With.do_back(withptr => {
+                Object other = withptr;
+                if(cast_to_Ptr(other)!=cast_to_Ptr(actor)) {
+                    if(actions.has(reactkind)) {
+                        Object actee = other;
+                        string acteekind = other.as(ColCol).label;
+                        string acteestatekind = actee.State.label;
+                        Node ttroot = compile(*actions[reactkind]);
+                        execut ttroot;
+                    } else {
+                        print(red("Missing react kind: "),reactkind);
+                    }
+                }
+            });
+            part.Parts.do_back(subpartptr => {
+                Object subpart = subpartptr;
+                force_react_in(actor,subpart,reactkind,reaction_phase);
+            });
+        }
+        global Object root_part_owner(Object part) {
+            if(part.?Owner) {
+                if(part.Owner.?AllParts) {
+                    return part.Owner;
+                } else {
+                    return root_part_owner(part.Owner);
+                }
+            } else {
+                print(red("Part ",part.label," has no owner!"));
+                return deadptr;
+            }
+        }
+        global int tally_part_capability(Object part, Object actor) {
+            int capability = part.Capability;
+            int total_capeff = 0;
+            int total_pain = 0;
+            part.Conditions.do(condition => {
+                int capeff = condition.as(Object).CapabilityEffect;
+                total_capeff = total_capeff+capeff;
+                if(!actor.UseAdrenaline) {
+                    int pain = condition.as(Object).Pain;
+                    total_pain = total_pain+pain;
+                }
+            });
+            if(capability<0) {
+                capability = min(0,capability+total_capeff);
+            } else {
+                capability = max(0,capability+total_capeff);
+            }
+            capability = capability-total_pain;
+            part.Parts.do_back(subpartptr =>{
+                Object subpart = subpartptr;
+                capability=capability+tally_part_capability(subpart,actor);
+            });
+            return capability;
+        }
+        global void proc_parts(Object part, Object actor) {
+            if(part.?Proc) {
+                Node partroot = compile(part.Proc);
+                execut partroot;
+            }
+            for(int i=part.Parts.length-1;i>=0;i=i-1) {
+                proc_parts(part.Parts.get(i),actor);
+            }
+        }
+        global void increase_bloodflow_part_proc(Object part, int by) {
+            part.CirculateIn.do(from => {
+                repeat(by) {
+                    from.CirculateOut.push(part);
+                }
+            });
+        }
+        global void standard_part_proc(Object part) {
+            if(part.?Conditions) {
+                int healing = 0;
+                part.Conditions.do(v => {
+                    Object condition = v;
+                    int& pain = condition.Pain;
+                    int& capeff = condition.CapabilityEffect;
+                    if(!condition.?Permanent) {
+                        if(capeff>0) {
+                            if(condition.?Heals) {
+                                healing=healing+1;
+                            }
+                            capeff = max(0,capeff-1);
+                        }
+                        pain = max(0,pain-1);
+                    }
+                });
+                part.Conditions.do(v => {
+                    Object condition = v;
+                    int& pain = condition.Pain;
+                    int& capeff = condition.CapabilityEffect;
+                    if(!condition.?Permanent) {
+                        if(capeff<0) {
+                            if(healing>0) {
+                                healing=healing-1;
+                                capeff = min(0,capeff+1);
+                            }
+                        }
+                    }
+                });
+
+                Ptr circto = deadptr;
+                if(part.?CirculateOut) {
+                    circto = part.CirculateOut;
+                }
+
+                part.Conditions.do_back((v,indx) => {
+                    Object condition = v;
+                    int& pain = condition.Pain;
+                    int& capeff = condition.CapabilityEffect;
+                    string conditionkind = condition.label;
+
+                    if(condition.?Temporary) {
+                        recycle(part.Conditions.take(indx));
+                    } else if(capeff==0&&(pain==0)) {
+                        recycle(part.Conditions.take(indx));
+                    } else if(is_live(circto)) {
+                        if(conditionkind=="Bloodflow") {
+                            Object target = *circto;
+                            target.Conditions.push(part.Conditions.take(indx));
+                            setsidx(circto,getsidx(circto)+1);
+                            if(getsidx(circto)>=circto.length) {
+                                setsidx(circto,0);
+                            }
+                        }
+                    }
+                });
+
+                if(is_live(circto)) {
+                    circto.do_back((v,indx)=>{
+                        if((&v).celllabel.length==0) {
+                            circto.take(indx);
+                        }
+                    });
+                }
+            }
+        }
+        global Object add_condition(Object part, string name, int capability_effect, int pain) {
+            Object condition = database.Conditions.Object(
+                CapabilityEffect: capability_effect,
+                Pain: pain,
+            );
+            condition.label(name);
+            part.Conditions.push(condition);
+            return condition;
+        }
+
+        global Object on_log_line = deadptr;
+
+        global Object log_thing(int severity, string msg) {
+            Object obj = database.Logs.Object(
+                Severity: severity, 
+                Children: [Object]
+            );
+            obj.label(msg);
+            if(is_live(on_log_line)) {
+                on_log_line.Children.push(obj);
+            }
+            return obj;
+        }
+        global Object log_scripted_thing(int severity, string msg, string logscript) {
+            Object obj = log_thing(severity,msg);
+            obj.Script = logscript;
+            return obj;
+        }
+
+        global Object log_root;
+
+        if(database.Logs.length>0) {
+            log_root = database.Logs.get(0);
+        } else {
+            log_root = log_thing(0,"Log");
+        }
+        on_log_line = log_root;
+
+        global string color_of_severity(int severity) {
+            if(severity==0) { return "rgb(219, 219, 219)"; }
+            else if(severity==1) { return "rgb(50, 182, 24)"; }
+            else if(severity==2) { return "rgb(200,140,0)"; }
+            else if(severity==3) { return "rgb(210,60,60)"; }
+            else if(severity==4) { return "rgb(159, 28, 28)"; }
+            else { return "rgb(145,90,180)"; }
+        }
+        global static Ptr Ptr scripts_to_run;
+
+        global void step_sim {
+            print("==STEPPING==");
+            ColCol grid = database.Grid;
+            ColCol actions = database.Actions;
+            ColCol states = database.States;
+            on_log_line = log_thing(0,"==TURN "+to_string(log_root.Children.length)+"==");
+            Object movetarget = deadptr;
+
+            database.Things.cells((thingname,thingptr) => {
+                Object actor = thingptr;
+                Ptr current_state = actor.State;
+                if(is_live(current_state)) {
+                    string actorkind = actor.as(ColCol).label;
+                    Ptr acts = actor.Acts;
+                    acts.clear;
+                    Node troot = compile(*current_state);
+                    execut(troot);
+                }
+            });
+            database.Animals.cells((animalname,animalptr) => {
+                Object actor = animalptr;
+                string actorkind = actor.as(ColCol).label;
+                Ptr cow_actions = actions;
+
+                actor.Parts.do(part => {proc_parts(part,actor);});
+
+                Ptr& acts = actor.Acts;
+                Ptr desired_act = deadptr;
+                if(acts.length==0) {
+                    desired_act = actor.State;
+                } else {
+                    int energy = actor.Energy;
+                    for(int i=0;i<10;i++) {
+                        if(i<energy) {
+                            acts.push(actions["move"]);
+                        } else {
+                            acts.push(actions["rest"]);
+                        }
+                    }
+                    int hunger = actor.Hunger;
+                    for(int i=0;i<hunger;i++) {
+                        acts.push(actions["shift"]);
+                    }
+                    desired_act = acts.rand;
+                    actor.State = desired_act;
+                }
+                if(is_live(desired_act)) {
+                    Node troot = compile(*desired_act);
+                    acts.clear;
+                    execut(troot);
+                } else {
+                    print(red(actor.label," had a dead state"));
+                }
+            });
+            database.People.cells((personname,personptr) => {
+                Object actor = personptr;
+                    actor.Parts.do(part => {proc_parts(part,actor);});
+                string actorkind = actor.as(ColCol).label;
+                Ptr current_state = actor.State;
+                Ptr acts = actor.Acts;
+                acts.clear;
+                Node troot = compile(*current_state);
+                execut(troot);
+            });
+        }
+    
+            global void move_act(Object actor, Object movetarget) {
+                ColCol grid = database.Grid;
+                ColCol actions = database.Actions;
+                ColCol states = database.States;
+                string actorkind = actor.as(ColCol).label;
+                if(actor.Energy>1) {
+                    if(is_live(movetarget)) {
+                        string insidecalled = actor.Inside.label;
+                        string targetcalled = movetarget.label;
+                        log_scripted_thing(0,(actor.label)+" moved from "+insidecalled+" to "+targetcalled,"flip("+js_lit(actor.label)+",600);");
+                        place_in(actor,movetarget);
+                        actor["Acts"]["Move"] = actions["move"];
+                        //actor.Energy = actor.Energy-1;
+                    } else {
+                        Object moveto = actor.Inside.Connects.rand;
+                        if(is_live(moveto)) {
+                            string insidecalled = actor.Inside.label;
+                            string targetcalled = moveto.label;
+
+                            log_thing(0,(actor.label)+" is leaving "+insidecalled);
+                            if(actorkind=="Animals") {
+                                actor.Parts.do(part => {force_react_in(actor,part,"react_animal_move",0);});
+                                force_react_in(actor,actor.Inside,"react_animal_move",0);
+                            }
+                            log_scripted_thing(0,(actor.label)+" arrived at "+targetcalled,"flip("+js_lit(actor.label)+",600);");
+                            place_in(actor,moveto);
+                            actor["Acts"]["Move"] = actions["move"];
+                            //actor.Energy = actor.Energy-1;
+                            if(actorkind=="Animals") {
+                                actor.Parts.do(part => {force_react_in(actor,part,"react_animal_move",1);});
+                                force_react_in(actor,actor.Inside,"react_animal_move",1);
+                            }
+                        } else {
+                            print(red(actor.label," attempted to move to an invalid position from ",actor.Inside.label));
+                        }
+                    }
+                } else {
+                    log_thing(0,(actor.label)+" is too tired to move");
+                }
+                actor["Acts"]["Rest"] = actions["rest"];
+            }
+          
+            global void react_animal_move(Object actor, Object actee, int reaction_phase) {
+                string acteekind = actee.as(ColCol).label;
+                ColCol grid = database.Grid;
+                ColCol actions = database.Actions;
+                ColCol states = database.States;
+                if(acteekind=="Animals") {
+
+                } else {       
+                    Object inside = actee.Inside;
+                    string insidekind = inside.as(ColCol).label;          
+                    if(insidekind=="Parts") {
+                        int luckroll = randi(0,8);
+                        if(reaction_phase==0) {
+                            if(luckroll>getsidx(actee.State)) {
+                                log_thing(1,(actee.label)+" was left behind as "+(actor.label)+" moved");
+                                place_in(actee,actor.Inside);
+                                setsidx(actee.State,0);
+                            }
+                        } else {
+                            luckroll = luckroll-3;
+                            if(luckroll>getsidx(actee.State)) {
+                                log_thing(1,(actee.label)+" was flung from "+(actor.label)+"'s hoof while it was moving");
+                                place_in(actee,actor.Inside);
+                                setsidx(actee.State,0);
+                                actee.Injury = actee.Injury+1;
+                            } else {
+                                log_thing(3,(actee.label)+" is crushed further beneath "+(actor.label)+"'s hoof as it lands");
+                                setsidx(actee.State,min(getsidx(actee.State)+1,actee.State.length-1));
+                                actee["Acts"]["Struggle"] = actions["recover"];
+                                actee.Injury = actee.Injury+3;
+                            }
+                        }
+                    } else {
+                        int margin = roll_save_for(actee)-10;
+                        if(reaction_phase==0) {
+                            if(margin>=0) {
+                                log_scripted_thing(2,(actee.label)+" dodged out of the way of "+(actor.label)+"'s hoof","getel("+js_lit(actee.label)+").style.color = 'green';");
+                            } else if(margin>=-5) {
+                                log_scripted_thing(3,(actee.label)+" was hit by "+(actor.label)+"'s hoof, knocking them to the ground","getel("+js_lit(actee.label)+").style.color = 'red';");
+                                actee["Acts"]["Get up"] = actions["recover"];
+                                actee.State = states[acteekind]["impacted"];
+                                actee.Injury = actee.Injury+1;
+                            } else {
+                                log_scripted_thing(4,(actee.label)+" was struck by "+(actor.label)+"'s hoof, causing serious injury","getel("+js_lit(actee.label)+").style.color = 'red';");
+                                actee["Acts"]["Struggle"] = actions["recover"];
+                                actee.State = states[acteekind]["impacted"];
+                                actee.Injury = actee.Injury+3;
+                            }
+                        } else {
+                            if(margin>=0) {
+                                log_scripted_thing(2,(actee.label)+" dodged out of the way of "+(actor.label)+"'s hoof as it landed","getel("+js_lit(actee.label)+").style.color = 'green';");
+                            } else if(margin>=-2) {
+                                log_scripted_thing(3,(actee.label)+" was thrown back by "+(actor.label)+"'s hoof as it landed","getel("+js_lit(actee.label)+").style.color = 'red';");
+                                actee["Acts"]["Get up"] = actions["recover"];
+                                actee.State = states[acteekind]["impacted"];
+                            } else {
+                                log_scripted_thing(4,(actee.label)+" was pinned beneath "+(actor.label)+"'s hoof","getel("+js_lit(actee.label)+").style.color = 'red';");
+                                actee["Acts"]["Struggle"] = actions["recover"];
+                                actee.State = states[acteekind]["impacted"];
+                                setsidx(actee.State,1);
+                                place_in(actee,actor.Parts.Leg);
+                            }
+                        }
+                    }
+                }
+            }
+            

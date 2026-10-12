@@ -273,7 +273,7 @@ if(reset) {
             class_test_users.clear_lock;
     class_test.save;
 
-    ColCol class_database = database["Classes"].add(string,"Lookup");
+    Ptr class_database = database["Classes"].add(string,"Lookup");
     class_database.init(GLOBAL: "web/electionmadness/classes/global.gsu", testing: "web/electionmadness/classes/testing.gsu");
     class_database.clear_lock;
 
@@ -293,4 +293,53 @@ ColColCol cache = usubunits.add("web/electionmadness/cache.gsu");
         classes.add(Ptr,"Lookup");
 cache.clear_all_locks;
 cache.save;
+
+
+if(true) {
+    ColCol lookup = database.getOrPut("QuickClassLookup");
+    lookup.clear;
+    Ptr class_database = database["Classes"]["Lookup"];
+
+    string classdata = read_file(project_path+"files/classes.csv");
+    split_str(classdata,"\n").do(classcol => {
+        if(!classcol-?) {
+            split_str(classcol,",").do(uni => {
+                lookup.add(string,uni);
+            });
+        } else {
+            split_str(classcol,",").do((classcode,indx) => {
+                if(classcode.length>0) {
+                    string classpath;
+                    if(class_database.has(classcode)) {
+                        classpath = class_database[classcode];
+                        if(!file_exists(classpath)) {
+                            ColColCol new_class = usubunits.add(classpath);
+                                ColCol new_class_common = new_class.add("Common");
+                                    new_class_common.add(Ptr,"Sessions");
+                                    new_class_common.add(int,"Tally");
+                                ColCol new_class_users = new_class.add("Users");
+                            new_class.clear_all_locks;
+                            new_class.save;
+                        }
+                    } else {
+                        classpath = database["Classes"].add(char);
+                        classpath = cast_to_string(project_path+"classes/"+classcode+".gsu");
+                        if(!file_exists(classpath)) {
+                            ColColCol new_class = usubunits.add(classpath);
+                                ColCol new_class_common = new_class.add("Common");
+                                    new_class_common.add(Ptr,"Sessions");
+                                    new_class_common.add(int,"Tally");
+                                ColCol new_class_users = new_class.add("Users");
+                            new_class.clear_all_locks;
+                            new_class.save;
+                        }
+                        class_database.put(classcode,classpath);
+                    }
+                    lookup[indx].put(classcode,classpath);
+                }
+            });
+        }
+    });
+    database.save;
+}
 
