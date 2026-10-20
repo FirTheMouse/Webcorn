@@ -20,10 +20,8 @@ if(unit_has_arg("--init")) {
             }
             return score;
         }
-        global void place_in(Object tomove, Ptr place) {
-            string placekind = place.as(ColCol).label;
+        global void place_in(Object tomove, Object place) {
             if(is_live(tomove.Inside)) {
-                string insidekind = tomove.Inside.as(ColCol).label;
                 Ptr with = tomove.Inside.as(Object).With;
                 if(with.has(tomove.label)) {
                     with.take(tomove.label);
@@ -33,8 +31,7 @@ if(unit_has_arg("--init")) {
                 }
             }
             tomove.Inside = place;
-            Object part = place;
-            part.With.put(tomove.label,tomove);
+            place.With.put(tomove.label,tomove);
         }
         global void force_react_in(Object actor, Ptr place, string reactkind, int reaction_phase) {
             string placekind = place.as(ColCol).label;
@@ -74,29 +71,67 @@ if(unit_has_arg("--init")) {
                 return deadptr;
             }
         }
-        global int tally_part_capability(Object part, Object actor) {
-            int capability = part.Capability;
-            int total_capeff = 0;
-            int total_pain = 0;
-            part.Conditions.do(condition => {
-                int capeff = condition.as(Object).CapabilityEffect;
-                total_capeff = total_capeff+capeff;
-                if(!actor.UseAdrenaline) {
-                    int pain = condition.as(Object).Pain;
-                    total_pain = total_pain+pain;
+        global int calculate_part_integrity(Object part) {
+            if(part.?Capability) {
+                int capability = part.Capability;
+                int total_capeff = 0;
+                part.Conditions.do(condptr => {
+                    Object cond = condptr;
+                    if(cond.?CapabilityEffect) {
+                        int capeff = cond.CapabilityEffect;
+                        // if(cond.?Kind) {
+                        //     if(part.?Weakness) {
+                        //         if(part.Weakness.has(cond.Kind)) {
+                        //             capeff = mult_by_factor(capeff,part["Weakness"][cond.Kind]);
+                        //         }
+                        //     }
+                        // }
+                        total_capeff = total_capeff+capeff;
+                    }
+                });
+                if(capability<0) {
+                    capability = min(0,capability+total_capeff);
+                } else {
+                    capability = max(0,capability+total_capeff);
                 }
-            });
-            if(capability<0) {
-                capability = min(0,capability+total_capeff);
+                return capability;
             } else {
-                capability = max(0,capability+total_capeff);
+                return 0;
             }
-            capability = capability-total_pain;
-            part.Parts.do_back(subpartptr =>{
-                Object subpart = subpartptr;
-                capability=capability+tally_part_capability(subpart,actor);
-            });
-            return capability;
+        }
+        global int tally_part_capability(Object part, Object actor) {
+            if(part.?Capability) {
+                int capability = part.Capability;
+                int total_capeff = 0;
+                int total_pain = 0;
+                part.Conditions.do(condptr => {
+                    Object cond = condptr;
+                    if(cond.?CapabilityEffect) {
+                        int capeff = cond.CapabilityEffect;
+                        total_capeff = total_capeff+capeff;
+                    }
+                    if(cond.?Pain) {
+                        if(!actor.UseAdrenaline) {
+                            int pain = cond.Pain;
+                            total_pain = total_pain+pain;
+                        }
+                    }
+                });
+                if(capability<0) {
+                    capability = min(0,capability+total_capeff);
+                } else {
+                    capability = max(0,capability+total_capeff);
+                }
+                capability = capability-total_pain;
+                part.Parts.do_back(subpartptr =>{
+                    Object subpart = subpartptr;
+                    capability=capability+tally_part_capability(subpart,actor);
+                });
+                return capability;
+            } else {
+                print(red(part.label," has no capability"));
+                return 0;
+            }
         }
         global void proc_parts(Object part, Object actor) {
             if(part.?Proc) {
@@ -119,27 +154,36 @@ if(unit_has_arg("--init")) {
                 int healing = 0;
                 part.Conditions.do(v => {
                     Object condition = v;
-                    int& pain = condition.Pain;
-                    int& capeff = condition.CapabilityEffect;
-                    if(!condition.?Permanent) {
-                        if(capeff>0) {
-                            if(condition.?Heals) {
-                                healing=healing+1;
+                    if(condition.?CapabilityEffect) {
+                        int& capeff = condition.CapabilityEffect;
+                        if(!condition.?Permanent) {
+                            if(capeff>0) {
+                                if(condition.?Heals) {
+                                    healing=healing+1;
+                                }
+                                capeff = max(0,capeff-1);
                             }
-                            capeff = max(0,capeff-1);
                         }
+                    }
+                    if(condition.?Pain) {
+                        int& pain = condition.Pain;
                         pain = max(0,pain-1);
+                    }
+                    if(condition.?Duration) {
+                        int& duration = condition.Duration;
+                        duration = max(0,duration-1);
                     }
                 });
                 part.Conditions.do(v => {
                     Object condition = v;
-                    int& pain = condition.Pain;
-                    int& capeff = condition.CapabilityEffect;
-                    if(!condition.?Permanent) {
-                        if(capeff<0) {
-                            if(healing>0) {
-                                healing=healing-1;
-                                capeff = min(0,capeff+1);
+                    if(condition.?CapabilityEffect) {
+                        int& capeff = condition.CapabilityEffect;
+                        if(!condition.?Permanent) {
+                            if(capeff<0) {
+                                if(healing>0) {
+                                    healing=healing-1;
+                                    capeff = min(0,capeff+1);
+                                }
                             }
                         }
                     }
@@ -152,21 +196,33 @@ if(unit_has_arg("--init")) {
 
                 part.Conditions.do_back((v,indx) => {
                     Object condition = v;
-                    int& pain = condition.Pain;
-                    int& capeff = condition.CapabilityEffect;
                     string conditionkind = condition.label;
-
                     if(condition.?Temporary) {
                         recycle(part.Conditions.take(indx));
-                    } else if(capeff==0&&(pain==0)) {
-                        recycle(part.Conditions.take(indx));
-                    } else if(is_live(circto)) {
-                        if(conditionkind=="Bloodflow") {
-                            Object target = *circto;
-                            target.Conditions.push(part.Conditions.take(indx));
-                            setsidx(circto,getsidx(circto)+1);
-                            if(getsidx(circto)>=circto.length) {
-                                setsidx(circto,0);
+                    } else if(condition.?Duration) {
+                        int& duration = condition.Duration;
+                        if(duration==0) {
+                            recycle(part.Conditions.take(indx));
+                        }
+                    } else if(condition.?CapabilityEffect) {
+                        int& capeff = condition.CapabilityEffect;
+                        if(capeff==0) {
+                            if(condition.?Pain) {
+                                int& pain = condition.Pain;
+                                if(pain==0) {
+                                    recycle(part.Conditions.take(indx));
+                                }
+                            } else {
+                                recycle(part.Conditions.take(indx));
+                            }
+                        } else if(is_live(circto)) {
+                            if(conditionkind=="Bloodflow") {
+                                Object target = *circto;
+                                target.Conditions.push(part.Conditions.take(indx));
+                                setsidx(circto,getsidx(circto)+1);
+                                if(getsidx(circto)>=circto.length) {
+                                    setsidx(circto,0);
+                                }
                             }
                         }
                     }
@@ -181,16 +237,72 @@ if(unit_has_arg("--init")) {
                 }
             }
         }
-        global Object add_condition(Object part, string name, int capability_effect, int pain) {
-            Object condition = database.Conditions.Object(
-                CapabilityEffect: capability_effect,
-                Pain: pain,
-            );
+        global Object add_condition(Object part, string name) {
+            Object condition = database.Conditions.add(Ptr);
             condition.label(name);
             part.Conditions.push(condition);
             return condition;
         }
+        global Object add_injury_condition(Object part, string name, int severity, int pain) {
+            Object condition = add_condition(part,name);
+            condition.CapabilityEffect = -severity;
+            condition.Pain = pain;
+            return condition;
+        }
+        global Object add_resource_condition(Object part, string name, int capability_effect) {
+            Object condition = add_condition(part,name);
+            condition.CapabilityEffect = capability_effect;
+            return condition;
+        }
 
+        global void make_sensory_condition(Object root_part, Object part, string name, Ptr& sense, int distance, int duration, string kind, int subkind) {
+            int senselen = sense.length;
+            if(senselen>distance) {
+                Ptr& partcond = part.Conditions;
+                if(partcond.has(name)) {
+                    partcond.get(name).Duration = duration;
+                } else {
+                    //print("Propagaing ",name," to ",part.label);
+                    Object condition = database.Conditions.add(Ptr);
+                    condition.label(name);
+                    part.Conditions.put(name,condition);
+                    condition.init(
+                        Duration: duration,
+                        Intensity: senselen-distance, 
+                        Subkind: subkind,
+                        kind: sense[distance],
+                    );
+                    if(part.?Regions) {
+                        part.Regions.do(regionptr => {
+                            Object region = regionptr;
+                            make_sensory_condition(root_part,region,name,sense,distance,duration,kind,subkind);
+                        });
+                    }
+                    if(part.?Connects) {
+                        part.Connects.do(partptr => {
+                            Object otherpart = partptr;
+                            make_sensory_condition(root_part,otherpart,name,sense,distance+1,duration,kind,subkind);
+                        });
+                    }
+                    if(part.?Exposed) {
+                        make_sensory_condition(root_part,part.Exposed.Inside,name,sense,distance+1,duration,kind,subkind);
+                    }
+                    if(kind=="Sound") {
+                        if(part.?Inside) {
+                            if(is_live(part.Inside)) {
+                                make_sensory_condition(root_part,part.Inside,name,sense,distance+2,duration,kind,subkind);
+                            }
+                        }
+                        if(part.?Touching) {
+                            part.Touching.do(partptr => {
+                                Object otherpart = partptr;
+                                make_sensory_condition(root_part,otherpart,name,sense,distance+1,duration,kind,subkind);
+                            });
+                        }
+                    }
+                }
+            }
+        }
         global Object on_log_line = deadptr;
 
         global Object log_thing(int severity, string msg) {
@@ -239,13 +351,18 @@ if(unit_has_arg("--init")) {
 
             database.Things.cells((thingname,thingptr) => {
                 Object actor = thingptr;
-                Ptr current_state = actor.State;
-                if(is_live(current_state)) {
-                    string actorkind = actor.as(ColCol).label;
-                    Ptr acts = actor.Acts;
-                    acts.clear;
-                    Node troot = compile(*current_state);
-                    execut(troot);
+                if(actor.?Parts) {
+                    actor.Parts.do(part => {proc_parts(part,actor);});
+                }
+                if(actor.?State) {
+                    Ptr current_state = actor.State;
+                    if(is_live(current_state)) {
+                        string actorkind = actor.as(ColCol).label;
+                        Ptr acts = actor.Acts;
+                        acts.clear;
+                        Node troot = compile(*current_state);
+                        execut(troot);
+                    }
                 }
             });
             database.Animals.cells((animalname,animalptr) => {
@@ -295,10 +412,186 @@ if(unit_has_arg("--init")) {
             });
         }
     `;
+
     ColColCol sub = usubunits.add(project_path+"data.gsu");
     ColCol common = sub.add("Common");
         Ptr flags = common.add(bool,"Flags");
             flags.put("WorldView",false);
+    ColCol materials = sub.add("Materials");
+    ColCol recipes = sub.add("Recipes");
+        recipes.Object(
+            Rate: 3,
+            Requires: recipes.add(Ptr).init(
+                Fluid: recipes.add(float).init(
+                    Acid: 0.4,
+                ),
+            ),
+            Input: recipes.add(Ptr).init(
+                Fluid: recipes.add(float).init(
+                    Sucrose: 1.2, Water: 1.0
+                ),
+            ),
+            Output: recipes.add(Ptr).init(
+                Fluid: recipes.add(float).init(
+                    Glucose: 0.5, Fructose: 0.5,
+                ),
+                Gas: recipes.add(float).init(
+                    Oxygen: 1.0,
+                ),
+            ),
+            Proc: "proc_AcidReact(region,repetitions);"
+        ).register("AcidReact0");
+        scriptcode.append(`
+            global void proc_AcidReact(Object region, int repetitions) {
+                Ptr string sounding; sounding.clear();
+                if(repetitions==1) {
+                    sounding.init(
+                        "faint hissing",
+                    );
+                } else if(repetitions==2) {
+                    sounding.init(
+                        "hissing",
+                        "faint hissing",
+                    );
+                } else if(repetitions==3) {
+                    sounding.init(
+                        "agressive hissing",
+                        "hissing",
+                        "faint hissing",
+                    );
+                }
+                make_sensory_condition(region.Inside,region,to_string(region.label,"AcidReactSound",partid),sounding,0,1,"Sound",0);
+            } 
+        `);
+
+
+        scriptcode.append(`
+            global void process_reactions(Object part) {
+                ColCol recipes = database["Recipes"];
+                part.Regions.do(regionptr => {
+                    Object region = regionptr;
+                    print("PROCESSING ",region.label);
+                    print("FLUID BEFORE:");  
+                    region.Fluid.cells((f,a) => {
+                        print("  ",f,": ",a);
+                    });
+                    print("GAS BEFORE:"); 
+                    region.Gas.cells((f,a) => {
+                        print("  ",f,": ",a);
+                    });
+                    print("REACTING");
+                    Ptr Ptr awaited_outputs; awaited_outputs.clear;
+                    recipes.cells((reactionname,reactionptr) => {
+                        Object reaction = reactionptr;
+                        bool avaliable = true;
+                        int repetitions = 0;
+                        repeat(reaction.Rate) {
+                            if(reaction.?Requires) {
+                                reaction.Requires.cells((category,components) => {
+                                    if(!avaliable) {break;}
+                                    if(region.has(category)) {
+                                        components.cells((kind,amt) => {
+                                            if(!region[category].has(kind)) {
+                                                avaliable = false;
+                                                break;
+                                            } 
+                                            if(region[category][kind]<amt) {
+                                                avaliable = false;
+                                                break;
+                                            } 
+                                        });
+                                        if(!avaliable) {break;}
+                                    } else {
+                                        avaliable = false;
+                                        break;
+                                    }
+                                });
+                            }
+                            reaction.Input.cells((category,components) => {
+                                if(!avaliable) {break;}
+                                if(region.has(category)) {
+                                    components.cells((kind,amt) => {
+                                        if(!region[category].has(kind)) {
+                                            avaliable = false;
+                                            break;
+                                        } 
+                                        if(region[category][kind]<amt) {
+                                            avaliable = false;
+                                            break;
+                                        } 
+                                    });
+                                    if(!avaliable) {break;}
+                                } else {
+                                    avaliable = false;
+                                    break;
+                                }
+                            });
+                            if(avaliable) {
+                                print("Performing ",reactionname);
+                                repetitions++;
+                                reaction.Input.cells((category,components) => {
+                                    components.cells((kind,amt) => {
+                                        region[category][kind]-=amt;                            
+                                    });
+                                });
+                                reaction.Output.cells((category,components) => {
+                                    awaited_outputs.put(category,components);
+                                });
+                            } else {
+                                break;
+                            }
+                        }
+                        if(repetitions>0) {
+                            if(reaction.?Proc) {
+                                Node reactionroot = compile(reaction.Proc);
+                                execut reactionroot;
+                            }
+                        }
+                    });
+                    awaited_outputs.cells((category,components) => {
+                        components.cells((kind,amt) => {
+                            region[category][kind]+=amt;                            
+                        });
+                    });
+                    print("FLUID AFTER:");  
+                    region.Fluid.cells((f,a) => {
+                        print("  ",f,": ",a);
+                    });
+                    print("GAS AFTER:"); 
+                    region.Gas.cells((f,a) => {
+                        print("  ",f,": ",a);
+                    });
+                });
+            }
+        `);
+
+        recipes.Object(
+            Rate: 1,
+            Input: recipes.add(Ptr).init(
+                Fluid: recipes.add(float).init(
+                    Glucose: 0.5, Water: 0.5
+                ),
+            ),
+            Output: recipes.add(Ptr).init(
+                Fluid: recipes.add(float).init(
+                    Sacrine: 1.0,
+                ),
+            ),
+        ).register("SacrineReact0");
+        recipes.Object(
+            Rate: 2,
+            Input: recipes.add(Ptr).init(
+                Gas: recipes.add(float).init(
+                    Oxygen: 0.2,
+                ),
+            ),
+            Output: recipes.add(Ptr).init(
+                Fluid: recipes.add(float).init(
+                    Stuff: 1.0,
+                ),
+            ),
+        ).register("StuffReact0");
+        
     ColCol partstore = sub.add("Parts");
         Object part_registry_target = deadptr;
         Object add_structural_part(Object owner, string name) {
@@ -312,6 +605,24 @@ if(unit_has_arg("--init")) {
             owner.Parts.put(name, part);
             if(is_live(part_registry_target)) {
                 part_registry_target.AllParts.put(name,part);
+                part_registry_target.AllPartsAndRegions.put(name,part);
+            }
+            return part;
+        }
+        Object add_region(Object owner, string name) {
+            Object part = partstore.Object(
+                Conditions: [Object],
+                With: [Object],
+                Owner: owner,
+                Fluid: [float],
+                Gas: [float],
+                Suspended: [float],
+            );
+            part.label(name);
+            if(!owner.?Regions) {owner.Regions = partstore.add(Object);}
+            owner.Regions.put(name, part);
+            if(is_live(part_registry_target)) {
+                part_registry_target.AllPartsAndRegions.put(name,part);
             }
             return part;
         }
@@ -325,12 +636,13 @@ if(unit_has_arg("--init")) {
                 Covers: [Object],
                 Owner: owner,
                 Inside: deadobj,
-                Proc: `standard_part_proc(part)`
+                //Proc: `standard_part_proc(part)`
             );
             part.label(name);
             owner.Parts.put(name, part);
             if(is_live(part_registry_target)) {
                 part_registry_target.AllParts.put(name,part);
+                part_registry_target.AllPartsAndRegions.put(name,part);
             }
             return part;
         }
@@ -338,22 +650,158 @@ if(unit_has_arg("--init")) {
             outer.Covers.put(inner.label, inner);
             inner.Inside = outer;
         }
-        void circulate_part(Object from, Object to) {
-            if(!from.?CirculateOut) {from.CirculateOut = partstore.add(Object);}
-            if(!to.?CirculateIn) {to.CirculateIn = partstore.add(Object);}
-            from.CirculateOut.put(to.label, to);
-            to.CirculateIn.put(from.label, from);
-        }
-        void connect_part(Object from, Object to) {
+        void connect_part(Object from, Object to, float size) {
+            Object connection = partstore.Object(
+                From: from,
+                To: to,
+                Size: size,
+                Length: 1.0,
+            );
+            //This ordering can not be changed without changing SIM_flow_connection
             if(!from.?Connects) {from.Connects = partstore.add(Object);}
             if(!to.?Connects) {to.Connects = partstore.add(Object);}
-            from.Connects.put(to.label, to);
-            to.Connects.put(from.label, from);
+            from.Connects.push(connection);
+            to.Connects.push(connection);
+        }
+        void circulate_part(Object from, Object to) {
+            if(!from.Regions.has("CirculateRegion")) {add_region(from,"CirculateRegion");}
+            if(!to.Regions.has("CirculateRegion")) {add_region(to,"CirculateRegion");}
+            connect_part(from.Regions.CirculateRegion,to.Regions.CirculateRegion,0.5);
+        }
+        scriptcode.append(`
+            global void circulate_proc(Object part) {
+
+                part.Regions.do(regionptr => {
+                    Object region = regionptr;
+                    print(" ",region.label," fluid before");
+                    region.Fluid.cells((f,v) => {
+                        print("  ",f,": ",v);
+                    });
+                    print(" ",region.label," gas before");
+                    region.Gas.cells((f,v) => {
+                        print("  ",f,": ",v);
+                    });
+                });
+
+                part.Regions.do(regionptr => {
+                    Object region = regionptr;
+                    if(region.?Connects) {
+                        region.Connects.do(connectionptr => {
+                            Object connection = connectionptr;
+                            if(connection.From==region) {
+                                SIM_flow_connection(connection);
+                            }
+                        });
+                    }
+                });
+
+                part.Regions.do(regionptr => {
+                    Object region = regionptr;
+                    print(" ",region.label," fluid after");
+                    region.Fluid.cells((f,v) => {
+                        print("  ",f,": ",v);
+                    });
+                    print(" ",region.label," gas after");
+                    region.Gas.cells((f,v) => {
+                        print("  ",f,": ",v);
+                    });
+                });
+            }
+        `);
+        void expose_part(Object part, Object actor) {
+            part.Exposed = actor;
+            if(!actor.?ExposedParts) {actor.ExposedParts = actor.as(ColCol).add(Object);}
+            actor.ExposedParts.put(part.label,part);
+        }
+        void touch_part(Object from, Object to) {
+            if(!from.?Touching) {from.Touching = partstore.add(Object);}
+            if(!to.?Touching) {to.Touching = partstore.add(Object);}
+            from.Touching.put(to.label, to);
+            to.Touching.put(from.label, from);
+        }
+        void offset_part_from_owner(Object part, int xoff, int yoff)  {
+            int ox = part.Owner.X;
+            int oy = part.Owner.Y;
+            part.X = ox+xoff;
+            part.Y = oy+yoff;
         }
     ColCol conditions = sub.add("Conditions");
     ColCol things = sub.add("Things");
+        void make_apple(int count) {
+            Object apple = things.Object(
+                X: 10,
+                Y: randi(10,75),
+                Scale: 10,
+                TokenImg: project_path+"files/Apple.webp",
+                With: [Object],
+                Parts: [Object],
+                AllParts: [Object],
+                AllPartsAndRegions: [Object],
+                Inside: deadobj,
+            ).register(to_string("Apple_",count));
+            Object appleskin = add_part(apple,"Skin");
+                appleskin.Capability = 12;
+                appleskin.Weakness = things.add(float).init(
+                    Acid: 0.5,
+                    Pressure: 2.0,
+                );
+            Object appleflesh = add_part(apple,"Flesh");
+                appleflesh.Capability = 48;
+                appleflesh.Weakness = things.add(float).init(
+                    Acid: 4,
+                    Pressure: 1.5,
+                );
+                cover_part(appleskin,appleflesh);
+            Object applecore = add_part(apple,"Core");
+                applecore.Capability = 32;
+                applecore.Weakness = things.add(float).init(
+                    Acid: 0.25,
+                    Pressure: 0.5,
+                );
+                cover_part(appleflesh,applecore);
+        }
+        make_apple(0);
+        make_apple(1);
+
+        Object thebox = things.Object(
+            X: 10,
+            Y: randi(10,75),
+            Scale: 10,
+            TokenImg: project_path+"files/Green.webp",
+            With: [Object],
+            Parts: [Object],
+            AllParts: [Object],
+            AllPartsAndRegions: [Object],
+            Inside: deadobj,
+        ).register(to_string("thebox"));
+        Object boxprocessor = add_part(thebox,"Processor");
+            Object chamberOne = add_region(boxprocessor,"ChamberOne");
+                chamberOne.Volume = 10.0;
+                chamberOne.Stiffness = 1.0;
+                chamberOne.Fluid.init(
+                    Water: 5.0
+                );
+                chamberOne.Gas.init(
+                    Oxygen: 8.0,
+                    CO2: 2.0
+                );
+
+            Object chamberTwo = add_region(boxprocessor,"ChamberTwo");
+                chamberTwo.Volume = 10.0;
+                chamberTwo.Stiffness = 1.0;
+                chamberTwo.Gas.init(
+                    Oxygen: 0.0,
+                    CO2: 0.0
+                );
+
+            connect_part(chamberOne,chamberTwo,1.5);
+        boxprocessor.Proc = `circulate_proc(part);`;
+        //boxprocessor.Proc = `process_reactions(part);`;
+        
+
     ColCol animals = sub.add("Animals");
-        int r_num = randi(3,6);
+        int r_num = 0;
+        //randi(3,6);
         for(int i=0;i<r_num;i++) {
             Object animal = animals.Object(
                 X: 10,
@@ -367,6 +815,7 @@ if(unit_has_arg("--init")) {
                 Acts: [Ptr],
                 Parts: [Object],
                 AllParts: [Object],
+                AllPartsAndRegions: [Object],
                 Inside: deadobj,
             ).register("Cow_"+to_string(i));
             animal.State = deadptr;
@@ -381,9 +830,9 @@ if(unit_has_arg("--init")) {
             Object shin = add_part(thigh, side+"Shin");
             Object foot = add_part(shin, side+"Foot");
 
-            connect_part(pelvis,thigh);
-            connect_part(thigh,shin);
-            connect_part(shin,foot);
+            connect_part(pelvis,thigh,1.0);
+            connect_part(thigh,shin,1.0);
+            connect_part(shin,foot,1.0);
 
             circulate_part(pelvis,thigh);
             circulate_part(thigh,shin);
@@ -394,15 +843,15 @@ if(unit_has_arg("--init")) {
             Object lower = add_part(upper, side+"LowerArm");
             Object hand = add_part(lower, side+"Hand");
 
-            connect_part(shoulder,upper);
-            connect_part(upper,lower);
-            connect_part(lower,hand);
+            connect_part(shoulder,upper,1.0);
+            connect_part(upper,lower,1.0);
+            connect_part(lower,hand,1.0);
 
             circulate_part(shoulder,upper);
             circulate_part(upper,lower);
             circulate_part(lower,hand);
         }
-        for(int i=0;i<2;i++) {
+        for(int i=0;i<0;i++) {
             Object person = people.Object(
                 X: 10,
                 Y: randi(10,75),
@@ -417,6 +866,7 @@ if(unit_has_arg("--init")) {
                 Acts: [Ptr],
                 Parts: [Object],
                 AllParts: [Object],
+                AllPartsAndRegions: [Object],
                 Inside: deadobj,
                 ShowAnatomy: false,
             ).register("Person_"+to_string(i));
@@ -425,27 +875,33 @@ if(unit_has_arg("--init")) {
             part_registry_target = person;
 
             Object chest = add_part(person, "Chest");
+                chest.Capability = 120;
                 Object leftshoulder = add_part(chest, "LeftShoulder");
-                    connect_part(chest,leftshoulder);
+                    connect_part(chest,leftshoulder,1.0);
                     circulate_part(chest,leftshoulder);
                     create_human_arm(leftshoulder, "Left");
                 Object rightshoulder = add_part(chest, "RightShoulder");
-                    connect_part(chest,rightshoulder);
+                    connect_part(chest,rightshoulder,1.0);
                     circulate_part(chest,rightshoulder);
                     create_human_arm(rightshoulder, "Right");
 
                 Object heart = add_part(chest, "Heart");
                     cover_part(chest, heart);
-                    heart.Proc = `
-                        int capability = tally_part_capability(part,actor);
-                        if(capability>0) {
-                            repeat(capability) {
-                                Object cond = add_condition(part,"Bloodflow",3,0);
-                                cond.Heals = true;
+                    heart.Proc = `human_heart_proc(part,actor);`;
+                    if(i==0) {
+                        scriptcode.append(`
+                            global void human_heart_proc(Object part,Object actor) {
+                                int capability = tally_part_capability(part,actor);
+                                if(capability>0) {
+                                    repeat(capability) {
+                                        Object cond = add_resource_condition(part,"Bloodflow",3);
+                                        cond.Heals = true;
+                                    }
+                                }
+                                standard_part_proc(part);
                             }
-                        }
-                        standard_part_proc(part); 
-                    `;
+                        `);
+                    }
                     circulate_part(heart,chest);
                 Object lungs = add_part(chest, "Lungs");
                     cover_part(chest, lungs);
@@ -454,14 +910,15 @@ if(unit_has_arg("--init")) {
                         int capability = tally_part_capability(part,actor); 
                         if(capability>0) {
                             part.Suppourts.do(subpart => {
-                                add_condition(subpart,"Oxygen",capability,0);
+                                add_resource_condition(subpart,"Oxygen",capability);
                             });
                         }
                         standard_part_proc(part); 
                     `;
 
             Object belly = add_part(chest, "Belly");
-                connect_part(chest,belly);
+                expose_part(belly,person);
+                connect_part(chest,belly,1.0);
                 circulate_part(chest,belly);
                 Object liver = add_part(belly, "Liver");
                     circulate_part(belly,liver);
@@ -471,61 +928,241 @@ if(unit_has_arg("--init")) {
                     cover_part(belly, kidneys);
 
             Object pelvis = add_part(belly, "Pelvis");
-                connect_part(belly,pelvis);
+                connect_part(belly,pelvis,1.0);
                 circulate_part(belly,pelvis);
                 create_human_leg(pelvis, "Left");
                 create_human_leg(pelvis, "Right");
 
             Object neck = add_part(chest, "Neck");
-                connect_part(chest,neck);
+                connect_part(chest,neck,1.0);
             Object head = add_part(neck, "Head");
-                connect_part(neck,head);
+                connect_part(neck,head,1.0);
 
             Object brain = add_part(head, "Brain");
                 cover_part(head,brain);
             Object face = add_part(head, "Face");
-                connect_part(neck,face);
-                connect_part(head,face);
+                connect_part(neck,face,1.0);
+                connect_part(head,face,1.0);
 
             Object eyes = add_part(face, "Eyes");
-                connect_part(face,eyes);
+                connect_part(face,eyes,1.0);
             Object nose = add_part(face, "Nose");   
-                connect_part(face,nose);
+                connect_part(face,nose,1.0);
+            Object ears = add_part(face, "Ears");
+                connect_part(face,ears,1.0);
 
             Object mouth = add_part(face, "Mouth");
-                connect_part(face,mouth);
+                connect_part(face,mouth,1.0);
                 mouth.Capability = 2;
                 mouth.Suppourts = partstore.add(Object).init(lungs);
                 mouth.Proc = `
                     int capability = tally_part_capability(part,actor);
                     if(capability>0) {
                         part.Suppourts.do(subpart => {
-                            add_condition(subpart,"Airflow",capability,0);
+                            add_resource_condition(subpart,"Airflow",capability);
                         });
                     }
                     standard_part_proc(part);  
                 `;
             Object throat = add_part(neck, "Throat");
-                connect_part(mouth,throat);
+                connect_part(mouth,throat,1.0);
                 cover_part(neck, throat);
             Object stomach = add_part(belly, "Stomach");
-                connect_part(throat,stomach);
+                connect_part(throat,stomach,1.0);
                 cover_part(belly, stomach);
+                touch_part(heart,stomach);
                 stomach.Capability = 0;
-                stomach.Proc = `
-                    part.With.do(withptr => {
-                        Object content = withptr;
-                        if(content.?AllParts) {
-                            if(content.get("AllParts").has("Mouth")) {
-                                Object cond = add_condition(content["AllParts"]["Mouth"],"BadAir",0-20,0);
-                                cond.Temporary = true;
+                stomach.Timers = stomach.as(ColCol).add(int);
+                stomach.Proc = `human_stomach_proc(part,actor);`;
+                if(i==0) {
+                    scriptcode.append(`
+                        void digest_content(Object content, Object region) {
+                            int contentcap = calculate_part_integrity(content);
+                            if(contentcap<=0) {
+                                if(content.?Covers) {
+                                    content.Covers.do(coveredptr => {
+                                        Object covered = coveredptr;
+                                        digest_content(covered,region);
+                                    });
+                                }
+                            } else {
+                                Object injury = add_injury_condition(content,"Acid",region.AcidLevel,region.AcidLevel);
+                                injury.Kind = "Acid";
+                                if(calculate_part_integrity(content)<=0) {
+                                    Ptr string sounding; sounding.clear();
+                                    sounding.init(
+                                        "agressive hissing",
+                                        "faint agressive hissing",
+                                    );
+                                    make_sensory_condition(region.Inside,region,to_string(region.label,"AcidSuccess",partid),sounding,0,1,"Sound",0);
+                                }
                             }
                         }
-                    });
-                    standard_part_proc(part);  
-                `;
+                        void squeeze_content(Object content, Object region) {
+                            int contentcap = calculate_part_integrity(content);
+                            if(contentcap<=0) {
+                                if(content.?Covers) {
+                                    content.Covers.do(coveredptr => {
+                                        Object covered = coveredptr;
+                                        squeeze_content(covered,region);
+                                    });
+                                }
+                            } else {
+                                int strength = randi(0,12);
+                                Object injury = add_injury_condition(content,"Squeeze",strength,strength);
+                                injury.Kind = "Preasure";
+                                if(calculate_part_integrity(content)<=0) {
+                                    Ptr string sounding; sounding.clear();
+                                    sounding.init(
+                                        "wet crunch",
+                                        "faint crunch",
+                                    );
+                                    make_sensory_condition(region.Inside,region,to_string(region.label,"SqueezeSuccess",partid),sounding,0,1,"Sound",0);
+                                } else {
+                                    string squeezelabel = to_string(region.label,"SqueezeFail",partid);
+                                    int crowd = region.With.length;
+                                    Ptr string sounding; sounding.clear();
+                                    if(crowd==1) {
+                                        sounding.init(
+                                            "wet squish",
+                                            "faint squish",
+                                        );
+                                    } else if(crowd==2) {
+                                        sounding.init(
+                                            "wet squishes",
+                                            "faint squishes",
+                                        );
+                                    } else {
+                                        sounding.init(
+                                            "may wet squishes",
+                                            "a lot of faint squishes",
+                                            "faint squishing",
+                                        );
+                                    }
+                                    make_sensory_condition(region.Inside,region,squeezelabel,sounding,0,1,"Sound",0);
+                                }
+                            }
+                        }
+
+                        global void human_stomach_proc(Object part, Object actor) {
+                            part.With.do(withptr => {
+                                Object content = withptr;
+                            });
+
+                            string partid = to_string("-",actor.label,"-",getidx(part));
+
+                            standard_part_proc(part);
+
+                            Object fundus = part.Regions.Fundus;
+                                standard_part_proc(fundus);
+                            Object corpus = part.Regions.Corpus;
+                                standard_part_proc(corpus);
+                            Object antrum = part.Regions.Antrum;
+                                standard_part_proc(antrum);  
+
+                            int& acidtimer = part["Timers"]["Acid"];
+                            if(acidtimer>0) {
+                                acidtimer = acidtimer-1;
+                            } else {
+                                Ptr string sounding; sounding.clear();
+                                sounding.init("faint hiss",);
+                                if(antrum.AcidLevel>3) {
+                                    if(corpus.AcidLevel>3) {
+                                        if(fundus.AcidLevel<2) {
+                                            fundus.AcidLevel = fundus.AcidLevel+1;
+                                            make_sensory_condition(part,fundus,"AcidRelease"+partid,sounding,0,1,"Sound",0);
+                                        }
+                                    } else {
+                                        corpus.AcidLevel = corpus.AcidLevel+1;
+                                        make_sensory_condition(part,corpus,"AcidRelease"+partid,sounding,0,1,"Sound",0);
+                                    }
+                                } else {
+                                    antrum.AcidLevel = antrum.AcidLevel+1;
+                                    make_sensory_condition(part,antrum,"AcidRelease"+partid,sounding,0,1,"Sound",0);
+                                }
+                                acidtimer = 2;
+                            }      
+
+                            part.Regions.do(regionptr => {
+                                Object region = regionptr;
+                                string regionname = region.label;
+                                if(regionname=="Antrum") {
+                                    int& churntimer = part["Timers"][regionname+"Churn"];
+                                    if(churntimer>0) {
+                                        churntimer = churntimer-1;
+                                    } else {
+                                        region.With.do(withptr => {
+                                            Object content = withptr.as(Object).Parts.get(0);
+                                            squeeze_content(content,region);
+                                        });
+                                        Ptr string sounding; sounding.clear();
+                                        sounding.init(
+                                            "wet churning nearby",
+                                            "faint churning in the distance",
+                                        );
+                                        make_sensory_condition(part,region,regionname+"Churning"+partid,sounding,0,1,"Sound",0);
+                                        churntimer = 3;
+                                    } 
+                                } else if(regionname=="Corpus") {
+                                    int& churntimer = part["Timers"][regionname+"Churn"];
+                                    if(churntimer>0) {
+                                        churntimer = churntimer-1;
+                                    } else {
+                                        int strength = randi(0,6);
+                                        region.With.do_back(withptr => {
+                                            Object content = withptr.as(Object).Parts.get(0);
+                                            int resistance = randi(0,6)+1;
+                                            if(strength>resistance) {
+                                                log_scripted_thing(0,to_string(withptr.label," was squeezed into the antrum"),"flip("+js_lit(withptr.label)+",2000);");
+                                                place_in(withptr,antrum);
+                                                Ptr string sounding; sounding.clear();
+                                                sounding.init(
+                                                    "wet sliding",
+                                                    "faint sliding",
+                                                );
+                                                make_sensory_condition(part,region,regionname+"ChurningSuccess"+partid,sounding,0,1,"Sound",0);
+                                            }
+                                        });
+                                        if(true) {
+                                            Ptr string sounding; sounding.clear();
+                                            sounding.init(
+                                                "wet squicks",
+                                                "faint squicks",
+                                            );
+                                            make_sensory_condition(part,region,regionname+"Churning"+partid,sounding,0,1,"Sound",0);
+                                        }
+                                        churntimer = 2;
+                                    } 
+                                }
+                                region.With.do(withptr => {
+                                    Object content = withptr.as(Object).Parts.get(0);
+                                    if(region.AcidLevel>0) {
+                                        digest_content(content,region);
+                                    }
+                                });
+                            });                  
+                        }
+                    `);
+                }
+                Object fundus = add_region(stomach,"Fundus");
+                    fundus.AcidLevel = 0;
+                    cover_part(stomach,fundus);
+                Object corpus = add_region(stomach,"Corpus");
+                    corpus.AcidLevel = 0;
+                    connect_part(fundus,corpus,1.0);
+                    cover_part(stomach,corpus);
+                Object antrum = add_region(stomach,"Antrum");
+                    antrum.AcidLevel = 0;
+                    connect_part(corpus,antrum,1.0);
+                    cover_part(stomach,antrum);
+                Object lower_throat = add_region(throat,"LowerThroat");
+                    connect_part(fundus,lower_throat,1.0);
+                    cover_part(neck,lower_throat);
+                Object upper_throat = add_region(throat,"UpperThroat");
+                    connect_part(lower_throat,upper_throat,1.0);
+                    cover_part(neck,upper_throat);
             Object intestines = add_part(belly, "Intestines");
-                connect_part(stomach,intestines);
+                connect_part(stomach,intestines,1.0);
                 cover_part(belly, intestines);
 
             Object part = deadptr;
@@ -558,8 +1195,13 @@ if(unit_has_arg("--init")) {
             part = actor["AllParts"]["Eyes"]; part.X = 53; part.Y = 11;
             part = actor["AllParts"]["Nose"]; part.X = 55; part.Y = 12;
             part = actor["AllParts"]["Mouth"]; part.X = 54; part.Y = 14;
-            part = actor["AllParts"]["Throat"]; part.X = 52; part.Y = 16;
+            part = actor["AllParts"]["Throat"]; part.X = 53; part.Y = 16;
             part = actor["AllParts"]["Stomach"]; part.X = 52; part.Y = 34;
+                    offset_part_from_owner(fundus,2,0-1);
+                    offset_part_from_owner(corpus,0,1);
+                    offset_part_from_owner(antrum,0-2,2);
+                    offset_part_from_owner(lower_throat,0,2);
+                    offset_part_from_owner(upper_throat,0,0-1);
             part = actor["AllParts"]["Intestines"]; part.X = 54; part.Y = 40;
         }
     part_registry_target = deadptr;
@@ -587,6 +1229,7 @@ if(unit_has_arg("--init")) {
             With: [Object],
             Parts: [Object],
             AllParts: [Object],
+            AllPartsAndRegions: [Object],
         ).register("MainPasture");
 
         int pasture_scale = 3;
@@ -607,18 +1250,18 @@ if(unit_has_arg("--init")) {
                 cell.Y = (16+c*33);
                 if(r>0) {
                     Object left = pasture["AllParts"][to_string(r-1)+"-"+to_string(c)];
-                    connect_part(cell,left);
+                    connect_part(cell,left,1.0);
                     if(c>0) {
                         Object leftabove = pasture["AllParts"][to_string(r-1)+"-"+to_string(c-1)];
-                        connect_part(cell,leftabove);
+                        connect_part(cell,leftabove,1.0);
                     }
                 }
                 if(c>0) {
                     Object above = pasture["AllParts"][to_string(r)+"-"+to_string(c-1)];
-                    connect_part(cell,above);
+                    connect_part(cell,above,1.0);
                     if(r<(pasture_scale-1)) {
                         Object aboveleft = pasture["AllParts"][to_string(r+1)+"-"+to_string(c-1)];
-                        connect_part(cell,aboveleft);
+                        connect_part(cell,aboveleft,1.0);
                     }
                 }
             }
@@ -634,6 +1277,12 @@ if(unit_has_arg("--init")) {
             cell.With.put(k,v);
             v.as(Object).Inside = cell;
         });
+        if(true) {
+            Object cell = pasture["AllParts"][to_string(randi(0,pasture_scale-1))+"-"+to_string(randi(0,pasture_scale-1))];
+            cell.With.put("thebox",thebox);
+            thebox.Inside = cell;
+        }
+
 
     ColCol states = sub.add("States");
 
@@ -834,30 +1483,8 @@ if(unit_has_arg("--init")) {
 
                 } else {       
                     Object inside = actee.Inside;
-                    string insidekind = inside.as(ColCol).label;          
-                    if(insidekind=="Parts") {
-                        int luckroll = randi(0,8);
-                        if(reaction_phase==0) {
-                            if(luckroll>getsidx(actee.State)) {
-                                log_thing(1,(actee.label)+" was left behind as "+(actor.label)+" moved");
-                                place_in(actee,actor.Inside);
-                                setsidx(actee.State,0);
-                            }
-                        } else {
-                            luckroll = luckroll-3;
-                            if(luckroll>getsidx(actee.State)) {
-                                log_thing(1,(actee.label)+" was flung from "+(actor.label)+"'s hoof while it was moving");
-                                place_in(actee,actor.Inside);
-                                setsidx(actee.State,0);
-                                actee.Injury = actee.Injury+1;
-                            } else {
-                                log_thing(3,(actee.label)+" is crushed further beneath "+(actor.label)+"'s hoof as it lands");
-                                setsidx(actee.State,min(getsidx(actee.State)+1,actee.State.length-1));
-                                actee["Acts"]["Struggle"] = actions["recover"];
-                                actee.Injury = actee.Injury+3;
-                            }
-                        }
-                    } else {
+                    string insidekind = root_part_owner(inside).as(ColCol).label;          
+                    if(insidekind=="Maps") {
                         int margin = roll_save_for(actee)-10;
                         if(reaction_phase==0) {
                             if(margin>=0) {
@@ -886,6 +1513,28 @@ if(unit_has_arg("--init")) {
                                 actee.State = states[acteekind]["impacted"];
                                 setsidx(actee.State,1);
                                 place_in(actee,actor.Parts.Leg);
+                            }
+                        }
+                    } else {
+                        int luckroll = randi(0,8);
+                        if(reaction_phase==0) {
+                            if(luckroll>getsidx(actee.State)) {
+                                log_thing(1,(actee.label)+" was left behind as "+(actor.label)+" moved");
+                                place_in(actee,actor.Inside);
+                                setsidx(actee.State,0);
+                            }
+                        } else {
+                            luckroll = luckroll-3;
+                            if(luckroll>getsidx(actee.State)) {
+                                log_thing(1,(actee.label)+" was flung from "+(actor.label)+"'s hoof while it was moving");
+                                place_in(actee,actor.Inside);
+                                setsidx(actee.State,0);
+                                actee.Injury = actee.Injury+1;
+                            } else {
+                                log_thing(3,(actee.label)+" is crushed further beneath "+(actor.label)+"'s hoof as it lands");
+                                setsidx(actee.State,min(getsidx(actee.State)+1,actee.State.length-1));
+                                actee["Acts"]["Struggle"] = actions["recover"];
+                                actee.Injury = actee.Injury+3;
                             }
                         }
                     }

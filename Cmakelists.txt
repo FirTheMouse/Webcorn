@@ -9,11 +9,6 @@ if(CCACHE_PROGRAM)
     set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
 endif()
 
-set(MBEDTLS_PSA_CRYPTO_C OFF CACHE BOOL "" FORCE)
-set(ENABLE_TESTING OFF CACHE BOOL "" FORCE)
-set(ENABLE_PROGRAMS OFF CACHE BOOL "" FORCE)
-add_subdirectory(ext/mbedtls)
-
 #add_executable(webcorn main.cpp)
 add_executable(webcorn main.cpp GDSL/mixos-acorn/Acorn-Script.cpp GDSL/mixos-acorn/Acorn-Workshop.cpp)
 add_custom_command(TARGET webcorn POST_BUILD
@@ -26,8 +21,23 @@ option(USE_TSAN "Enable ThreadSanitizer" OFF)
 
 if(USE_TLS)
     target_compile_definitions(webcorn PRIVATE USE_TLS=1)
+    set(MBEDTLS_PSA_CRYPTO_C OFF CACHE BOOL "" FORCE)
+    set(ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+    set(ENABLE_PROGRAMS OFF CACHE BOOL "" FORCE)
+    add_subdirectory(ext/mbedtls)
+    target_include_directories(webcorn PRIVATE
+        GDSL
+        ext/mbedtls/include
+        ext/mbedtls/tf-psa-crypto/include
+    )
+    target_link_libraries(webcorn PRIVATE
+        mbedtls
+    )
 else()
     target_compile_definitions(webcorn PRIVATE USE_TLS=0)
+    target_include_directories(webcorn PRIVATE
+        GDSL
+    )
 endif()
 
 if(USE_ASAN)
@@ -40,12 +50,3 @@ if(USE_TSAN)
     target_link_options(webcorn PRIVATE -fsanitize=thread)
 endif()
 
-target_include_directories(webcorn PRIVATE
-    GDSL
-    ext/mbedtls/include
-    ext/mbedtls/tf-psa-crypto/include
-)
-
-target_link_libraries(webcorn PRIVATE
-    mbedtls
-)

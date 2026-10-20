@@ -11,7 +11,7 @@ while(!unit_shutdown_flag) {
     if(ttime_s("recent_tick")>300) {
         string backup_path = "web/electionmadness/backups/data_recent_"+to_string(recent_count)+".gsu";
         copy_file("web/electionmadness/data.gsu",backup_path);
-        //print(unit_time+": Recent backup saved to ",backup_path);
+        print(unit_time+": Recent backup saved to ",backup_path);
 
         list_files_in_directory("web/electionmadness/classes").do(file => {
             string stripdot = file.substr(0,file.length-4);

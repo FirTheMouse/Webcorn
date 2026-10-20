@@ -66,6 +66,8 @@ cmake --build build && ./webcorn --port=443 --project=web/sim/ --units=1 --init
 
 ulimit -n 65536 && cmake --build build && ./hazel ./webcorn --port=443 --project=web/goldensystems/ --tls=goldensystems.ca  --track --tickint=5 --units=4
 
+ulimit -n 65536 && cmake --build build && ./hazel ./webcorn --port=8080 --project=web/electionmadness/ --units=4
+
 If you don't
 
 ./webcorn

@@ -676,6 +676,7 @@ while(0<1) {
                             if(args.length>0) {
                                 string ptrstring = args.get(0);      
                                 Ptr pointer = string_to_Ptr(ptrstring);  
+                                cast_to_Ptr(twig).adopt(pointer);
                                 if(is_live(pointer)) {
                                     Node root = cast_to_Node(pointer);
                                     if(args.length>1) {
@@ -923,8 +924,9 @@ while(0<1) {
             //         req_label = argy;
             //     }
             // });
-
+            
             page = route_search(twig);
+            
             if(is_live(page)) {
                 rout(page);
             }   
@@ -990,8 +992,9 @@ while(0<1) {
                         Ptr string args = split_str(src,"@");
                         ctx.source = "go";
                         if(args.length>0) {
-                            string ptrstring = args.get(0);      
-                            Ptr pointer = string_to_Ptr(ptrstring);  
+                            string ptrstring = args.get(0);  
+                            Ptr pointer = string_to_Ptr(ptrstring); 
+                            cast_to_Ptr(twig).adopt(pointer);
                             if(unslashpath=="login") {
                                 bool is_valid_run = false;
                                 Node pnode = cast_to_Node(pointer);
@@ -1021,9 +1024,11 @@ while(0<1) {
                                     }
                                 }
 
-                                ctx.source = "go";
                                 if(log_verbosity>1) {tstart("executing_run_root");}
+                                ctx.source = "go";
+                                //uscw;
                                 execut root;
+                                //urcw;
                                 if(log_verbosity>1) {print("Time: ",tstop("executing_run_root"));}
 
                                 src = ctx.source;

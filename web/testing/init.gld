@@ -1,0 +1,24 @@
+if(unit_has_arg("--init")) {
+    print("Testing Reseting");
+    Object deadobj = deadptr;
+    ColColCol sub = usubunits.add(project_path+"data.gsu");
+    ColCol common = sub.add("Common");
+        Ptr flags = common.add(bool,"Flags");
+    sub.clear_all_locks;
+    sub.save;
+} else {
+    print("Loading database");
+    tstart("database_load");
+    ColColCol database = load_subunit(project_path+"data.gsu");
+    database.clear_all_locks;
+    print("Database loaded in: ",tstop("database_load"));
+}
+
+ColColCol cache = usubunits.add(project_path+"cache.gsu");
+    cache.add("Catchers");
+    cache.add("Storage");
+    ColCol classes = cache.add("Classes");
+        classes.add(Ptr,"Lookup");
+cache.clear_all_locks;
+cache.save;
+

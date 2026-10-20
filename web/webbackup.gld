@@ -6111,3 +6111,439 @@ route login {
         //simulate_user();
     ";
 }
+
+Old admin route and subunit viewer template code:
+
+
+route admin {
+    sync_user;
+    if(is_live(user)) {
+        if(user.?authourized) {
+            standard_header;
+            top_bar("/admin");
+            text "Welcome to the admin page";
+
+            Ptr string files = list_files_in_directory(project_path).filter(f => f.ends(".gsu"));
+            files.do(f => {
+                string sub_label = project_path+f;
+                ColColCol sub = load_subunit(sub_label);
+                div {   
+                    "id" : sub_label;             
+                    div {
+                        text sub_label {
+                            text_theme;
+                        }  
+                    }                          
+                    div {
+                        sub.do((pool, idx) => {
+                            div {
+                                if(idx<2) {
+                                    div {
+                                        text to_string(idx) {
+                                            "text-align" : "center";
+                                            "white-space" : "pre";
+                                            "margin" : "2px";
+                                            text_theme;
+                                        }
+                                        string poollabel = pool.label;
+                                        string poolkey = pool.key;
+                                        if(poolkey.length>0) {
+                                            if(poolkey==poollabel) {
+                                                poollabel="[:] "+poollabel;
+                                            } else {
+                                                poollabel=poolkey+": "+poollabel;
+                                            }
+                                        }
+                                        if(pool.tag>0) {
+                                            poollabel+=" ["+labels(pool.tag)+"]";
+                                        }
+                                        text poollabel {
+                                            "text-align" : "center";
+                                            "white-space" : "pre";
+                                            "margin" : "5px";
+                                            text_theme;
+                                        }
+
+                                        button {
+                                            text "SHOW/HIDE";
+                                            "onclick" : capture(
+                                                js_do("this.parentElement.parentElement.children[1].id = 'temp_frag_target';");
+                                            ){
+                                                ctx.source = "FRAG temp_frag_target <div><p>nothing</p></div>";
+                                            }
+                                        }
+                                    }
+                                    
+                                    div {
+                                        "display" : "flex";
+                                        "flex-direction" : "row";
+                                        pool.do((col, cidx) => {
+                                            div {
+                                                "display" : "flex";
+                                                "flex-direction" : "column";
+                                                "transition" : "background-color 0.2s ease";
+                                                div {
+                                                    text to_string(cidx) {
+                                                        "text-align" : "center";
+                                                        "white-space" : "pre";
+                                                        "margin" : "2px";
+                                                        text_theme;
+                                                    }
+                                                    string collabel = col.label;
+                                                    string colkey = col.key;
+                                                    if(colkey.length>0) {
+                                                        if(colkey==collabel) {
+                                                            collabel="[:] "+collabel;
+                                                        } else {
+                                                            collabel=colkey+": "+collabel;
+                                                        }
+                                                    }
+                                                    collabel+=" ["+labels(col.tag)+"]";
+                                                    text collabel {
+                                                        "text-align" : "center";
+                                                        "white-space" : "pre";
+                                                        "margin" : "5px";
+                                                        text_theme;
+                                                    }
+                                                }
+                                                div {
+                                                    col.do(e => {
+                                                        div {
+                                                            "border" : "1px solid black";
+                                                            "white-space" : "pre";
+                                                            string colval = to_string(e);
+                                                            string colkey = (&e).celllabel;
+                                                            if(colkey.length>0) {
+                                                                if(colkey==colval) {
+                                                                    colval="[:] "+colval;
+                                                                } else {
+                                                                    colval=colkey+": "+colval;
+                                                                }
+                                                            }
+
+                                                            if(is_value_ptr(e)) {
+                                                                string jsstr = "let el = getel("+js_lit(sub_label)+")";
+                                                                e.fields.do((t,onT) => {
+                                                                    if((onT>0)&&(t==0)) {
+                                                                        break;
+                                                                    } else {
+                                                                        jsstr+=".children[1].children["+to_string(t)+"]";
+                                                                    }
+                                                                });
+                                                                "onclick" : jsstr+"; el.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'center' });";
+                                                                "onmouseenter" : jsstr+"; el.style.backgroundColor='blue';";
+                                                                "onmouseleave" : jsstr+"; setTimeout(()=>{el.style.backgroundColor='white';},100);";
+                                                            }
+
+                                                            text colval {
+                                                                "margin" : "3px";
+                                                                text_theme;
+                                                            }
+                                                        }
+                                                    });
+                                                }
+                                            }
+                                        });
+                                    }
+                                } else {
+                                    div {
+
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }
+                sub.clear;
+            });
+        } else {      
+            print(user.label," attempted unauthorized access to the admin route in unit ",unit_uid," on ",unit_standard_time); 
+            script "window.location.href = '/';";
+        }
+    } else {
+        print("A guest attempted to access the admin route in unit ",unit_uid," on ",unit_standard_time); 
+        script "window.location.href = '/';";
+    }
+}
+
+
+WEBCORN BACKUP
+
+print("Starting webcorn");
+
+if(true) {
+    int units = 0;
+    string arg_units = unit_get_arg("--units=");
+    if(arg_units.length!=0) {
+        units = stoi(arg_units);
+    }
+
+    string arg_tls = unit_get_arg("--tls=");
+    if(arg_tls.length!=0) {
+        if(unit_uid==1) {
+            if(arg_tls=="self") {
+                init_tls("web/files/cert.pem","web/files/key.pem");
+            } else {
+                init_tls("/etc/letsencrypt/live/"+arg_tls+"/fullchain.pem", "/etc/letsencrypt/live/"+arg_tls+"/privkey.pem");
+            }
+            print(unit_uid," initilized tls");
+        }
+    }
+
+    int log_verbosity = 0;
+    global string arg_verbosity = unit_get_arg("--verbosity=");
+    if(arg_verbosity.length!=0) {log_verbosity = stoi(arg_verbosity);}
+
+    global string project_path = "";
+    string arg_path = unit_get_arg("--project=");
+    if(arg_path.length!=0) {project_path = arg_path;}
+
+    if(log_verbosity>3) {
+        print("project path: ",project_path);
+    }
+
+    string arg_initcode = unit_get_arg("--script=");
+    if(arg_initcode.length!=0) {
+        Node initroot = compile(read_file(arg_initcode));
+        execut initroot;
+    } else if(project_path.length>0) {
+        string potential_initpath = project_path+"init.gld";
+        if(file_exists(potential_initpath)) {
+            Node initroot = compile(read_file(potential_initpath));
+            execut initroot;
+        }
+    }
+
+    string arg_tickcode = unit_get_arg("--tick=");
+    Node tickroot = deadnode;
+    if(arg_tickcode.length!=0) {
+        tickroot = compile(read_file(arg_tickcode));
+    } else if(project_path.length>0) {
+        string potential_tickpath = project_path+"tick.gld";
+        if(file_exists(potential_tickpath)) {
+            tickroot = compile(read_file(potential_tickpath));
+        }
+    }
+
+
+    string unitcode_path = "web/webrunner.gld";
+    string arg_unitcode = unit_get_arg("--unitcode=");
+    if(arg_unitcode.length!=0) {
+        unitcode_path = arg_unitcode;
+    } 
+
+    string unitcode = read_file(unitcode_path);
+
+    Ptr bool file_whitelist;
+    string arg_whitelist = unit_get_arg("--files=");
+    if(arg_whitelist.length!=0) {
+        Ptr string files = split_str(arg_whitelist,",");
+        for(int i=0;i<files.length;i++) {
+            file_whitelist.put(files.get(i),true);
+        }
+    }
+
+    if(unit_uid==1) {
+        start_session_manager(unitcode);
+        print("Started the session manager");
+    }
+
+    //string botcode = read_file("web/botrunner.gld");
+    //start_bot_manager(botcode);
+    //print("Started the bot manager");
+    //dispatch_bot(1,"example.com",botcode);
+
+    int fd = socket;
+    int port = 8080;
+
+    string arg_port = unit_get_arg("--port=");
+    if(arg_port.length!=0) {
+        port = stoi(arg_port);
+    }
+    print("Attempting to start a server on ",port);
+
+    bind(fd,port);
+    listen(fd);
+    print("Opened a new server on ",port);
+
+    if(units>0) {
+        print("Setting up ",units," units");
+        for(int i=0;i<units;i++) {
+            setup_unit(fd,unitcode);
+        }
+        print("Setup complete");
+        if(is_live(tickroot)) {
+            execut tickroot; 
+        } else {
+            while(!unit_shutdown_flag) {
+                catch {
+                    print("Caught some error, terminating all servers");
+                    terminate_all_servers; 
+                    print("Finished terminating servers");
+                    break;
+                }
+            }
+        }
+    } else {
+        while(0<1) {
+            int cfd = accept(fd);
+            catch {
+                terminate_all_servers; 
+                print("Finished terminating servers");
+                break;
+            }
+
+            if(cfd>0) {
+                if(log_verbosity>1){tstart("dispatch_desc");}
+                string req = read(cfd);
+                if((req=="BADREQUEST")||unit_error) {
+                    print("Failed to read a request in ",tstop("dispatch_desc"));
+                    close(cfd);
+                    continue;
+                }
+                string session = get_cookie(req,"session");
+                if(log_verbosity>1) {print("Request at ",unit_time_precise," Session: ",session);}
+                string first_line = req.substr(0, req.find("\r\n"));
+                string method = first_line.substr(0, first_line.find(" "));
+                string slashpath = first_line.slice(" ", 1, 2);
+                string unslashpath = slashpath.substr(1,slashpath.length-1);
+                if(log_verbosity>1){print("Path: ",slashpath," Method: ",method);}
+                if(unslashpath.find(".")>0) {
+                    string strip_to_directory = "";
+                    for(int i=unslashpath.length-1;i>0;i=i-1)  {
+                        if(unslashpath.slice(i-1,i)=="/") {strip_to_directory = unslashpath.slice(0,i-1); i=0;}
+                    }
+                    if(strip_to_directory.length>0 && file_whitelist.has(strip_to_directory)) {
+                        if(log_verbosity>1){print("Dispatching to any server to handle file ",unslashpath," decided in ",tstop("dispatch_desc"));}
+                        dispatch_unit("ANYSERVE", cfd, "SERVE "+unslashpath+"\r\n", unitcode);
+                        continue;
+                    }
+                }
+                if(session=="ANYSERVE") {print("Malicious request attempted to spoof the dispatcher:\n",req); tstop("dispatch_desc"); continue;}
+
+                if(log_verbosity>1){print("Dispatching server to handle request ",cfd," decided in ",tstop("dispatch_desc"));}
+                dispatch_unit(session,cfd,req,unitcode);
+            }
+        }
+    }
+}
+
+
+
+
+
+
+  make_race("TX-15","https://ballotpedia.org/Texas%27_15th_Congressional_District_election,_2026"
+        , "Bobby Pulido","Democrat","4"
+        , "Monica De La Cruz","Republican","6"
+    );
+
+    make_race("TX-35","https://ballotpedia.org/Texas%27_35th_Congressional_District_election,_2026"
+        , "Johnny Garcia","Democrat","4"
+        , "Carlos De La Cruz","Republican","6"
+    );
+
+    make_race("GA-Governor","https://ballotpedia.org/Georgia_gubernatorial_election,_2026"
+        , "Keisha Bottoms","Democrat","4"
+        , "Rick Jackson","Republican","6"
+    );
+
+    make_race("ME-Senate","https://ballotpedia.org/United_States_Senate_election_in_Maine,_2026"
+        , "Troy Jackson","Democrat","6"
+        , "Susan Collins","Republican","4"
+    );
+
+    make_race("IA-Senate","https://ballotpedia.org/United_States_Senate_election_in_Iowa,_2026"
+        , "Josh Turek","Democrat","6"
+        , "Ashley Hinson","Republican","4"
+    );
+
+    make_race("OH-Senate","https://ballotpedia.org/United_States_Senate_special_election_in_Ohio,_2026"
+        , "Sherrod Brown","Democrat","6"
+        , "Jon Husted","Republican","4"
+    );
+
+    make_race("AK-Senate","https://ballotpedia.org/United_States_Senate_election_in_Alaska,_2026"
+        , "Mary Peltola","Democrat","4"
+        , "Daniel Sullivan","Republican","6"
+    );
+
+    make_race("MI-Senate","https://ballotpedia.org/United_States_Senate_election_in_Michigan,_2026"
+        , "Abdul El-Sayed","Democrat","4"
+        , "Mike Rogers","Republican","6"
+    );
+
+    make_race("OH-Governor","https://ballotpedia.org/Ohio_gubernatorial_and_lieutenant_gubernatorial_election,_2026"
+        , "Amy Acton","Democrat","6"
+        , "Vivek Ramaswamy","Republican","4"
+    );
+
+    make_race("FL-Governor","https://ballotpedia.org/Florida_gubernatorial_and_lieutenant_gubernatorial_election,_2026"
+        , "David Jolly","Democrat","8"
+        , "Byron Donalds","Republican","2"
+    );
+
+    make_race("WI-Governor","https://ballotpedia.org/Wisconsin_gubernatorial_and_lieutenant_gubernatorial_election,_2026"
+        , "David Crowley","Democrat","4"
+        , "Tom Tiffany","Republican","6"
+    );
+
+    make_race("CO-4","https://ballotpedia.org/Colorado%27s_4th_Congressional_District_election,_2026"
+        , "Eileen Laubacher","Democrat","7"
+        , "Lauren Boebert","Republican","3"
+    );
+
+    make_race("CA-LA Mayor","https://ballotpedia.org/Mayoral_election_in_Los_Angeles,_California_(2026)"
+        , "Karen Bass","Non-partisan","6"
+        , "Nithya Raman","Non-partisan","4"
+    );
+
+    make_race("FL-27","https://ballotpedia.org/Florida%27s_27th_Congressional_District_election,_2026"
+        , "Elliot Rodriguez","Democrat","6"
+        , "Maria Elvira Salazar","Republican","4"
+    );
+
+    make_race("IA-2","https://ballotpedia.org/Iowa%27s_2nd_Congressional_District_election,_2026"
+        , "Lindsay James","Democrat","6"
+        , "Joe Mitchell","Republican","4"
+    );
+
+    make_race("NC-1","https://ballotpedia.org/North_Carolina%27s_1st_Congressional_District_election,_2026"
+        , "Donald Davis","Democrat","4"
+        , "Laurie Buckhout","Republican","6"
+    );
+
+    make_race("NY-17","https://ballotpedia.org/New_York%27s_17th_Congressional_District_election,_2026"
+        , "Cait Conley","Democrat","3"
+        , "Mike Lawler","Republican","7"
+    );
+
+    make_race("PA-8","https://ballotpedia.org/Pennsylvania%27s_8th_Congressional_District_election,_2026"
+        , "Paige Cognetti","Democrat","6"
+        , "Rob Bresnahan Jr","Republican","4"
+    );
+
+    make_race("AL-2","https://ballotpedia.org/Alabama%27s_2nd_Congressional_District_election,_2026"
+        , "Shomari Figures","Democrat","7"
+        , "Rhett Marques","Republican","3"
+    );
+
+    make_race("FL-22","https://ballotpedia.org/Florida%27s_22nd_Congressional_District_election,_2026"
+        , "Pia Dandiya","Democrat","6"
+        , "Casey Askar","Republican","4"
+    );
+
+    make_race("AZ-2","https://ballotpedia.org/Arizona%27s_2nd_Congressional_District_election,_2026"
+        , "Jonathan Nez","Democrat","7"
+        , "Eli Crane","Republican","3"
+    );
+
+    make_race("VA-1","https://ballotpedia.org/Virginia%27s_1st_Congressional_District_election,_2026"
+        , "Shannon Taylor","Democrat","6"
+        , "Rob Wittman","Republican","4"
+    );
+
+    make_race("MI-4","https://ballotpedia.org/Michigan%27s_4th_Congressional_District_election,_2026"
+        , "Sean McCann","Democrat","6"
+        , "Bill Huizenga","Republican","4"
+    );

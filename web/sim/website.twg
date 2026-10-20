@@ -150,6 +150,169 @@ void print_log(Object logline) {
     }
 }
 
+string sense_environment(Object actor) {
+    Ptr allparts = actor.AllParts;
+    Object ears = deadptr;
+    int ear_cap = 0;
+    Object eyes = deadptr;
+    int eye_cap = 0;
+    Object nose = deadptr;
+    int nose_cap = 0;
+    
+    if(allparts.has("Ears")) {
+        ears = allparts["Ears"];
+        ear_cap = tally_part_capability(ears,actor);
+    }
+    if(allparts.has("Eyes")) {
+        eyes = allparts["Eyes"];
+        eye_cap = tally_part_capability(eyes,actor);
+    }
+    if(allparts.has("Nose")) {
+        nose = allparts["Nose"];
+        nose_cap = tally_part_capability(nose,actor);
+    }
+
+    if(!actor.?SenseRecord) {actor.SenseRecord = actor.as(ColCol).add(Object);}
+    Ptr senserecord = actor.SenseRecord;
+
+    Ptr Object senses; senses.clear;
+    actor.Inside.Conditions.do(condptr => {
+        Object cond = condptr;
+        if(cond.?Sound) {
+            senses.push(cond);
+        }
+        if(cond.?Sight) {
+            senses.push(cond);
+        }
+        if(cond.?Smell) {
+            senses.push(cond);
+        }
+    });
+    for(int i=0; i<senses.length; i=i+1) {
+        int greatest = i;
+        for(int j=i+1; j<senses.length; j=j+1) {
+            Object a = senses[j];
+            Object b = senses[greatest];
+            if(a.Intensity > b.Intensity) {
+                greatest = j;
+            }
+        }
+        if(greatest != i) {
+            senses.swap(i,greatest);
+        }
+    }
+
+    int described = 0;
+    string to_return = "";
+
+    Ptr bool fading_senses; fading_senses.clear;
+    senserecord.cells((senseid, sensetick) => {
+        bool sense_sensed = false;
+        senses.do(sense => {
+            if(senseid==cast_to_string(sense.label)) {
+                sense_sensed = true;
+                break;
+            }
+        });
+        if(!sense_sensed) {
+            fading_senses.put(senseid,true);
+        }
+    });
+    senses.do(condptr => {
+        Object cond = condptr;
+        string sentence = "";
+
+        if(cond.?Sound) {
+            Ptr& sound = cond["Sound"];
+            if(cast_to_string(cond.Sound).length==0) {
+                print(red(cond.label," dead sound "));
+            }
+        }
+
+        if(senserecord.has(cond.label)) {
+            Object oldcond = senserecord[cond.label];
+            if(cond.?Sound) {
+                if(oldcond.Intensity>cond.Intensity) {
+                    sentence = to_string("The ",oldcond.Sound," fades into ",cond.Sound);
+                } else if(oldcond.Intensity<cond.Intensity) {
+                    sentence = to_string("The ",oldcond.Sound," became ",cond.Sound);
+                } else {
+                    sentence = to_string("You hear ",cond.Sound," again");
+                }
+                oldcond.Intensity = cond.Intensity;
+                oldcond.Sound = cond.Sound;
+            }
+            else if(cond.?Sight) {
+                sentence = to_string("You see ",cond.Sight," again");
+            }
+            else if(cond.?Smell) {
+                sentence = to_string("You smell ",cond.Smell," again");
+            }
+        } else {
+            Object condclone = cond.clone;            
+            condclone.Sound = cond.as(ColCol).add(char);
+            cast_to_string(condclone.Sound) = cast_to_string(cond.Sound);
+            condclone.label(cond.label);
+            actor.SenseRecord.put(cond.label,condclone);
+            if(cond.?Sound) {
+                sentence = to_string("You hear ",cond.Sound);
+            }
+            else if(cond.?Sight) {
+                sentence = to_string("You see ",cond.Sight);
+            }
+            else if(cond.?Smell) {
+                sentence = to_string("You smell ",cond.Smell);
+            }
+        }
+        if(fading_senses.length>0) {
+            bool& fadeid = fading_senses.rand;
+            Object fading = senserecord.take((&fadeid).celllabel);
+            fading_senses.take((&fadeid).celllabel);
+            sentence.append(" as ");
+            if(fading.?Sound) {
+                sentence.append(to_string(fading.Sound," fades away."));
+            }
+            else if(fading.?Sight) {
+                sentence.append(to_string(fading.Sight," fades away."));
+            }
+            else if(fading.?Smell) {
+                sentence.append(to_string(fading.Smell," fades away."));
+            }
+            recycle(fading);
+        } else {
+            sentence.append(".");
+        }
+
+        if(sentence!="") {
+            if(described>0) {
+                to_return.append(" ");
+            }
+            to_return.append(sentence);
+            described = described+1;
+        }
+    });
+    fading_senses.keys(senseid => {
+        Object cond = senserecord.take(senseid);
+        if(cond.?Sound) {
+             to_return.append(to_string(cond.Sound," fades away. "));
+        }
+        else if(cond.?Sight) {
+            to_return.append(to_string(cond.Sight," fades away. "));
+        }
+        else if(cond.?Smell) {
+           to_return.append(to_string(cond.Smell," fades away. "));
+        }
+        described++;
+        recycle(cond);
+    });
+
+    if(described==0) {
+        to_return = "You notice nothing in particular.";
+    }
+    print("\n",to_return);
+    return to_return;
+}
+
 ##
     global string selector_selected_part = "";
 ##
@@ -238,6 +401,19 @@ stateless template div render_part_selector(string imgpath, Object actor) {
 }
 
 
+void draw_path(Object a, Object b, string color, int width) {
+    if(a.?X) {
+        if(b.?X) {
+            path {
+                "d" : "M "+to_string(a.X)+" "+to_string(a.Y)+" L "+to_string(b.X)+" "+to_string(b.Y);
+                "stroke" : color;
+                "stroke-width" : width;
+                "vector-effect" : "non-scaling-stroke";
+                "fill" : "none";
+            }
+        }
+    }
+}       
 
 stateless template div render_anatomy(Object actor, Object frompart) {
     div {
@@ -263,22 +439,24 @@ stateless template div render_anatomy(Object actor, Object frompart) {
                 "viewBox" : "0 0 100 100";
                 "preserveAspectRatio" : "none";
                 "pointer-events" : "none";
-                actor.AllParts.cells((partname,partptr) => {
+                actor.AllPartsAndRegions.cells((partname,partptr) => {
                     Object part = partptr;
                     if(part.?X) {
-                        if(!is_live(frompart)) {
-                            part.Parts.do(subpartptr => {
-                                Object subpart = subpartptr;
-                                if(subpart.?X) {
-                                    path {
-                                        "d" : "M "+to_string(part.X)+" "+to_string(part.Y)+" L "+to_string(subpart.X)+" "+to_string(subpart.Y);
-                                        "stroke" : "cyan";
-                                        "stroke-width" : "5";
-                                        "vector-effect" : "non-scaling-stroke";
-                                        "fill" : "none";
+                        if(part.?Parts) {
+                            if(!is_live(frompart)) {
+                                part.Parts.do(subpartptr => {
+                                    Object subpart = subpartptr;
+                                    if(subpart.?X) {
+                                        path {
+                                            "d" : "M "+to_string(part.X)+" "+to_string(part.Y)+" L "+to_string(subpart.X)+" "+to_string(subpart.Y);
+                                            "stroke" : "cyan";
+                                            "stroke-width" : "5";
+                                            "vector-effect" : "non-scaling-stroke";
+                                            "fill" : "none";
+                                        }
                                     }
-                                }
-                            });
+                                });
+                            }
                         }
                         if(part.?Connects) {
                             bool do_render = !is_live(frompart);
@@ -336,7 +514,7 @@ stateless template div render_anatomy(Object actor, Object frompart) {
                     }
                 });
             }
-            actor.AllParts.cells((partname,partptr) => {
+            actor.AllPartsAndRegions.cells((partname,partptr) => {
                 Object part = partptr;
                 if(part.?X) {
                     bool do_render = !is_live(frompart);
@@ -356,8 +534,12 @@ stateless template div render_anatomy(Object actor, Object frompart) {
 
                             "width" : "12px";
                             "height" : "12px";
-                            "border-radius" : "50%";
-                            "background-color" : "red";
+                            if(part.?Parts) {
+                                "border-radius" : "50%";
+                                "background-color" : "red";
+                            } else {
+                                "background-color" : "transparent";
+                            }
                             "border" : "1px solid white";
                             "pointer-events" : "auto";
                             "z-index" : "2";
@@ -437,12 +619,20 @@ stateless template div render_anatomy(Object actor, Object frompart) {
                                                 column {
                                                     "padding" : "4px 5px";
                                                     "text-align" : "center";
-                                                    text to_string(cond.CapabilityEffect);
+                                                    if(cond.?CapabilityEffect) {
+                                                        text to_string(cond.CapabilityEffect);
+                                                    } else {
+                                                        text "N/A";
+                                                    }
                                                 }
                                                 column {
                                                     "padding" : "4px 5px";
                                                     "text-align" : "center";
-                                                    text to_string(cond.Pain);
+                                                    if(cond.?Pain) {
+                                                        text to_string(cond.Pain);
+                                                    } else {
+                                                        text "N/A";
+                                                    }
                                                 }
                                                 string readout = "";
                                                 cond.cells((k,v) => {
@@ -488,6 +678,9 @@ stateless template div render_anatomy(Object actor, Object frompart) {
     }
 }
 
+##
+    global Object tuned_to_senses = deadptr;
+##
 route "" {
     standard_header;
     div full_display {
@@ -517,6 +710,7 @@ route "" {
                 "background-color" : "forestgreen";
                 standard_button_theme;
                 text "Step" {"color" : "white"};
+                "id" : "sim_step_btn";
                 "margin-left" : "12px";
                 "onclick" : capture(
                     js_do("apply_theme(this,"+js_lit(skeleton_pulse.emit)+");"),
@@ -644,9 +838,49 @@ route "" {
                             ) {
                                 Object actor = retrive_ptr(pptr);
                                 Object other = database["People"]["Person_1"];
-                                place_in(actor,other["AllParts"]["Stomach"]);
+                                place_in(actor,other["AllPartsAndRegions"]["Fundus"]);
 
                                 full_display.reload;
+                            }
+                        }
+                        button {
+                            text "Apple";
+                            "onclick" : capture(
+                                string pptr ; js_lit(capture_ptr(person))
+                            ) {
+                                Object apple = database["Things"]["Apple_0"];
+                                Object actor = retrive_ptr(pptr);
+                                Object other = database["People"]["Person_1"];
+                                place_in(apple,other["AllPartsAndRegions"]["Antrum"]);
+                                full_display.reload;
+                            }
+                        }
+                        button {
+                            text "Apple2";
+                            "onclick" : capture(
+                                string pptr ; js_lit(capture_ptr(person))
+                            ) {
+                                Object apple = database["Things"]["Apple_1"];
+                                Object actor = retrive_ptr(pptr);
+                                Object other = database["People"]["Person_1"];
+                                place_in(apple,other["AllPartsAndRegions"]["Antrum"]);
+                                full_display.reload;
+                            }
+                        }
+
+                        button {
+                            standard_button_theme;
+                            text "Sense";
+                            "onclick" : capture(
+                                string pptr ; js_lit(capture_ptr(person))
+                            ) {
+                                Object actor = retrive_ptr(pptr);
+                                if(tuned_to_senses==actor) {
+                                    tuned_to_senses = deadptr;
+                                } else {
+                                    tuned_to_senses = actor;
+                                }
+                                people_display.reload;
                             }
                         }
                         div {
@@ -658,6 +892,7 @@ route "" {
                                     standard_button_theme;
                                     text actname;
                                     if(actname=="Move") {
+                                        "id" : personname+"_move_btn";
                                         "onclick" : capture(
                                             string actptr ; js_lit(capture_ptr(act)),
                                             string pptr ; js_lit(capture_ptr(person)),
@@ -765,6 +1000,28 @@ route "" {
                         }
                     }
                 });
+
+                if(is_live(tuned_to_senses)) {
+                    div {
+                        "position" : "fixed";
+                        "bottom" : "0";
+                        "left" : "0";
+                        "width" : "70vw";
+                        "height" : "30vh";
+                        "z-index" : "100";
+
+                        "display" : "flex";
+                        "flex-direction" : "column";
+                        "overflow-y" : "auto";
+
+                        "padding" : "12px";
+                        "border" : "1px solid gainsboro";
+                        "background-color" : "rgba(2, 2, 2, 0.34)";
+
+                        text sense_environment(tuned_to_senses) {"color" : "ghostwhite"; text_theme;}
+                    }
+                }
+
             }
         }
         div {
@@ -781,9 +1038,21 @@ route "" {
 
             "padding" : "12px";
             "border" : "1px solid gainsboro";
-            "background-color" : "rgba(2, 2, 2, 0.08)";
+            "background-color" : "rgba(2, 2, 2, 0.34)";
 
             print_log(log_root);
         }
     }
+    script "
+        document.addEventListener('keydown', function(e) {
+            if(e.code === 'Space' && !e.repeat) {
+                e.preventDefault();
+                getel('sim_step_btn').click();
+            }
+            if(e.key === 'm' && !e.repeat) {
+                e.preventDefault();
+                getel('Person_0_move_btn').click();
+            }
+        });
+    ";
 }

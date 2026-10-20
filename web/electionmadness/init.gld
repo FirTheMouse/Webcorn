@@ -197,7 +197,7 @@ if(reset) {
 
     make_race("FL-22","https://ballotpedia.org/Florida%27s_22nd_Congressional_District_election,_2026"
         , "Pia Dandiya","Democrat","6"
-        , "Michael Carbonara","Republican","4"
+        , "Casey Askar","Republican","4"
     );
 
     make_race("AZ-2","https://ballotpedia.org/Arizona%27s_2nd_Congressional_District_election,_2026"
@@ -245,7 +245,7 @@ if(reset) {
     add_us_map_data(emmap);
 
 
-    ColColCol class_global = usubunits.add("web/electionmadness/classes/global.gsu");
+    ColColCol class_global = usubunits.add("web/electionmadness/classes/GLOBAL.gsu");
         class_global.clear_lock;
         ColCol class_global_common = class_global.add("Common");
             class_global_common.clear_lock;
@@ -274,7 +274,7 @@ if(reset) {
     class_test.save;
 
     Ptr class_database = database["Classes"].add(string,"Lookup");
-    class_database.init(GLOBAL: "web/electionmadness/classes/global.gsu", testing: "web/electionmadness/classes/testing.gsu");
+    class_database.init(GLOBAL: "web/electionmadness/classes/GLOBAL.gsu", testing: "web/electionmadness/classes/testing.gsu");
     class_database.clear_lock;
 
     sub.save;
@@ -301,41 +301,46 @@ if(true) {
     Ptr class_database = database["Classes"]["Lookup"];
 
     string classdata = read_file(project_path+"files/classes.csv");
-    split_str(classdata,"\n").do(classcol => {
-        if(!classcol-?) {
-            split_str(classcol,",").do(uni => {
+    split_str(classdata,"\r\n").do(classcolwithnl => {
+        if(!classcolwithnl-?) {
+            split_str(classcolwithnl,",").do(uni => {
                 lookup.add(string,uni);
             });
         } else {
+            string classcol = classcolwithnl.substr(1);
             split_str(classcol,",").do((classcode,indx) => {
                 if(classcode.length>0) {
-                    string classpath;
-                    if(class_database.has(classcode)) {
-                        classpath = class_database[classcode];
-                        if(!file_exists(classpath)) {
-                            ColColCol new_class = usubunits.add(classpath);
-                                ColCol new_class_common = new_class.add("Common");
-                                    new_class_common.add(Ptr,"Sessions");
-                                    new_class_common.add(int,"Tally");
-                                ColCol new_class_users = new_class.add("Users");
-                            new_class.clear_all_locks;
-                            new_class.save;
+                    if(string_is_safe_filename(classcode)) {
+                        string classpath;
+                        if(class_database.has(classcode)) {
+                            classpath = class_database[classcode];
+                            if(!file_exists(classpath)) {
+                                ColColCol new_class = usubunits.add(classpath);
+                                    ColCol new_class_common = new_class.add("Common");
+                                        new_class_common.add(Ptr,"Sessions");
+                                        new_class_common.add(int,"Tally");
+                                    ColCol new_class_users = new_class.add("Users");
+                                new_class.clear_all_locks;
+                                new_class.save;
+                            }
+                        } else {
+                            classpath = database["Classes"].add(char);
+                            classpath = cast_to_string(project_path+"classes/"+classcode+".gsu");
+                            if(!file_exists(classpath)) {
+                                ColColCol new_class = usubunits.add(classpath);
+                                    ColCol new_class_common = new_class.add("Common");
+                                        new_class_common.add(Ptr,"Sessions");
+                                        new_class_common.add(int,"Tally");
+                                    ColCol new_class_users = new_class.add("Users");
+                                new_class.clear_all_locks;
+                                new_class.save;
+                            }
+                            class_database.put(classcode,classpath);
                         }
+                        lookup[indx].put(classcode,classpath);
                     } else {
-                        classpath = database["Classes"].add(char);
-                        classpath = cast_to_string(project_path+"classes/"+classcode+".gsu");
-                        if(!file_exists(classpath)) {
-                            ColColCol new_class = usubunits.add(classpath);
-                                ColCol new_class_common = new_class.add("Common");
-                                    new_class_common.add(Ptr,"Sessions");
-                                    new_class_common.add(int,"Tally");
-                                ColCol new_class_users = new_class.add("Users");
-                            new_class.clear_all_locks;
-                            new_class.save;
-                        }
-                        class_database.put(classcode,classpath);
+                        print(red("INVALID FILENAME: "),classcode," [",classcode.length,"]");
                     }
-                    lookup[indx].put(classcode,classpath);
                 }
             });
         }
