@@ -23,6 +23,11 @@ function fill_capture(run, ...args) {
     return run;
 }
 
+function clean_ats(instr) {
+    return instr.replace(/@/g, '.at.');
+}
+
+
 function getCursorOffset(el) {
     const sel = window.getSelection();
     if(!sel.rangeCount) return null;
@@ -68,7 +73,6 @@ function setCursorOffset(el, offset) {
 }
 
 
-
 function read_run_response(response) {
     if(!response) {return};
     var to_return = '';
@@ -80,22 +84,11 @@ function read_run_response(response) {
             const target = instr.slice(5, space);
             const content = instr.slice(space + 1);
             document.querySelectorAll('#'+target).forEach(el => {
-
-                const editable = el.matches('[contenteditable="true"]')
-                    ? el
-                    : el.querySelector('[contenteditable="true"]');
-
-
-                if(editable) {
-                    const offset = getCursorOffset(editable);
-                    editable.innerHTML = content;
-                    setCursorOffset(editable, offset);
+                if(el.dataset.frag=="inner") {;
+                    el.innerHTML = content;
                 } else {
                     el.outerHTML = content;
                 }
-
-
-                
                 document.querySelectorAll('#'+target+' script').forEach(old => {
                     const script = document.createElement('script');
                     script.textContent = old.textContent;

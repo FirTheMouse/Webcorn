@@ -1,429 +1,5 @@
 ##
-    "node" {
-        on ".\"left\"" Node {
-            subprocess(ctx);
-            ctx.node.value.set(ctx.node.children().get(0).value.getNode.children.get(0));
-        }
-        on ".\"right\"" Node {
-            subprocess(ctx);
-            ctx.node.value.set(ctx.node.children().get(0).value.getNode.children.get(1));
-        }
-        on ".\"scope_owner\"" Node {
-            subprocess(ctx);
-            ctx.node.value.set(ctx.node.children().get(0).value.getNode.scopes.get(0).owner);
-        }
-        on ".\"climb\"" Node {
-            subprocess(ctx);
-            ctx.node.value.set(ctx.node.children().get(0).value.getNode.in_scope.owner);
-        }
-    }
-##
-
-##
-    newstage posting;
-    newstage fraging;
-
-
-    //Acorn_script can actually do TwigSnap all on it's own, this is the proof for that.
-    //I have the C++ version of subemit for performance.
-    //But philosphically speaking TwigSnap can be made just by acorn_script extending itself like this
-        // Ptr string propbin;
-
-        // global void subemit(string tag, bool self_closing, string extra_structure, string content) {
-        //     string mytag = tag;
-        //     string mycontent = content;
-        //     bool amselfclosing = self_closing;
-        //     string structural = extra_structure;
-        //     string stylistic = "";
-        //     string parts;
-
-        //     newline("Subemitting ",mytag," -> ",propbin.length," : ",propbin.length+3);
-            
-        //     propbin.push(structural); propbin.push(stylistic); propbin.push(parts);
-
-            // if(extra_structure.length>0) {
-            //     log(extra_structure," -> ",propbin.length);
-            // }
-            // if(mycontent.length>0) {
-            //     log(mycontent," -> ",propbin.length);
-            // }
-
-        //     ctx.source = "";
-        //     emit_contents;
-        //     string newsrc = ctx.source;
-        //     parts+=newsrc;
-        //     propbin.pop(); propbin.pop(); propbin.pop();
-        //     int proplen = propbin.length;
-
-        //     if(stylistic.length>0) {
-        //         stylistic = " style=\""+stylistic+"\"";
-        //     }
-        //     if(structural.length>0) {
-        //         structural = " "+structural;
-        //     }
-
-        //     string part = "";
-        //     if(amselfclosing) {
-        //         part = "<"+mytag+structural+stylistic+"/>";
-        //     } else {
-        //         part = "<"+mytag+structural+stylistic+">"+mycontent+parts+"</"+mytag+">";
-        //     }
-        //     if(proplen>0) {
-        //         propbin[proplen-1]+=part;
-                // log("Part:",indent_html(part));
-                // endline;
-        //     } else {
-        //         ctx.source = part;
-                // log("Final source:",indent_html(ctx.source));
-                // endline;
-                // udump;
-                // ures;
-        //     }
-        // }
-
-        // "COLON" {
-        //     in htmlemiting {
-        //         subprocess(ctx);
-        //         string prop = ctx.node.left.value.getStr;
-        //         string val = ctx.node.right.value.getStr;
-
-        //         int proplen = propbin.length;
-        //         if(is_prop_structural(prop)||is_prop_structural_in_svg(prop)) {
-                    //log(prop,"  : ",val," -> ",proplen);
-        //             propbin[proplen-3]+=(prop+"=\""+val+"\" ");
-        //         } else {
-                    //log(prop," : ",val," -> ",proplen);
-        //             propbin[proplen-2]+=(prop+": "+val+"; ");
-        //         }
-        //     } 
-        // }
-
-    "component" {
-        in htmlemiting {
-            if(ctx.node.name=="div") {
-                subemit("div",false,"","");
-            } else {
-                subemit("div",false,"id=\""+capture_node(ctx.node)+"\" data-ptr=\""+capture_ptr(ctx.node)+"\"","");
-            }
-        }
-    }
-    "prefix_component" {
-        in htmlemiting {
-            //log("Prefix component");
-            if(ctx.node.type==(#FUNC_CALL)) {
-                paranoid_qual_kill(ctx); //Revoke it. Dealing with inner quals and their routing is a minefield!
-            } else if(ctx.node.type==(#FUNC_DECL)&&!(ctx.node.has_qual(#template))) {
-                if(ctx.node.children.length==0) { //Implcit case, for when a div is paramatrized and named but not qualifed as a template, don't emit it!
-                    paranoid_qual_kill(ctx);
-                    htmlemit(ctx.node,#component);
-                }
-            }
-        }
-        in executing {
-            //log("Prefix component");
-            if(ctx.node.type==(#FUNC_CALL)) {
-                paranoid_qual_kill(ctx); //Revoke it. Dealing with inner quals and their routing is a minefield!
-            } else if(ctx.node.type==(#FUNC_DECL)&&!(ctx.node.has_qual(#template))) {
-                if(ctx.node.children.length==0) { //Implcit case, for when a div is paramatrized and named but not qualifed as a template, don't emit it!
-                    paranoid_qual_kill(ctx);
-                    htmlemit(ctx.node,#component);
-                }
-            }
-        }
-    }
-
-
-    global string request_path = "";
-    global string request_arg = "";
-    global Object params = deadptr;
-    global Node page = deadnode;
-    newstage routing;
-    register route;
-
-    global Node route_search(Node n) {
-        Node to_return = deadnode;
-        int first_slash = request_path.find("/");
-        if(first_slash>=0) {
-            request_path = request_path.substr(first_slash+1);
-            int next_slash = request_path.find("/");
-            string looking_for = request_path;
-            if(next_slash>=0) {
-                looking_for = request_path.slice(0,next_slash);
-            }
-            n.children.do(child => {
-                if(labels(child.type)=="route") {
-                    if(child.name==looking_for) {
-                        to_return = child;
-                        break;
-                    }
-                }
-            });
-        } 
-        return to_return;
-    }
-
-    "route" {
-        in naming {
-            ctx.node.name = ctx.result.get(ctx.index+1).name;
-            ctx.node.children.push(ctx.result.take(ctx.index+1));
-        }
-        in htmlemiting {
-            if(page==(ctx.node)) {
-                subemit("body",false,"","");
-            } 
-        }
-        in routing {
-            if(request_path.length>0) {
-                Node to_execute = route_search(ctx.node.scopes.get(0));
-                if(is_live(to_execute)) {
-                    rout(to_execute);
-                } else {
-                    if(request_path==ctx.node.name) {
-                        page = ctx.node;
-                    } else {
-                        page = deadnode;
-                    }
-                }
-            }
-        }
-    }
-
-    register text;
-    "text" {
-        in naming {
-            ctx.node.children.push(ctx.result.take(ctx.index+1));
-        }
-        in htmlemiting {
-            execut(ctx.node.children.get(0));
-            subemit("p",false,"",ctx.node.children.get(0).value.getStr);
-        }
-    }
-
-    register span;
-    "span" {
-        in naming {
-            ctx.node.children.push(ctx.result.take(ctx.index+1));
-        }
-        in htmlemiting {
-            execut(ctx.node.children.get(0));
-            subemit("span",false,"",ctx.node.children.get(0).value.getStr);
-        }
-    }
-
-    register link;
-    "link" {
-        in naming {
-            ctx.node.children.push(ctx.result.take(ctx.index+1));
-        }
-        in htmlemiting {
-            execut(ctx.node.children.get(0));
-            subemit("a",false,"",ctx.node.children.get(0).value.getStr);
-        }
-    }
-
-    register input;
-    "input" {
-        in htmlemiting {
-            subemit("input",true,"","");
-        }
-    }
-
-    register iframe;
-    "iframe" {
-        in htmlemiting {
-            subemit("iframe",false,"","");
-        }
-    }
-
-    register button;
-    "button" {
-        in htmlemiting {
-           subemit("button",false,"","");
-        }
-    }
-
-    register script;
-    "script" {
-        in naming {
-            ctx.node.children.push(ctx.result.take(ctx.index+1));
-        }
-        in htmlemiting {
-            execut(ctx.node.children.get(0));
-            subemit("script",false,"",ctx.node.children.get(0).value.getStr);
-        }
-    }
-
-    register style;
-    "style" {
-        in naming {
-            ctx.node.children.push(ctx.result.take(ctx.index+1));
-        }
-        in htmlemiting {
-            execut(ctx.node.children.get(0));
-            subemit("style",false,"",ctx.node.children.get(0).value.getStr);
-        }
-    }
-
-   global string node_str_id(Node n) {
-        string to_return = n.name+"_"+to_string(n.asID);
-        return to_return;
-    }
-   
-    register emit_block;
-    "emit_block" {
-        in executing {
-            subemit("body",false,"","");
-        }
-    }
-    global string recover_emitted() {
-        string sbody = ctx.source;
-        sbody = sbody.slice(6,sbody.length-7);
-        return sbody;
-    }   
-
-    register emit_return;
-    "emit_return" {
-        in executing {
-            if(ctx.source.length!=0) {if(ctx.source!="go"){ctx.source.append("@");}}
-            ctx.source.append("RETURN ");
-            string oldsrc = ctx.source;
-            ctx.source = "";
-            subemit("body",false,"","");
-            ctx.source = (oldsrc+recover_emitted);
-        }
-    }
-
-
-    register html;
-    "html" {
-        in naming {
-            ctx.node.children.push(ctx.result.take(ctx.index+1));
-        }
-        in htmlemiting {
-            execut(ctx.node.children.get(0));
-            emit_part(ctx.node.children.get(0).value.getStr);
-        }
-    }
-
-    register img; 
-    "img" {
-        in htmlemiting {
-            subemit("img",true,"","");
-        }
-    }
-
-    register svg; 
-    "svg" {
-        in htmlemiting {
-            set_in_svg(true);
-            subemit("svg",false,"xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" ","");
-            set_in_svg(false);
-        }
-    }
-
-    register path;
-    "path" {
-        in htmlemiting {
-            subemit("path",true,"","");
-        }
-    }
-
-    register g;
-    "g" {
-        in htmlemiting {
-            subemit("g",false,"","");
-        }
-    }
-
-    register video;
-    "video" {
-        in htmlemiting {
-            subemit("video",false,"","");
-        }
-    }
-
-    register table;
-    "table" {
-        in htmlemiting {
-           subemit("table",false,"","");
-        }
-    }
-
-    register row;
-    "row" {
-        in htmlemiting {
-            subemit("tr",false,"","");
-        }
-    }
-
-    register column;
-    "column" {
-        in htmlemiting {
-            subemit("td",false,"","");
-        }
-    }
-
-    register select;
-    "select" {
-        in htmlemiting {
-            subemit("select",false,"","");
-        }
-    }
-
-    register option;
-    "option" {
-        in naming {
-            ctx.node.children.push(ctx.result.take(ctx.index+1));
-        }
-        in htmlemiting {
-            execut(ctx.node.children.get(0));
-            subemit("option",false,"",ctx.node.children.get(0).value.getStr);
-        }
-    }
-
-    global int emit_js(string js) {
-        if(ctx.source.length!=0) {if(ctx.source=="go") {} else { ctx.source.append("@"); }}
-        ctx.source+=("RUN "+js);
-    }
-    global string emit_reload(Context c, Node n) {
-        if(c.source.length!=0) {
-            if(c.source=="go") {} else { c.source.append("@"); }
-        }
-        c.source+=("FRAG " + node_str_id(n) + " ");
-        string oldsrc = c.source;
-        ctx.source = "";
-        htmlemit n;
-        c.source = (oldsrc+ctx.source);
-        return c.source;
-    }
-    "component" {
-        on ".\"reload\"" {
-            emit_reload(ctx.sub,ctx.node.left.scope_owner);
-        }
-    }
-    global string emit_full_page_reload(Context c){
-        c.source = "RELOAD";
-        return ctx.source;
-    }
-    global void return_emitted() {
-        ctx.source = "@RETURN "+recover_emitted;
-    }
-
-    "inlined" {
-        on ".\"emit\"" string {
-            local_subemit("",true,"","");
-            string s = ctx.node.value.getStr;
-            ctx.node.value.getStr = s.slice(9,s.length-3);
-        }
-    }
-    "component" { //Expand on later if it proves useful
-        on ".\"emit\"" string {
-            local_subemit("",true,"","");
-            string s = ctx.node.value.getStr;
-            ctx.node.value.getStr = s.slice(2,s.length-2);
-        }
-    }
-
+    compile_and_run_local(read_file("web/twigsnap.gld"));
     register cache_catcher;
 ##
 
@@ -639,13 +215,13 @@ while(0<1) {
                     request_path = src;
                     request_arg = "";
                     response_body = "";
-                    ctx.source = "";
+                    ctx_source = "";
 
                     if(method=="POST") {
                         if(is_live(ws_post_function)) {
                             ws_post_function();
                         }
-                        websocket_write(cfd, ctx.source);
+                        websocket_write(cfd, ctx_source);
                     }
 
                     if(method=="GET") {
@@ -661,9 +237,9 @@ while(0<1) {
                         if(!is_live(page)) {
                             continue;
                         }
-                        ctx.source = "";  
+                        ctx_source = "";  
                         htmlemit page;
-                        response_body.append(ctx.source);
+                        response_body.append(ctx_source);
                         websocket_write(cfd,response_body);
                     }                        
                     if(method=="RUN") {
@@ -672,7 +248,7 @@ while(0<1) {
                         } else {
                             if(log_verbosity>1) {print("Websocket running:\n",src);}
                             Ptr string args = split_str(src,"@");
-                            ctx.source = "go";
+                            ctx_source = "go";
                             if(args.length>0) {
                                 string ptrstring = args.get(0);      
                                 Ptr pointer = string_to_Ptr(ptrstring);  
@@ -687,15 +263,15 @@ while(0<1) {
                                             }
                                         }
                                     }
-                                    ctx.source = "go";
+                                    ctx_source = "go";
                                     if(log_verbosity>1) {tstart("executing_run_root");}
                                     execut root;
                                     if(log_verbosity>1) {print("Time: ",tstop("executing_run_root"));}
-                                    src = ctx.source;
+                                    src = ctx_source;
                                     if(src=="RELOAD") {
-                                        ctx.source = "";
+                                        ctx_source = "";
                                         htmlemit page;
-                                        response_body = ctx.source;
+                                        response_body = ctx_source;
                                     } else if(src.length>0) {
                                         response_body = src;
                                     }
@@ -865,19 +441,19 @@ while(0<1) {
                 response.append(cooked);
                 
                 string do_str = "document.cookie = 'session="+session_token+"; path=/';";
-                ctx.source = "";
+                ctx_source = "";
                 emit_block {
                     script js_do(do_str);
                 }
-                response_body.append(ctx.source);
+                response_body.append(ctx_source);
             } else {
                 if(slashpath!="/login") {
                     redirected_from = slashpath;
-                    ctx.source = "";
+                    ctx_source = "";
                     emit_block {
                         script js_do("window.location.href = '/login';");
                     }
-                    response_body.append(ctx.source);
+                    response_body.append(ctx_source);
                     should_emit_page = false;
                 }
             }
@@ -941,20 +517,20 @@ while(0<1) {
             }
 
             if(method=="GET") {
-                ctx.source = "";   
+                ctx_source = "";   
                 //uscw;             
                 htmlemit page;
                 //urcw;
-                response_body.append(ctx.source);
+                response_body.append(ctx_source);
             }
 
             if(method=="POST") {
                 int body_start = req.find("\r\n\r\n");
                 if(body_start>=0) {
                     string src = req.slice(body_start+4,req.length);
-                    ctx.source = src;
+                    ctx_source = src;
                     post page;
-                    response.append(ctx.source);
+                    response.append(ctx_source);
                 }
             }
 
@@ -962,9 +538,9 @@ while(0<1) {
                 int body_start = req.find("\r\n\r\n");
                 if(body_start>=0) {
                     string src = req.slice(body_start+4,req.length);
-                    ctx.source = src;
+                    ctx_source = src;
                     frag page;
-                    response_body.append(ctx.source);
+                    response_body.append(ctx_source);
                 }
             }
 
@@ -976,7 +552,7 @@ while(0<1) {
                     if(is_live(nodeptr)) {
                         emit_reload(ctx,cast_to(#node,nodeptr));
                     }
-                    response_body.append(ctx.source);
+                    response_body.append(ctx_source);
                 }
             }
 
@@ -990,7 +566,7 @@ while(0<1) {
                         if(log_verbosity>1) {print("Running:\n",src);}
 
                         Ptr string args = split_str(src,"@");
-                        ctx.source = "go";
+                        ctx_source = "go";
                         if(args.length>0) {
                             string ptrstring = args.get(0);  
                             Ptr pointer = string_to_Ptr(ptrstring); 
@@ -1015,27 +591,33 @@ while(0<1) {
                           
                             if(is_live(pointer)) {
                                 Node root = cast_to_Node(pointer);
+                                int rootclen = root.children.length;
                                 if(args.length>1) {
                                     for(int a=1;(a+1)<args.length;a++) {
                                         if(args.get(a)=="[VAR]") {
                                             string escapedarg = escape_html(args.get(a+1));
-                                            root.children.get(a-1).value.getStr = escapedarg;
+                                            int aback = a-1;
+                                            if(rootclen>aback) {
+                                                root.children.get(aback).value.getStr = escapedarg;
+                                            } else {
+                                                print(red("arg ",a," is out of bounds (",rootclen,") for capture at ",src," some arg includes @ it should not"));
+                                            }
                                         }
                                     }
                                 }
 
                                 if(log_verbosity>1) {tstart("executing_run_root");}
-                                ctx.source = "go";
+                                ctx_source = "go";
                                 //uscw;
                                 execut root;
                                 //urcw;
                                 if(log_verbosity>1) {print("Time: ",tstop("executing_run_root"));}
 
-                                src = ctx.source;
+                                src = ctx_source;
                                 if(src=="RELOAD") {
-                                    ctx.source = "";
+                                    ctx_source = "";
                                     htmlemit page;
-                                    response_body = ctx.source;
+                                    response_body = ctx_source;
                                 } else if(src.length>0) {
                                     response_body = src;
                                 }
@@ -1090,3 +672,17 @@ while(0<1) {
         thread_sleep;
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+

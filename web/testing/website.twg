@@ -74,8 +74,168 @@ void standard_header {
     script read_file("web/webcorn.js");
 }
 
+##
+    global Node comproot = deadptr;
+##
+
 route "" {
     standard_header;
-    text "Hello world" {text_theme;}
-    text "How are you?";
+    div {
+        "display" : "flex";
+        "min-height" : "100vh";
+        "background-color" : "whitesmoke";
+        div {
+            "flex" : "1";
+            "display" : "flex";
+            "flex-direction" : "column";
+            "justify-content" : "center";
+            "align-items" : "center";
+            "position" : "relative"; 
+                div {
+                    "display" : "flex";
+                    "justify-content" : "center";
+                    "align-items" : "center";
+                    "flex-direction" : "column";
+                    "width" : "100%";
+                    "max-width" : "700px";
+                    "height" : "auto";
+                    "min-height" : "230px";
+                    "padding" : "8px";
+                    "gap" : "12px";
+                    "background-color" : "white";
+                    "border-radius" : "12px";
+                    "box-shadow" : "0 4px 24px rgba(0,0,0,0.08)";
+                    "position" : "relative";
+                    "z-index" : "2";
+
+                    input {
+                        "border" : "1px solid gainsboro";
+                        "width" : "80%";
+                        "height" : "30px";
+                        "id" : "expr_input";
+                        "onchange" : capture(
+                            string myval ; "this.value"
+                        ) {
+                            comproot = tokenize_and_assemble(myval);
+                            tree_display.reload;
+                            comproot = deadptr;
+                        }
+                        air_input_theme;
+                    }
+                    div tree_display {
+                        "width" : "100%";
+                        "display" : "flex";
+                        "justify-content" : "center";
+                        "align-items" : "center";
+                        "flex-direction" : "column";
+                        if(is_live(comproot)) {
+                            Collection int compids; compids.clear;
+                            comproot.children.do(expr => {
+                                div {
+                                    "width" : "100%";
+                                    "display" : "flex";
+                                    "align-items" : "center";
+                                    "flex-direction" : "column";
+                                    "background-color" : "whitesmoke";
+                                    "overflow-x" : "auto";
+                                    stateless template div treenode(Node n) {
+                                        string st = n.name;
+                                        int t = n.type;
+                                        if(!compids.has(t)) {
+                                            compids.put(t,t);
+                                        }
+                                        if(st.length==0) {
+                                            st = L#t;
+                                        }
+                                        div {
+                                            "flex" : "0 0 auto";
+                                            "border" : "1px solid gainsboro";
+                                            "margin" : "2px";
+                                            "display" : "flex"; 
+                                            "flex-direction" : "column";
+                                            "align-items" : "center";
+                                            text st {text_theme;}
+                                            div {
+                                                "display" : "flex"; 
+                                                "flex-direction" : "row";
+                                                "justify-content" : "center";
+                                                n.children.do(rec => {
+                                                    Node r = rec;
+                                                    treenode(r);
+                                                });
+                                            }
+                                        }
+                                    }
+                                    treenode(expr);
+
+                                }
+                            });
+
+                            div {
+                                "display" : "flex";
+                                "flex-direction" : "column";
+                                Ptr lbps = utypes["unitdata"]["left_binding_powers"];
+                                Ptr rbps = utypes["unitdata"]["right_binding_powers"];
+                                compids.do(id => {
+                                    if(utypes["unitdata"]["left_binding_powers"].has(id)) {
+                                        div {
+                                            "display" : "flex";
+                                            "flex-direction" : "row";
+                                            "gap" : "5px";
+                                            string label = L#id;
+                                            int lbp = lbps.lookup(id);
+                                            int rbp = -1;
+                                            if(rbps.has(id)) {
+                                                rbp = rbps.lookup(id);
+                                            }
+                                            string rbp_str = to_string(rbp);
+                                            text label {text_theme;}
+                                            input {
+                                                "value" : to_string(lbp);
+                                                "onchange" : capture(
+                                                    string fid ; js_lit(to_string(id)),
+                                                    string myval ; "this.value"
+                                                ){
+                                                    int rid = stoi(fid);
+                                                    set_binding_powers(rid,stoi(myval),utypes["unitdata"]["right_binding_powers"].lookup(rid));
+                                                }
+                                                "text-align" : "center";
+                                                "width" : "20px";
+                                                air_input_theme;
+                                            }
+                                            input {
+                                                "value" : to_string(rbp);
+                                                "onchange" : capture(
+                                                    string fid ; js_lit(to_string(id)),
+                                                    string myval ; "this.value"
+                                                ){
+                                                    int rid = stoi(fid);
+                                                    set_binding_powers(rid,utypes["unitdata"]["left_binding_powers"].lookup(rid),stoi(myval));
+                                                }
+                                                "text-align" : "center";
+                                                "width" : "20px";
+                                                air_input_theme;
+                                            }
+                                        }
+                                    }
+                                });
+                            }
+                        }
+                    }
+                    button {
+                        standard_button_theme;
+                        "background-color" : "forestgreen";
+                        text "COMPILE" {"color" : "white";}
+                        "onclick" : capture(
+                            string myval ; "getel('expr_input').value"
+                        ) {
+                            comproot = tokenize_and_assemble(myval);
+                            tree_display.reload;
+                            comproot = deadptr;
+                        }
+                    }
+
+                }
+        }
+    }
 }

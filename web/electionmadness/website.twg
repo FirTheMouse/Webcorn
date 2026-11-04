@@ -136,7 +136,6 @@ inlined popup_panel_theme {
     "onclick" : "event.stopPropagation();";
 }
 
-
 ##
     Ptr int tally_by_state;
     global string guestid;
@@ -156,7 +155,6 @@ inlined popup_panel_theme {
             class_database.try_read_forever_then {
                 if(class_database.has(classcode)) {
                     class = load_subunit(class_database[classcode]);
-                    dump_subunit(class,true);
                     class["Users"].cells((usercookie,u) => {
                         u.as(Object).votes.do(candidate => {
                             database.adopt(candidate);
@@ -212,6 +210,8 @@ inlined popup_panel_theme {
                         user = users.Object(
                             "votes": [Ptr];
                             "locked": false;
+                            "tb1": "TX-Senate";
+                            "tb2": "0";
                         ).register(guestid);
                     }
                 }
@@ -789,8 +789,8 @@ route login {
                                                     if(request_arg=="reg") {
                                                         text "Register" {"margin" : "5px"; "font-size" : "0.8rem"; "color" : "ghostwhite"; text_theme;}
                                                         "onclick" : capture(
-                                                            string given_username ; "getel('username').value",
-                                                            string given_password ; "getel('password').value",
+                                                            string given_username ; "clean_ats(getel('username').value)",
+                                                            string given_password ; "clean_ats(getel('password').value)",
                                                             string req_arg ; js_lit(request_arg),
                                                             js_do("apply_theme(this,"+js_lit(skeleton_pulse.emit)+");")
                                                         ) {
@@ -840,8 +840,8 @@ route login {
                                                     } else {
                                                         text "Login" {"margin" : "5px"; "font-size" : "0.8rem"; "color" : "ghostwhite"; text_theme;}
                                                         "onclick" : capture(
-                                                            string given_username ; "getel('username').value",
-                                                            string given_password ; "getel('password').value",
+                                                            string given_username ; "clean_ats(getel('username').value)",
+                                                            string given_password ; "clean_ats(getel('password').value)",
                                                             string req_arg ; js_lit(request_arg),
                                                             js_do("apply_theme(this,"+js_lit(skeleton_pulse.emit)+");")
                                                         ) {
@@ -1387,7 +1387,6 @@ div top_bar(string on_route) {
 
 
 route "" {
-
     standard_header;
     top_bar("/");
     sync_with_database;
@@ -1842,7 +1841,7 @@ route "" {
                     string current = "";
                     user.as(ColCol).try_read_forever_then {
                         if(user.?tb1) {
-                            current = user.tb1;
+                            current = cast_to_string(user.tb1);
                         }
                     }
                     option "-- Select a race --" {
@@ -1865,7 +1864,7 @@ route "" {
                     "onchange" : capture(js_do("tb1 = true; check_vote_finished();"), string myval ; "this.value") {
                         sync_with_database;
                         user.as(ColCol).try_lock_forever_then {
-                            user.tb1 = myval;
+                            cast_to_string(user.tb1) = myval;
                         }
                         user.as(ColCol).try_read_forever_then {
                             class.save;
@@ -1889,7 +1888,7 @@ route "" {
                 string current = "0";
                 user.as(ColCol).try_read_forever_then {
                     if(user.?tb2) {
-                        current = user.tb2;
+                        current = cast_to_string(user.tb2);
                     }
                 }
                 div {
@@ -1919,7 +1918,7 @@ route "" {
                     "onchange" : capture(js_do("tb2 = true; check_vote_finished();"), string myval ; "this.value") {
                         sync_with_database;
                         user.as(ColCol).try_lock_forever_then {
-                            user.tb2 = myval;
+                            cast_to_string(user.tb2) = myval;
                         }
                         user.as(ColCol).try_read_forever_then {
                             class.save;
@@ -2488,6 +2487,7 @@ stateless template div class_display {
         "display" : "flex";
         "width" : "100%";
         "height" : "100%";
+        "overflow-x" : "wrap";
         if(target_classcode.length>0) {
             "flex-direction" : "column";
             sync_class(target_classcode);
@@ -2514,6 +2514,8 @@ stateless template div class_display {
                             "margin" : "0px 8px";
                             text_theme;
                         }
+                        text "At: " {text_theme;}
+                        text capture_ptr(class) {text_theme;}
                     }
                     button {
                         "background-color" : "white";
@@ -2578,20 +2580,14 @@ stateless template div class_display {
                                                             sync_user;
                                                             if(!is_live(user)) {
                                                                 print(red("A dead user invoked a myclass capture targeting ",fclasscode));
-                                                            } else if(!user.?myclasses) {
-                                                                print(red("User ",user.label," invoked a myclass capture without visiting the page first, targeting ",fclasscode," and user ",fusername));
                                                             } else {
-                                                                if(user.myclasses.has(fclasscode)) {
-                                                                    sync_class(fclasscode);
-                                                                    if(!is_live(class)) {
-                                                                        print(red("Attempted to modify class ",fclasscode," which was dead"));
-                                                                    } else {
-                                                                        Object fuser = class["Common"]["Sessions"][fusername];
-                                                                        fuser["locked"] = (myval=="true");
-                                                                        compute_class_tally;
-                                                                    }
+                                                                sync_class(fclasscode);
+                                                                if(!is_live(class)) {
+                                                                    print(red("Attempted to modify class ",fclasscode," which was dead"));
                                                                 } else {
-                                                                    print(red("User ",user.label," attempted to edit the data of user ",fusername," in class ",fclasscode," which they did not own"));
+                                                                    Object fuser = class["Common"]["Sessions"][fusername];
+                                                                    fuser["locked"] = (myval=="true");
+                                                                    compute_class_tally;
                                                                 }
                                                             }
                                                         }
@@ -2637,24 +2633,18 @@ stateless template div class_display {
                                                     sync_user;
                                                     if(!is_live(user)) {
                                                         print(red("A dead user invoked a myclass capture targeting ",fclasscode));
-                                                    } else if(!user.?myclasses) {
-                                                        print(red("User ",user.label," invoked a myclass capture without visiting the page first, targeting ",fclasscode," and user ",fusername));
                                                     } else if(myval.length==0) {
                                                         print("Empty password reset ignored");
                                                     } else {
-                                                        if(user.myclasses.has(fclasscode)) {
-                                                            sync_class(fclasscode);
-                                                            if(!is_live(class)) {
-                                                                print(red("Attempted to modify class ",fclasscode," which was dead"));
-                                                            } else {
-                                                                Object fuser = class["Common"]["Sessions"][fusername];
-                                                                user.as(ColCol).try_read_forever_then {
-                                                                    fuser["password"] = secure_hash(myval);
-                                                                    class.save;
-                                                                }
-                                                            }
+                                                        sync_class(fclasscode);
+                                                        if(!is_live(class)) {
+                                                            print(red("Attempted to modify class ",fclasscode," which was dead"));
                                                         } else {
-                                                            print(red("User ",user.label," attempted to edit the data of user ",fusername," in class ",fclasscode," which they did not own"));
+                                                            Object fuser = class["Common"]["Sessions"][fusername];
+                                                            user.as(ColCol).try_read_forever_then {
+                                                                fuser["password"] = secure_hash(myval);
+                                                                class.save;
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -2665,6 +2655,10 @@ stateless template div class_display {
                                             text k {text_theme;}
                                             text ":" {"margin" : "0px 5px"; text_theme;}
                                             text to_string(v) {text_theme;}
+                                            if(k.starts("tb")) {
+                                                text ":" {"margin" : "0px 5px"; text_theme;} 
+                                                text capture_ptr(v) {text_theme;}
+                                            }
                                         }
                                     }
                                 });
@@ -2926,6 +2920,10 @@ route admin {
 
             Ptr string files = list_files_in_directory(project_path+"classes/").filter(f => f.ends(".gsu"));
             div {
+                "display" : "flex";
+                "flex-direction" : "row";
+                "overflow-x" : "scroll";
+                "width" : "100%";
                 files.do(f => {
                     string fcode = f.substr(0,f.length-4);
                     button {
@@ -2947,6 +2945,41 @@ route admin {
             }
             div classes_display {
                 class_display;
+                button {
+                    "background-color" : "red";
+                    standard_button_theme;
+                    text "TIEBREAKER PANIC";
+                    "onclick" : capture(){
+                        Ptr class_database = database["Classes"]["Lookup"];
+                        class_database.cells((classcode,classpath) => {
+                            sync_class(classcode);
+                            if(is_live(class)) {
+                                ColCol users = class["Users"];
+                                users.try_read_forever_then {
+                                    users.cells((usercookie,u) => {
+                                        Object usr = u;
+                                        Ptr sptr = users.add(string);
+                                        sptr.push(users.add(char));
+                                        if(usr.?tb1) {
+                                            usr.set("tb1",sptr);
+                                        } else {
+                                            usr.put("tb1",sptr);
+                                        }
+
+                                        Ptr sptrT = users.add(string);
+                                        sptrT.push(users.add(char));
+                                        if(usr.?tb2) {
+                                            usr.set("tb2",sptrT);
+                                        } else {
+                                            usr.put("tb2",sptrT);
+                                        }
+                                    });
+                                    class.save;
+                                }
+                            }
+                        });
+                    }
+                }
             }
         } else {      
             print(user.label," attempted unauthorized access to the admin route in unit ",unit_uid," on ",unit_standard_time); 

@@ -1697,90 +1697,7 @@ namespace Acorn {
             return deadptr;
         }
 
-        uint32_t color_of_string_id = add_function("color_of_string",[this](Context& ctx){
-            standard_sub_process(ctx);
-            string got = ctx.node().getString(0);
-            CHECK_ERROR("Invalid first arg in color_of_string");
-            std::string color = color_of_string(got.to_std());
-            string output = resolve_string_ticket(ctx.node());
-            output = color;
-        },sizeof(Ptr),string_id);
-
-        uint32_t list_files_in_directory_id = add_function("list_files_in_directory",[this](Context& ctx){
-            standard_sub_process(ctx);
-            std::string path = ((string&)(*(Ptr*)ctx.node().children()[0].value().get())).to_std();
-            Ptr p = resolve_ticket(ctx.node(),sizeof(Ptr),string_id);
-            Col& data = resolve_to_col(p);
-            list<std::string> files = listFilesInDirectory(path);
-            while(data.length() > files.length()) {
-                recycle_column(*(Ptr*)data.last());
-                data.removeAt(data.length()-1);
-            }
-            for(int i=0;i<files.length();i++) {
-                if(i<data.length()) {
-                    string s = (string&)*(Ptr*)data[i];
-                    s = files[i];
-                } else {
-                    string s = get_ticket(name_store_id,1,char_id);
-                    s = files[i];
-                    data.push((void*)&s);
-                }
-            }
-            ctx.node().value().set((void*)&p);
-        },sizeof(Ptr),ptr_id);
-        
-        uint32_t list_directories_in_directory_id = add_function("list_directories_in_directory",[this](Context& ctx){
-            standard_sub_process(ctx);
-            std::string path = ((string&)(*(Ptr*)ctx.node().children()[0].value().get())).to_std();
-            Ptr p = resolve_ticket(ctx.node(),sizeof(Ptr),string_id);
-            Col& data = resolve_to_col(p);
-            list<std::string> dirs = listDirectoriesInDirectory(path);
-            while(data.length() > dirs.length()) {
-                recycle_column(*(Ptr*)data.last());
-                data.removeAt(data.length()-1);
-            }
-            for(int i=0;i<dirs.length();i++) {
-                if(i<data.length()) {
-                    string s = (string&)*(Ptr*)data[i];
-                    s = dirs[i];
-                } else {
-                    string s = get_ticket(name_store_id,1,char_id);
-                    s = dirs[i];
-                    data.push((void*)&s);
-                }
-            }
-            ctx.node().value().set((void*)&p);
-        },sizeof(Ptr),ptr_id);
-        uint32_t create_directory_id = add_function("create_directory",[this](Context& ctx){
-            standard_sub_process(ctx);
-            std::string path = ((string&)(*(Ptr*)ctx.node().children()[0].value().get())).to_std();
-            std::error_code ec;
-            std::filesystem::create_directories(path, ec);
-            if(ec) print(red("create_directory failed for "+path+": "+ec.message()));
-        });
-        uint32_t remove_file_id = add_function("remove_file",[this](Context& ctx){
-            standard_sub_process(ctx);
-            std::string path = ((string&)(*(Ptr*)ctx.node().children()[0].value().get())).to_std();
-            std::error_code ec;
-            std::filesystem::remove(path, ec);
-            if(ec) print(red("remove_file failed for "+path+": "+ec.message()));
-        });
-        uint32_t remove_directory_id = add_function("remove_directory",[this](Context& ctx){
-            standard_sub_process(ctx);
-            std::string path = ((string&)(*(Ptr*)ctx.node().children()[0].value().get())).to_std();
-            std::error_code ec;
-            std::filesystem::remove_all(path, ec);
-            if(ec) print(red("remove_directory failed for "+path+": "+ec.message()));
-        });
-        uint32_t rename_file_id = add_function("rename_file",[this](Context& ctx){
-            standard_sub_process(ctx);
-            std::string path = ((string&)(*(Ptr*)ctx.node().children()[0].value().get())).to_std();
-            std::string new_name = ((string&)(*(Ptr*)ctx.node().children()[1].value().get())).to_std();
-            std::error_code ec;
-            std::filesystem::rename(path, new_name, ec);
-            if(ec) print(red("rename failed for "+path+": "+ec.message()));
-        });
-
+    
         //Just some experiments
         uint32_t clientsidescope_id = reg_id("clientsidescope");
         uint32_t clientside_id = add_function("clientside",[this](Context& ctx){
@@ -1891,6 +1808,7 @@ namespace Acorn {
 
         void init() override {
             register_type("div",component_id,0);
+            register_type("textarea",component_id,0);
             register_type("inlined",inlined_id,0);
             register_type("invisible",invisible_id,0);
 
@@ -2375,6 +2293,183 @@ namespace Acorn {
             //     }
             // };
 
+            add_function("pebble_kludge_compile_and_run",[this](Context& ctx){
+                standard_sub_process(ctx);
+    
+                g_ptr<Webcorn_Core> compiler = nullptr;
+                {
+                    std::lock_guard<std::mutex> lock(units_mutex);
+                    for(int i=uid;i<units.length();i++) {
+                        if(units[i]->unit_label == "FirsCompiler") {
+                            compiler = as<Webcorn_Core>(units[i]);
+                            break;
+                        }
+                    }
+                }
+                if(!compiler) {
+                    compiler = make_unit<Webcorn_Core>();
+                    compiler->unit_label = "FirsCompiler";
+                }
+    
+                Stage* old_stage = compiler->active_stage;
+                std::string source = ctx.node().getString(0).to_std();
+                float old_at_x = compiler->at_x; float old_at_y = compiler->at_y; float old_at_z = compiler->at_z;
+                compiler->at_x = 0.0f; compiler->at_y = 0.0f; compiler->last_z++; compiler->at_z = compiler->last_z;
+                Node root = compiler->process(source);
+                root.z(compiler->at_z);
+                compiler->at_x = old_at_x; compiler->at_y = old_at_y; compiler->at_z = old_at_z;
+                compiler->compile(root);
+                compiler->start_logged_stage(x_handlers);
+                compiler->standard_travel_pass(root);
+                compiler->end_logged_stage();
+                compiler->active_stage = old_stage;
+            });
+            add_function("pebble_refragment",[this](Context& ctx){
+                standard_sub_process(ctx);
+                string fragment = ctx.node().getString(0);
+                string nodeid = ctx.node().getString(1);
+                string domid = ctx.node().getString(2);
+                string source_text = ctx.node().getString(3);
+
+                std::string config = ctx.node().getString(4).to_std();
+                map<std::string,std::string> config_settings;
+                if(!config.empty()) {
+                    for(auto& prop : split_str(config,';')) {
+                        if(!prop.empty()) {
+                            list<std::string> props = split_str(prop,'=');
+                            if(props.length()==2) {
+                                print("Config setting: ",prop);
+                                config_settings.put(props[0],props[1]);
+                            } else {
+                                print(red("Bad config prop: "),prop);
+                            }
+                        }
+                    }
+                }
+
+                print("Recived fragment");
+                Log::Line total_time; total_time.start();
+
+                g_ptr<Webcorn_Core> compiler = nullptr;
+                {
+                    std::lock_guard<std::mutex> lock(units_mutex);
+                    for(int i=uid;i<units.length();i++) {
+                        if(units[i]->unit_label == "FirsCompiler") {
+                            compiler = as<Webcorn_Core>(units[i]);
+                            break;
+                        }
+                    }
+                }
+                if(!compiler) {
+                    compiler = make_unit<Webcorn_Core>();
+                    compiler->unit_label = "FirsCompiler";
+                }
+
+                std::string fallback_str = "3";
+                int maxstage = std::stoi(config_settings.getOrDefault("maxstage",fallback_str));
+
+                // print("Compiler at ",compiler->uid);
+                // print_column(resolve_to_col(source_text));
+                Node root = deadptr;
+                Log::Line l;
+                if(maxstage>=1) {
+                    compiler->at_x = 0; compiler->at_y = 0;
+                    l.start();
+                    root = compiler->process(source_text.to_std());
+                    print("Processed fragment in ",ftime(l.end())); l.start();
+                }
+                if(maxstage>=2) {
+                    compiler->start_logged_stage(compiler->a_handlers);
+                    compiler->standard_direct_pass(root);
+                    compiler->end_logged_stage();
+
+                    compiler->lemmatize_stages();
+                    for(int i=0;i<root.children().length();i++) {
+                        compiler->place_node_in_scope(root.children()[i],root);
+                    }
+                    compiler->start_logged_stage(compiler->n_handlers);
+                    compiler->standard_direct_pass(root);
+                    compiler->end_logged_stage();
+                }
+                if(maxstage>=3) {
+                    compiler->start_logged_stage(compiler->s_handlers);
+                    compiler->standard_direct_pass(root);
+                    compiler->end_logged_stage();
+
+                    compiler->start_logged_stage(compiler->t_handlers);
+                    compiler->standard_resolving_pass(root);
+                    compiler->end_logged_stage();
+                }
+                if(maxstage>=4) {
+                    compiler->start_logged_stage(compiler->r_handlers);
+                    compiler->standard_resolving_pass(root);
+                    compiler->end_logged_stage();
+                }
+                if(maxstage>=5) {
+                    compiler->start_logged_stage(compiler->m_handlers);
+                    compiler->memory_backwards_pass(root);
+                    compiler->end_logged_stage();
+                }
+                if(maxstage>=1) {
+                    print("Compiled fragment in ",ftime(l.end()));
+                    print(compiler->node_to_string(root));
+                }
+                if(compiler->UERROR_FLAG) {
+                    for(auto& s : compiler->UERRORS) {
+                        print(red("UERROR: "),s);
+                    }
+                    compiler->UERRORS.clear();
+                    compiler->UERROR_FLAG = false;
+                }
+
+                string html = resolve_string_ticket(ctx.node());
+                html.col().clear();
+                print("Stamping fragment");
+                l.start();
+                list<std::string> lines;
+                for(int i=0;i<1;i++) lines << "";
+
+                if(is_live(root)) {
+                    list<Node> stamps;
+                    map<uint64_t,bool> visited;
+                    collect_stamps(root, stamps, visited);
+                    for(uint32_t i=0;i<stamps.length();i++) {
+                        Node n = stamps[i];
+                        std::string text = n.name().to_std();
+                        if(text.empty()) continue;
+                
+                        int x = (int)n.x();
+                        int y = (int)n.y();
+                        while(y>=lines.length()) lines << "";
+                
+                        std::string cls = "tok";
+                        if(n.type()!=0) cls+=" "+labels[n.type()];
+                
+                        lines[y] += "<span class='"+cls+"' style='left:"+std::to_string(x)+"ch' data-ptr='"+capture_ptr(n)+"'>"+text+ "</span>";
+                    }
+                }
+                list<std::string> raw_lines;
+                std::string cur = "";
+                for(uint32_t i=0;i<source_text.length();i++) {
+                    char c = source_text.at(i);
+                    if(c=='\n') { raw_lines << cur; cur = ""; }
+                    else if(c!='\r') cur += c;
+                }
+                raw_lines << cur;
+                while(raw_lines.length()>lines.length()) {lines<<"";}
+                for(uint32_t i=0;i<lines.length();i++) {
+                    std::string raw = (i<raw_lines.length()) ? raw_lines[i] : "";
+                    html.push("<div class='line'><span class='raw'>"+raw+"</span>"+lines[i]+"</div>");
+                }
+                print("Stamped fragment in ",ftime(l.end()));
+
+                // ColColCol& subunit = resolve_to_subunit(root);
+                // subunit.gen++;
+                // compiler->subunits.free.push(compiler->indexof_subunit(subunit.storage)); //<- Make a proper method later
+                // nuke_subunit(subunit);
+
+                print("Processed fragment in ",ftime(total_time.end()));
+            },sizeof(Ptr),string_id);
 
             //Still a WIP, finish later when multi-device scaling becomes a concearn
             g_ptr<Webcorn_Core> transactor = nullptr;

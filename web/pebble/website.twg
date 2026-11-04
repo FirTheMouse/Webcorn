@@ -21,6 +21,11 @@ inlined card_theme {
 inlined main_font {
     "font-family" : "system-ui, sans-serif";
 }
+inlined text_theme {
+    "font-size" : "0.7rem";
+    "font-weight" : "600";
+    main_font;
+}
 inlined text_one_theme {
     "font-size" : "0.7rem";
     "font-weight" : "800";
@@ -38,6 +43,12 @@ inlined text_three_theme {
     "font-weight" : "400";
     "color" : " rgb(210, 210, 210)";
     main_font;
+}
+inlined standard_button_theme {
+    "border" : "none";
+    "border-radius" : "8px";
+    "padding" : "6px";
+    text_theme;
 }
 
 inlined hoverable_theme {
@@ -72,40 +83,152 @@ void standard_header {
 ##
     global string fragment_behaviour = "";
     fragment_behaviour = capture(
-        string mynode ; "",
-        string myDOMid ; "",
-        string mytext ; "",
-        "";
+        string mynode ; "[ANY]",
+        string myDOMid ; "[ANY]",
+        string mytext ; "[ANY]",
+        string config ; "[ANY]"
     ){
         if(mynode.length>0) {
-            //Node node = retrive_ptr(mynode); 
-            ctx.source = "@FRAG "+myDOMid+" "+pebble_refragment(fragment_behaviour,js_lit(mynode),myDOMid,unescape_html(mytext));
-            print(ctx.source);
+            ctx_source = "@FRAG "+myDOMid+" "+pebble_refragment(fragment_behaviour,js_lit(mynode),myDOMid,unescape_html(mytext),config);
         }
     };
+    global Node inspected_node = deadptr;
 ##
+
+##
+    global string code_lh = "1.5em";
+    global string code_font = "ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace";
+##
+
+inlined panel_theme {
+    "background-color" : pebble_color_D2;
+    "border" : "1px solid rgb(110, 110, 110)";
+    "border-radius" : "8px";
+    "padding" : "6px 8px";
+    "white-space" : "nowrap";
+}
 
 
 
 route "" {
     standard_header;
+    script "
+        let config_str = 'maxstage=3;';
+    ";
+    "min-height" : "100vh";
+    "background-color" : pebble_color_D1;
+    "display" : "flex"; 
+    "flex-direction" : "row";
     div {
+        "background-color" : pebble_color_D2;
+        "border-right" : "1px solid "+pebble_color_L1;
+        "height" : "100%";
+        "width" : "5%";
+
+        div {
+            "display" : "flex"; "flex-direction" : "column";
+            "gap" : "5px";
+            stateless template div tab_btn(string label,string reveal_el) {
+                button {
+                    "flex" : "1";
+                    "border-radius" : "100%";
+                    standard_button_theme;
+                    "background-color" : pebble_color;
+                    text label {"color" : "ghostwhite";}
+                    "onclick" : "
+                        document.querySelectorAll('.side_section').forEach(el => {
+                            if(el.id==="+js_lit(reveal_el)+") {
+                                if(el.style.display==='none') {
+                                    el.style.display = 'flex';
+                                } else {
+                                    el.style.display = 'none';
+                                }
+                            } else { 
+                                el.style.display = 'none';
+                            }
+                        });
+                        Array.from(this.parentElement.children).forEach(e => {
+                            e.style.backgroundColor = "+js_lit(pebble_color)+"; 
+                        });
+                        this.style.backgroundColor = "+js_lit(pebble_color_L2)+"; 
+                    ";
+                }
+            }
+            tab_btn("FI","side_files");
+            tab_btn("EX","side_extensions");
+        }    
+    }
+    div {
+        "id" : "side_files";
+        "class" : "side_section";
+        "display" : "none";
+        "width" : "20%";
+        "height" : "100%";
+        "background-color" : pebble_color_D2;
+        "border-right" : "1px solid "+pebble_color_L1;
+        text "FILES";
+    }   
+    div {
+        "id" : "side_extensions";
+        "class" : "side_section";
+        "display" : "none";
+        "width" : "20%";
+        "height" : "100%";
+        "background-color" : pebble_color_D2;
+        "border-right" : "1px solid "+pebble_color_L1;
+        "display" : "flex"; "flex-direction" : "column";
+        div {
+            "height" : "3%";
+            "width" : "100%";
+            text "EXTENSIONS" {"color" : "ghostwhite"; text_theme;}
+            "border-bottom" : "1px solid "+pebble_color_L1;
+        }
+        stateless template div extension_box(string ext_name, string ext_path) {
+            div {
+                "display" : "flex"; 
+                "flex-direction" : "row";
+                input {
+                    "type" : "checkbox";
+                    "onchange" : capture(
+                        string enabledstr ; "this.checked?'true':'false'",
+                        string ext_pathstr ; js_lit(ext_path)
+                    ){
+                        bool is_enabled = enabledstr=="true";
+                        if(is_enabled) {
+                            pebble_kludge_compile_and_run(read_file(ext_pathstr));
+                        }
+                    }
+                }
+                text ext_name {"color" : "ghostwhite"; text_theme;}
+            }
+        }
+
+        extension_box("TwigSnap","web/twigsnap.gld");
+    }   
+    div {
+        "height" : "100%";
+        "width" : "95%";
         style "
-            span { color : rgb(200, 200, 200); }
+            span { color : rgb(255, 255, 255); }
             .text { color:rgb(255, 152, 0); }
+            .print { color:rgb(244, 204, 41); }
             .style { color:rgb(255, 152, 0); }
             .inlined { color: rgb(155, 155, 155); }
             .component { color: rgb(57, 123, 222); }
             .FUNC_DECL { color:rgb(33, 150, 243); }
             .LBRACE, .RBRACE { color:rgb(134, 135, 135); }
             .VAR_DECL { color: rgb(152, 171, 239); }
-            .LITERAL { color:rgb(255, 112, 60); }
+            .LITERAL { color:rgb(230, 225, 180); }
             .QUOTE { color:rgb(255, 112, 60); }
+            .STRING { color:rgb(255, 112, 60); }
             .IDENTIFIER { color:rgb(106, 106, 152); }
-            .COLON { color: #ffffff; }
+            .COLON { color:rgb(220, 220, 220); }
 
-            input:focus {outline: none;}
-            div {outline: none;}
+            .line { position: relative; height: "+code_lh+"; white-space: pre; }
+            .raw { position: absolute; left: 0; white-space: pre; color: rgb(255, 255, 255); }
+            .tok { position: absolute; white-space: pre; background-color: "+pebble_color_D1+"; }
+            input:focus, textarea:focus { outline: none; }
+            div { outline: none; }
         ";
 
         string save_behaviour = capture(){
@@ -129,26 +252,422 @@ route "" {
             });
         ";
 
-        div the_test_div {
-            "contenteditable" : "true";
-            text "for(int i=0;i<6;i++){print(i);}";
+        div {
+            "display" : "flex";
+            "flex-direction" : "row";
+            "background-color" : pebble_color_D2;
+            "height" : "42px";
+            "border-bottom" : "1px solid "+pebble_color_L1;
+            "width" : "100%";
+            "overflow-x" : "scroll";
+            div {
+                "height" : "100%";
+                "width" : "85%";
+                "border-right" : "1px solid "+pebble_color_L1;
+                div {
+                    "height" : "100%";
+                    "width" : "100%";
+                    "padding" : "3px";
+                }
+            }
+            div {
+                "height" : "100%";
+                "width" : "15%";
+                "border-right" : "1px solid "+pebble_color_L1;
+                "padding" : "5px";
+                div {
+                    "height" : "100%";
+                    "width" : "100%";
+                    "display" : "flex"; 
+                    "flex-direction" : "row";
+                    "gap" : "3px";
+                    "overflow-x" : "scroll";
+                    stateless template div mode_btn(string label,int maxstage) {
+                        button {
+                            "flex" : "1";
+                            "border-radius" : "100%";
+                            standard_button_theme;
+                            "background-color" : pebble_color;
+                            text label {"color" : "ghostwhite";}
+                            "onclick" : "
+                                config_str = 'maxstage="+to_string(maxstage)+";'; 
+                                Array.from(this.parentElement.children).forEach(e => {
+                                    e.style.backgroundColor = "+js_lit(pebble_color)+"; 
+                                });
+                                this.style.backgroundColor = "+js_lit(pebble_color_L2)+"; 
+                                renderNow();
+                            ";
+                        }
+                    }
+                    mode_btn("O",0);
+                    mode_btn("K",1);
+                    mode_btn("A",2);
+                    mode_btn("T",3);
+                    mode_btn("R",4);
+                    mode_btn("M",5);
+                    mode_btn("X",6);
+                }
+            }
         }
 
-        script " 
-            const fragment = \""+fragment_behaviour+"\";
-            const nodeID = "+js_lit(capture_ptr(~&the_test_div))+";
-            const domID = "+js_lit(capture_node(the_test_div))+";
-            const behaviour = fill_capture(
-                fragment,
-                JSON.stringify(nodeID),
-                JSON.stringify(domID),
-                'this.innerText'
-            );
-            document.getElementById(domID).setAttribute('oninput', behaviour);
-        ";
+        div code {
+            "position" : "relative";
+            "font-family" : code_font;
+            "font-size" : "14px";
+            "line-height" : code_lh;
+            "font-variant-ligatures" : "none";
+            "tab-size" : "4";
+            "color" : "rgb(200, 200, 200)";
+            "min-height" : "100vh";
+            "overflow" : "auto";
 
+            div the_lines {
+                "position" : "relative";
+                "data-frag" : "inner";
+            }
+            div {
+                "position" : "absolute";
+                "inset" : "0";
+                "pointer-events" : "none";
+                hoisted div the_selection {
+                    "position" : "absolute";
+                    "inset" : "0";
+                }
+                hoisted div the_caret {
+                    "--x" : "0";
+                    "--y" : "0";
+                    "position" : "absolute";
+                    "width" : "2px";
+                    "height" : code_lh;
+                    "left" : "calc(var(--x) * 1ch)";
+                    "top" : "calc(var(--y) * 1.5em)";
+                    "background-color" : golden_color_L1;
+                    "animation" : "caret_blink 1s steps(1) infinite";
+                }
+            }
+            hoisted textarea textarea__the_sink {
+                "position" : "absolute";
+                "inset" : "0";
+                "width" : "100%";
+                "height" : "100%";
+                "opacity" : "0";
+                "resize" : "none";
+                "border" : "0";
+                "padding" : "0";
+                "font" : "inherit";
+                "line-height" : "inherit";
+                "white-space" : "pre";
+                "overflow" : "hidden";
+                "spellcheck" : "false";
+                "autocapitalize" : "off";
+            }
+            hoisted div inspector_anchor {
+                "position" : "absolute";
+                "left" : "0px";
+                "top" : "0px";
+                "visibility" : "hidden";
+                "pointer-events" : "none";
+                "z-index" : "10";
+                hoisted div inspector_panel {
+                    panel_theme;
+                    if(is_live(inspected_node)) {
+                        int ntype = inspected_node.type;
+                        string ntypename = L#ntype;
+                        string nname = inspected_node.name;
+                        div {
+                            "display" : "flex"; "flex-direction" : "row";
+                            "gap" : "5px"; text_theme;
+                            text ntypename;
+                            text nname;
+                        }
+                        if(ntype==#FUNC_CALL) {
+                            div {
+                                "display" : "flex"; "flex-direction" : "row";
+                                "gap" : "5px"; text_theme;
+                                Ptr args = inspected_node.scopes.get(0).owner.children;
+                                Ptr passed = inspected_node.children;
+                                args.do((cptr,idx) => {
+                                    div {
+                                        "display" : "flex"; "flex-direction" : "row";
+                                        "gap" : "5px";
+                                        Node arg = cptr;
+                                        int argvtype = arg.value.type;
+                                        string argname = arg.name;
+                                        string argvtypename = L#argvtype;
+                                        if(cptr-?) {
+                                            text "|";
+                                        }
+                                        if(passed.length>idx) {
+                                            Node passednode = passed.get(idx);
+                                            if(passednode.value.type!=argvtype) {
+                                                "color" : "dimgray";
+                                            }
+                                        } else {
+                                            "color" : "red";
+                                        }
+                                        text argvtypename;
+                                        text argname;
+                                    }
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            string hover_behaviour = capture(
+                string onnode ; "[ANY]"
+            ){
+                if(onnode.length>0) {
+                    inspected_node = retrive_ptr(onnode);
+                    inspector_panel.reload;
+                    inspected_node = deadptr;
+                }
+            };
 
-        "min-height" : "100vh";
-        "background-color" : pebble_color_D1;
+            hoisted div context_anchor {
+                "position" : "absolute";
+                "left" : "0px";
+                "top" : "0px";
+                "visibility" : "hidden";
+                "z-index" : "20";
+                hoisted div context_panel {
+                    panel_theme;
+                    "pointer-events" : "auto";
+                    if(is_live(inspected_node)) {
+                        int ntype = inspected_node.type;
+                        string ntypename = L#ntype;
+                        string nname = inspected_node.name;
+                        div {
+                            "display" : "flex"; "flex-direction" : "row";
+                            text ntypename;
+                            text nname {"margin" : "5px"; text_theme;};
+                        }
+
+                        textarea {
+                            "id" : "inspec_input";
+                        }
+                        button {
+                            standard_button_theme;
+                            text "RUN";
+                            "background-color" : "gainsboro";
+                            "onclick" : capture(
+                                string mycode ; "'Node node = retrive_ptr(`"+capture_ptr(inspected_node)+"`);'+getel('inspec_input').value"
+                            ){
+                                compile_and_run(unescape_html(mycode));
+                            }
+                        }
+                    }
+                }
+            }
+            string context_behaviour = capture(
+                string onnode ; "[ANY]"
+            ){
+                if(onnode.length>0) {
+                    inspected_node = retrive_ptr(onnode);
+                    context_panel.reload;
+                    inspected_node = deadptr;
+                }
+            };
+
+            if(true) {
+                script "
+                    const fragment = \""+fragment_behaviour+"\";
+                    const hoverFragment = \""+hover_behaviour+"\";
+                    const nodeID = "+js_lit(capture_ptr(~&textarea__the_sink))+";
+                    const linesID = "+js_lit(capture_node(the_lines))+";
+                    const sinkID = "+js_lit(capture_node(textarea__the_sink))+";
+                    const caretID = "+js_lit(capture_node(the_caret))+";
+                    const anchorID = "+js_lit(capture_node(inspector_anchor))+";
+
+                    const sink = document.getElementById(sinkID);
+                    const caret = document.getElementById(caretID);
+                    const anchor = document.getElementById(anchorID);
+                    const codeEl = sink.closest('.code') || sink.parentElement;
+
+                    const lines = document.getElementById(linesID);
+                    const renderFn = new Function(fill_capture(fragment, JSON.stringify(nodeID), JSON.stringify(linesID), 'this.value', 'config_str'));
+
+                    const DEBOUNCE_MS = 300;
+                    let debounce_timer = null;
+
+                    function esc(s) {
+                        return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                    }
+
+                    function paintRaw() {
+                        lines.innerHTML = sink.value.split('\\n').map(l =>
+                            '<div class=\\'line\\'><span class=\\'raw\\'>' + esc(l) + '</span></div>').join('');
+                    }
+
+                    function renderNow() {
+                        clearTimeout(debounce_timer);
+                        renderFn.call(sink);
+                    }
+
+                    sink.addEventListener('input', () => {
+                        paintRaw();
+                        clearTimeout(debounce_timer);
+                        debounce_timer = setTimeout(renderNow, DEBOUNCE_MS);
+                    });
+
+                    const selID = "+js_lit(capture_node(the_selection))+";
+                    const selEl = document.getElementById(selID);
+                    const LH = "+js_lit(code_lh)+";
+
+                    function drawSelection() {
+                        selEl.innerHTML = '';
+                        const s = sink.selectionStart, e = sink.selectionEnd;
+                        if(s === e) return;
+                        const vlines = sink.value.split('\\n');
+                        let o = 0;
+                        for(let i = 0; i < vlines.length; i++) {
+                            const len = vlines[i].length;
+                            if(o > e) break;
+                            if(e > o && s <= o + len) {
+                                const a = Math.max(s, o) - o;
+                                let b = Math.min(e, o + len) - o;
+                                if(e > o + len) b += 1;
+                                if(b > a) {
+                                    const r = document.createElement('div');
+                                    r.style.cssText = 'position:absolute;background-color:rgba(235,175,47,0.28);'
+                                        + 'left:' + a + 'ch;width:' + (b - a) + 'ch;'
+                                        + 'top:calc(' + i + ' * ' + LH + ');height:' + LH;
+                                    selEl.appendChild(r);
+                                }
+                            }
+                            o += len + 1;
+                        }
+                    }
+
+                    function drawCaret() {
+                        const pos = sink.selectionDirection === 'backward' ? sink.selectionStart : sink.selectionEnd;
+                        const before = sink.value.slice(0, pos);
+                        const y = before.split('\\n').length - 1;
+                        const x = before.length - (before.lastIndexOf('\\n') + 1);
+                        caret.style.setProperty('--x', x);
+                        caret.style.setProperty('--y', y);
+                        caret.style.animation = 'none'; caret.offsetWidth; caret.style.animation = '';
+                        drawSelection();
+                    }
+                    ['input','keyup','keydown','click','focus','select','selectionchange']
+                        .forEach(e => sink.addEventListener(e, drawCaret));
+                    document.addEventListener('selectionchange', () => {
+                        if(document.activeElement === sink) drawCaret();
+                    });
+
+                    sink.addEventListener('keydown', ev => {
+                        if(ev.key !== 'Tab') return;
+                        ev.preventDefault();
+                        sink.setRangeText('    ', sink.selectionStart, sink.selectionEnd, 'end');
+                        sink.dispatchEvent(new Event('input'));
+                    });
+
+                    const HOVER_MS = 400;
+                    let hoverTimer = null;
+                    let hoverPtr = null;
+
+                    function tokAt(cx, cy) {
+                        return document.elementsFromPoint(cx, cy)
+                            .find(e => e.classList.contains('tok') && e.dataset.ptr);
+                    }
+                    function placeAnchor(t) {
+                        const r = t.getBoundingClientRect();
+                        const c = codeEl.getBoundingClientRect();
+                        anchor.style.visibility = 'hidden';
+                        anchor.style.left = (r.left - c.left + codeEl.scrollLeft) + 'px';
+                        anchor.style.top  = (r.bottom - c.top + codeEl.scrollTop + 4) + 'px';
+                    }
+                    function hideAnchor() { anchor.style.visibility = 'hidden'; }
+                    function sendHover(ptr, tok) {
+                        placeAnchor(tok);
+                        new Function(fill_capture(hoverFragment, JSON.stringify(ptr))).call(sink);
+                    }
+
+                    new MutationObserver(() => {
+                        const p = anchor.firstElementChild;
+                        const has = p && p.childNodes.length && hoverPtr;
+                        anchor.style.visibility = has ? 'visible' : 'hidden';
+                    }).observe(anchor, {childList: true, subtree: true});
+
+                    sink.addEventListener('mousemove', ev => {
+                        const t = tokAt(ev.clientX, ev.clientY);
+                        const ptr = t ? t.dataset.ptr : null;
+                        if(ptr === hoverPtr) return;
+                        clearTimeout(hoverTimer);
+                        hoverPtr = ptr;
+                        hideAnchor();
+                        if(!ptr) return;
+                        hoverTimer = setTimeout(() => sendHover(ptr, t), HOVER_MS);
+                    });
+                    sink.addEventListener('mouseleave', () => { clearTimeout(hoverTimer); hoverPtr = null; hideAnchor(); });
+                    sink.addEventListener('input', () => { clearTimeout(hoverTimer); hoverPtr = null; hideAnchor(); });
+                    codeEl.addEventListener('scroll', hideAnchor);
+
+                    sink.dispatchEvent(new Event('input'));
+                    sink.focus();
+
+                    const contextFragment = \""+context_behaviour+"\";
+                    const ctxAnchorID = "+js_lit(capture_node(context_anchor))+";
+                    const ctxAnchor = document.getElementById(ctxAnchorID);
+
+                    let ctxOpen = false;
+                    let ctxPtr = null;
+
+                    function hideCtx() {
+                        ctxOpen = false;
+                        ctxPtr = null;
+                        ctxAnchor.style.visibility = 'hidden';
+                    }
+
+                    function placeCtx(ev) {
+                        const c = codeEl.getBoundingClientRect();
+                        ctxAnchor.style.visibility = 'hidden';
+                        ctxAnchor.style.left = (ev.clientX - c.left + codeEl.scrollLeft) + 'px';
+                        ctxAnchor.style.top  = (ev.clientY - c.top  + codeEl.scrollTop) + 'px';
+                    }
+
+                    new MutationObserver(() => {
+                        const p = ctxAnchor.firstElementChild;
+                        const has = p && p.childNodes.length && ctxOpen;
+                        ctxAnchor.style.visibility = has ? 'visible' : 'hidden';
+                        if(!has) return;
+                        const r = ctxAnchor.getBoundingClientRect();
+                        const c = codeEl.getBoundingClientRect();
+                        if(r.right > c.right)   ctxAnchor.style.left = (parseFloat(ctxAnchor.style.left) - (r.right - c.right)) + 'px';
+                        if(r.bottom > c.bottom) ctxAnchor.style.top  = (parseFloat(ctxAnchor.style.top)  - r.height) + 'px';
+                    }).observe(ctxAnchor, {childList: true, subtree: true});
+
+                    sink.addEventListener('contextmenu', ev => {
+                        const t = tokAt(ev.clientX, ev.clientY);
+                        if(!t) { hideCtx(); return; }          
+                        ev.preventDefault();
+                        clearTimeout(hoverTimer); hoverPtr = null; hideAnchor();  
+                        placeCtx(ev);
+                        ctxOpen = true;
+                        ctxPtr = t.dataset.ptr;
+                        new Function(fill_capture(contextFragment, JSON.stringify(ctxPtr))).call(sink);
+                    });
+
+                    document.addEventListener('mousedown', ev => {
+                        if(ctxOpen && !ctxAnchor.contains(ev.target)) hideCtx();
+                    });
+                    document.addEventListener('keydown', ev => { if(ev.key === 'Escape') hideCtx(); });
+                    sink.addEventListener('input', hideCtx);
+                    codeEl.addEventListener('scroll', hideCtx);
+                    window.addEventListener('blur', hideCtx);
+                ";
+            }
+        }
+
+        button {
+            standard_button_theme;
+            text "RUN";
+            "background-color" : "gainsboro";
+            "onclick" : capture(
+                string mycode ; "getel("+js_lit(capture_node(textarea__the_sink))+").value"
+            ){
+                compile_and_run(unescape_html(mycode));
+            }
+        }
     }
 }
